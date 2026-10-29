@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contour Map Designer</title>
+  <meta name="description" content="Choose any area of the British hills and send it to us as a layout for a laser-cut contour map.">
+  <link rel="stylesheet" href="vendor/maplibre-gl.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M3 26 12 10l5 8 4-5 8 13Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M8 26c3-4 6-5 9-4s6 0 8-3" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+      <div>
+        <h1 id="brand-name">Contour Map Designer</h1>
+        <p id="brand-tagline" class="tagline"></p>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="map-wrap" aria-label="Map">
+      <div id="map"></div>
+      <div id="frame" class="frame" aria-hidden="true">
+        <span class="frame-size" id="frame-size"></span>
+        <span class="frame-scale" id="frame-scale"></span>
+      </div>
+      <p class="map-hint">Drag and zoom the map. Whatever sits inside the frame becomes your design.</p>
+    </section>
+
+    <aside class="panel">
+      <ol class="steps">
+        <li class="step">
+          <h2><span class="num">1</span> Find your hills</h2>
+          <label class="field">
+            <span>Search a fell, Munro or peak</span>
+            <input id="hill-search" type="search" list="hill-names" placeholder="e.g. Helvellyn" autocomplete="off">
+            <datalist id="hill-names"></datalist>
+          </label>
+          <div class="chips" id="regions"></div>
+        </li>
+
+        <li class="step">
+          <h2><span class="num">2</span> Pick a board size</h2>
+          <div class="chips" id="sizes" role="radiogroup" aria-label="Board size"></div>
+          <div class="row custom-size">
+            <label class="field small"><span>Width (mm)</span><input id="size-w" type="number" min="50" max="1000" step="1"></label>
+            <label class="field small"><span>Height (mm)</span><input id="size-h" type="number" min="50" max="1000" step="1"></label>
+          </div>
+        </li>
+
+        <li class="step">
+          <h2><span class="num">3</span> Style it</h2>
+          <div class="seg" role="radiogroup" aria-label="Design style">
+            <label><input type="radio" name="style" value="layered" checked><span>Layered (stacked boards)</span></label>
+            <label><input type="radio" name="style" value="engraved"><span>Single engraved board</span></label>
+          </div>
+          <div class="row">
+            <label class="field small">
+              <span>Contour every</span>
+              <select id="interval">
+                <option value="10">10 m</option>
+                <option value="20">20 m</option>
+                <option value="25">25 m</option>
+                <option value="50" selected>50 m</option>
+                <option value="75">75 m</option>
+                <option value="100">100 m</option>
+                <option value="150">150 m</option>
+              </select>
+            </label>
+            <label class="field small">
+              <span>Smoothing</span>
+              <select id="smoothing">
+                <option value="0">None (sharp)</option>
+                <option value="1" selected>Light</option>
+                <option value="2">Medium</option>
+                <option value="3">Strong</option>
+              </select>
+            </label>
+          </div>
+          <fieldset class="lists">
+            <legend>Name these hills</legend>
+            <div id="lists"></div>
+            <label class="check"><input type="checkbox" id="osm-peaks"> Other named peaks from OpenStreetMap</label>
+          </fieldset>
+          <div class="row">
+            <label class="field small">
+              <span>Labels</span>
+              <select id="label-mode">
+                <option value="name">Name</option>
+                <option value="name-height" selected>Name and height</option>
+                <option value="none">No labels</option>
+              </select>
+            </label>
+            <label class="field small">
+              <span>Text size</span>
+              <select id="font-mm">
+                <option value="2.5">Small</option>
+                <option value="3.5" selected>Medium</option>
+                <option value="5">Large</option>
+              </select>
+            </label>
+          </div>
+        </li>
+
+        <li class="step">
+          <h2><span class="num">4</span> Preview and send</h2>
+          <button id="generate" class="btn primary" type="button">Create my layout</button>
+          <p id="status" class="status" role="status"></p>
+        </li>
+      </ol>
+    </aside>
+  </main>
+
+  <dialog id="result" class="result">
+    <form method="dialog" class="result-close"><button class="btn ghost" aria-label="Close">✕</button></form>
+    <h2>Your layout</h2>
+    <div class="result-grid">
+      <div>
+        <div id="preview" class="preview"></div>
+        <ul id="stats" class="stats"></ul>
+        <div class="row">
+          <button id="download" class="btn" type="button">Download SVG</button>
+          <button id="copy-link" class="btn" type="button">Copy share link</button>
+        </div>
+      </div>
+      <form id="order" class="order">
+        <h3>Send it to us</h3>
+        <label class="field"><span>Your name</span><input name="name" required autocomplete="name"></label>
+        <label class="field"><span>Email</span><input name="email" type="email" required autocomplete="email"></label>
+        <div class="row">
+          <label class="field small"><span>Material</span>
+            <select name="material">
+              <option>Birch plywood</option>
+              <option>Oak veneer MDF</option>
+              <option>Coloured acrylic</option>
+              <option>Not sure – advise me</option>
+            </select>
+          </label>
+          <label class="field small"><span>Layer thickness</span><select name="thickness" id="thickness"></select></label>
+        </div>
+        <label class="field"><span>Anything else? (title, engraving, frame, gift message)</span><textarea name="notes" rows="3"></textarea></label>
+        <button class="btn primary" type="submit">Send request</button>
+        <p id="order-status" class="status" role="status"></p>
+      </form>
+    </div>
+  </dialog>
+
+  <footer class="site-footer">
+    <p>Hill names and heights: <a href="https://www.hill-bagging.co.uk/dobih">The Database of British and Irish Hills</a> v18.6, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.
+    Elevation: <a href="https://registry.opendata.aws/terrain-tiles/">AWS Terrain Tiles</a> (<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">sources</a>, incl. Environment Agency LIDAR © Crown copyright).
+    Peaks and street map © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors.</p>
+  </footer>
+
+  <script src="vendor/maplibre-gl.js"></script>
+  <script src="vendor/maplibre-contour.min.js"></script>
+  <script src="vendor/d3-array.min.js"></script>
+  <script src="vendor/d3-contour.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
