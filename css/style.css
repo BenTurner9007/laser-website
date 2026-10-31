@@ -384,3 +384,5 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .route-panel p { margin: 0 0 10px; font-size: .9rem; }
 .route-panel .row .btn { flex: 1; }
 #route-points { color: var(--muted); }
+.field-note { margin: 4px 0 0; font-size: .8rem; color: var(--muted); }
+.field-note:empty { display: none; }

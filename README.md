@@ -12,7 +12,10 @@ board size, and send it as a layout for a laser-cut contour map.
    zoom the map underneath it. For the clock the frame is round and shows the
    numbers and hour marks, so customers can see where they land on their hills.
 3. **Style it**: layered (stacked boards) or a single engraved board, the
-   contour interval, smoothing, and which hill lists to name.
+   contour interval, smoothing, which hill lists to name, and which water to
+   add: lake and reservoir shores, rivers and canals, streams and
+   becks, and coastline (shown on the map as they choose; the data ships with
+   the site, so nothing outside is needed).
 4. **Mark a special place** (optional): up to 3 draggable markers, each with
    a shape (heart, star, pin, circle, house, cross, diamond, triangle) and
    their own label, e.g. "Where we got engaged", at 5, 8 or 12 mm. The
@@ -34,7 +37,9 @@ board size, and send it as a layout for a laser-cut contour map.
   - one Inkscape layer per contour level (`Layer 00 base`, `Layer 01 (200 m)` …)
   - **red** = cut, **blue** = score/glue guide (the outline of the layer
     above), **black** = engrave (filled shapes: names, markers, special
-    places, the route and clock numbers)
+    places, the route and clock numbers), **green** = water score lines
+    (lake shores, rivers, streams, coastline) on their own colour so you can
+    give them a light line pass
   - all layers sit in register on top of each other, so separate or nest them
     onto sheets in Inkscape/LightBurn before cutting
   - islands and holes smaller than about 2 × 2 mm are removed, as they are too
@@ -131,11 +136,28 @@ js/viewer3d.js        3D preview of the stacked layers (three.js)
 js/shapes.js          special place marker shapes
 js/text.js            label text to outlines (opentype.js)
 js/route.js           route files, share-link encoding, route band
+js/water.js           loads rivers, lakes and coastline from data/water/
+data/water/           UK water tiles, 0.1° each (built by scripts/build-water.py)
 data/clock-305.json   clock face template (built by scripts/build-clock.py)
 data/hills.geojson    636 named hills (built by scripts/build-hills.mjs)
 fonts/                map label glyphs (Noto Sans, OFL)
 vendor/               MapLibre GL JS 4.7.1, maplibre-contour 0.1.0, d3-contour 4.0.2, three.js r169, polygon-clipping 0.15.7, opentype.js 1.3.4
 ```
+
+### Updating the water data
+
+`data/water/` holds about 4,900 small tiles (39 MB in all) covering the UK and
+Ireland. They come from [Overture Maps](https://overturemaps.org), a cleaned-up
+copy of OpenStreetMap. To refresh them (OpenStreetMap is edited all the time):
+
+```
+pip install pyarrow shapely requests
+python3 scripts/build-water.py download   # ~470 MB, UK parts only
+python3 scripts/build-water.py build      # about 4 minutes
+```
+
+To use a newer Overture release, change `RELEASE` at the top of the script.
+Tiny ponds (under 1,500 m²), ditches, drains and swimming pools are left out.
 
 ### Updating the hill data
 
@@ -160,6 +182,9 @@ list ids to the extract, rebuild, and add the list to `HILL_LISTS` in
   (Mapzen Terrarium), which combine several sources including Environment
   Agency LIDAR (© Crown copyright). See the
   [attribution list](https://github.com/tilezen/joerd/blob/master/docs/attribution.md).
+- **Water**: © [OpenStreetMap](https://www.openstreetmap.org/copyright)
+  contributors (ODbL), via [Overture Maps](https://overturemaps.org). Built into
+  `data/water/` by `scripts/build-water.py`, so no outside service is needed.
 - **Libraries**: MapLibre GL JS (BSD-3), maplibre-contour (BSD-3), d3-contour
   and d3-array (ISC), three.js (MIT), polygon-clipping (MIT), opentype.js (MIT). Licences are in
   `vendor/`. Engraving font: Noto Sans (SIL OFL 1.1), in `fonts/engrave/`.

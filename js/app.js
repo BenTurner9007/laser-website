@@ -4,6 +4,7 @@ import { buildLayout, DEM_URL } from "./layout.js";
 import { createViewer } from "./viewer3d.js";
 import { SHAPES, DEFAULT_SHAPE, PLACE_SIZES, shapeIcon } from "./shapes.js";
 import { parseRouteFile, encodeRoute, decodeRoute, routeLengthKm } from "./route.js";
+import { WATER_KINDS, fetchWater } from "./water.js";
 
 const $ = (s) => document.querySelector(s);
 const FONT = ["NotoSans-Regular"];
@@ -28,6 +29,10 @@ const state = {
   // Customers' special places: { lng, lat, shape, label }.
   places: parsePlaces(params.get("poi")),
   placeMm: +params.get("psz") || PLACE_SIZES[1].mm,
+  // Water features to engrave (ids from WATER_KINDS).
+  water: params.has("wtr")
+    ? new Set(params.get("wtr").split(",").filter((id) => WATER_KINDS.some((k) => k.id === id)))
+    : new Set(WATER_KINDS.filter((k) => k.on).map((k) => k.id)),
   // Hiking route: lines of [lng, lat], engraved as a band.
   route: {
     lines: safeDecodeRoute(params.get("rt")),
@@ -120,6 +125,7 @@ const map = new maplibregl.Map({
       // Same data again without labels, so the dots still draw if label fonts fail to load.
       "hills-pts": { type: "geojson", data: "data/hills.geojson" },
       route: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
+      water: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       "route-draft": { type: "geojson", data: { type: "FeatureCollection", features: [] } },
     },
     layers: [
@@ -145,6 +151,17 @@ const map = new maplibregl.Map({
         filter: [">", ["get", "level"], 0],
         layout: { "symbol-placement": "line", "text-size": 10, "text-field": ["concat", ["to-string", ["get", "ele"]], " m"], "text-font": FONT },
         paint: { "text-color": "#685e52", "text-halo-color": "#efe2c8", "text-halo-width": 1.2 },
+      },
+      {
+        id: "water-lines",
+        type: "line",
+        source: "water",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": "#2f6f9f",
+          "line-width": ["match", ["get", "kind"], "rivers", 2.2, "coast", 2, "lakes", 1.6, 1],
+          "line-opacity": 0.9,
+        },
       },
       {
         id: "route-casing",
@@ -429,6 +446,7 @@ function shareLink(b) {
       ? { poi: JSON.stringify(state.places.map((p) => [+p.lng.toFixed(5), +p.lat.toFixed(5), p.shape, p.label])), psz: state.placeMm }
       : {}),
     ...(state.route.lines.length ? { rt: encodeRoute(state.route.lines), rs: state.route.style, rw: state.route.widthMm } : {}),
+    wtr: [...state.water].join(","),
     font: state.fontMm,
     lists: [...state.lists].join(","),
     t: $("#thickness").value,
@@ -443,6 +461,13 @@ $("#generate").addEventListener("click", async () => {
   const b = pinnedMatchesFrame() ? pinnedBounds : frameBounds();
   try {
     setStatus("Fetching elevation data…");
+    // Water tiles ship with the site; if one fails to load, carry on without water.
+    let water = null, waterFailed = false;
+    try {
+      water = await waterFor(b);
+    } catch {
+      waterFailed = true;
+    }
     const result = await buildLayout(
       {
         bounds: b,
@@ -458,11 +483,12 @@ $("#generate").addEventListener("click", async () => {
         places: state.places,
         placeMm: state.placeMm,
         route: state.route.lines.length ? state.route : null,
+        water,
         guides: true,
       },
       (f) => setStatus(`Fetching elevation data… ${Math.round(f * 100)}%`)
     );
-    lastResult = { ...result, bounds: b, link: shareLink(b), ref: makeRef() };
+    lastResult = { ...result, bounds: b, link: shareLink(b), ref: makeRef(), waterFailed };
     showResult();
     setStatus("");
   } catch (err) {
@@ -492,9 +518,13 @@ function renderStats() {
     ["Named peaks", lastResult.peaksPlaced],
     ...(state.places.length ? [["Special places", lastResult.places.length]] : []),
     ...(state.route.lines.length ? [["Route", `${routeLengthKm(state.route.lines).toFixed(1)} km`]] : []),
+    ...(state.water.size && !lastResult.waterFailed ? [["Water", waterLabel()]] : []),
   ];
   if (m.style === "layered") items.push(["Stack height", `≈ ${stackHeight()} mm`]);
   let html = items.map(([k, v]) => `<li>${k}: <b>${escapeHtml(v)}</b></li>`).join("");
+  if (lastResult.waterFailed) {
+    html += `<li class="status error">Couldn’t load rivers and lakes just now, so this layout has none. Close this and try again.</li>`;
+  }
   if (state.route.lines.length && !lastResult.routeOnBoard) {
     html += `<li class="status error">Your route is outside the ${m.template ? "clock face" : "frame"}, so not included. Close this and use “Fit frame to route”.</li>`;
   }
@@ -639,6 +669,7 @@ $("#order").addEventListener("submit", async (e) => {
     ...lastResult.places.map(
       (p) => `Special place: ${SHAPES[p.shape].label} "${p.label || "(no label)"}" at ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)} (${p.sizeMm} mm marker)`
     ),
+    ...(state.water.size && !lastResult.waterFailed ? [`Water: ${waterLabel()}`] : []),
     ...(lastResult.routeOnBoard
       ? [`Route: ${routeLengthKm(state.route.lines).toFixed(1)} km, ${state.route.style} line, ${state.route.widthMm} mm (included in the design link)`]
       : []),
@@ -927,3 +958,65 @@ $("#route-style").addEventListener("change", (e) => {
 $("#route-width").addEventListener("change", (e) => (state.route.widthMm = +e.target.value));
 
 onStyleReady(renderRoute);
+
+// ---------- Water: rivers, lakes and coastline ----------
+const waterLabel = () =>
+  WATER_KINDS.filter((k) => state.water.has(k.id))
+    .map((k) => k.label.split(/[ ,&]/)[0].toLowerCase())
+    .join(", ");
+
+// Only the kinds the customer picked, from whatever was fetched.
+async function waterFor(bounds) {
+  const kinds = [...state.water];
+  if (!kinds.length) return null;
+  const all = await fetchWater(bounds, kinds);
+  return Object.fromEntries(kinds.map((k) => [k, all[k]]));
+}
+
+const WATER_MAX_METRES = 40000;
+let waterTimer;
+
+async function showWater() {
+  const note = $("#water-note");
+  const empty = { type: "FeatureCollection", features: [] };
+  if (!state.water.size) {
+    map.getSource("water").setData(empty);
+    note.textContent = "";
+    return;
+  }
+  // Fetch the visible map, not just the frame, so panning a little needs no refetch.
+  const c = map.getContainer();
+  const nw = map.unproject([0, 0]), se = map.unproject([c.clientWidth, c.clientHeight]);
+  const view = { west: nw.lng, north: nw.lat, east: se.lng, south: se.lat };
+  if (groundWidthMetres(view) > WATER_MAX_METRES) {
+    map.getSource("water").setData(empty);
+    note.textContent = "Zoom in to see rivers and lakes on the map.";
+    return;
+  }
+  note.textContent = "Loading rivers and lakes…";
+  try {
+    const water = await waterFor(view);
+    const features = Object.entries(water).flatMap(([kind, lines]) =>
+      lines.map((l) => ({ type: "Feature", properties: { kind }, geometry: { type: "LineString", coordinates: l } }))
+    );
+    map.getSource("water").setData({ type: "FeatureCollection", features });
+    note.textContent = "Water © OpenStreetMap contributors.";
+  } catch {
+    note.textContent = "Couldn’t load rivers and lakes just now.";
+  }
+}
+const showWaterSoon = () => {
+  clearTimeout(waterTimer);
+  waterTimer = setTimeout(showWater, 700);
+};
+
+$("#water-kinds").innerHTML = WATER_KINDS.map(
+  (k) => `<label class="check"><input type="checkbox" value="${k.id}" ${state.water.has(k.id) ? "checked" : ""}> ${k.label}</label>`
+).join("");
+$("#water-kinds").addEventListener("change", (e) => {
+  if (e.target.checked) state.water.add(e.target.value);
+  else state.water.delete(e.target.value);
+  showWaterSoon();
+});
+map.on("moveend", showWaterSoon);
+onStyleReady(showWaterSoon);
