@@ -24,7 +24,17 @@ const state = {
   sharedBounds: params.get("b") ? params.get("b").split(",").map(Number) : null,
   thickness: +params.get("t") || CONFIG.defaultThickness || CONFIG.thicknesses[0],
   material: params.get("mat") || "",
+  // Board template id (e.g. the clock); null for plain rectangles.
+  template: CONFIG.sizes.find((s) => s.id === params.get("tpl") && s.template)?.id || null,
 };
+const templates = {};
+const sizeOf = (id) => CONFIG.sizes.find((s) => s.id === id);
+async function loadTemplate(id) {
+  const s = sizeOf(id);
+  if (!s?.template) return null;
+  templates[id] ??= await fetch(s.template).then((r) => r.json());
+  return templates[id];
+}
 // A shared link's exact area is used for the layout until the map is moved by hand.
 let pinnedBounds = null;
 let osmPeaks = [];
@@ -195,8 +205,26 @@ function frameRect() {
 function layoutFrame() {
   const r = frameRect();
   Object.assign(frameEl.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
-  $("#frame-size").textContent = `${state.w} × ${state.h} mm`;
+  $("#frame-size").textContent = state.template ? sizeOf(state.template).label : `${state.w} × ${state.h} mm`;
   updateScale();
+}
+
+// Round frame with the template's engraving overlaid, so customers can see
+// where the numbers will fall on their hills.
+async function renderFrameTemplate() {
+  const id = state.template;
+  frameEl.classList.toggle("round", !!id);
+  $("#frame-overlay").innerHTML = "";
+  if (!id) return;
+  const t = await loadTemplate(id);
+  if (state.template !== id) return;
+  const d = t.engrave.map((r) => "M" + r.map(([x, y]) => `${x} ${y}`).join("L") + "Z").join("");
+  const c = t.diameter / 2;
+  $("#frame-overlay").innerHTML =
+    `<svg viewBox="0 0 ${t.diameter} ${t.diameter}" preserveAspectRatio="none">` +
+    `<path d="${d}" fill-rule="evenodd"/>` +
+    (t.holeDiameter ? `<circle cx="${c}" cy="${c}" r="${t.holeDiameter / 2}"/>` : "") +
+    `</svg>`;
 }
 
 function frameBounds() {
@@ -279,7 +307,7 @@ $("#regions").addEventListener("click", (e) => {
 function renderSizes() {
   $("#sizes").innerHTML = CONFIG.sizes
     .map((s) => {
-      const on = s.w === state.w && s.h === state.h;
+      const on = state.template ? s.id === state.template : !s.template && s.w === state.w && s.h === state.h;
       return `<button type="button" class="chip" role="radio" aria-checked="${on}" data-id="${s.id}">${s.label}</button>`;
     })
     .join("");
@@ -289,7 +317,7 @@ function renderSizes() {
 $("#sizes").addEventListener("click", (e) => {
   const s = CONFIG.sizes.find((x) => x.id === e.target.dataset.id);
   if (!s) return;
-  setSize(s.w, s.h);
+  setSize(s.w, s.h, s.template ? s.id : null);
 });
 for (const id of ["#size-w", "#size-h"]) {
   $(id).addEventListener("change", () => {
@@ -298,11 +326,13 @@ for (const id of ["#size-w", "#size-h"]) {
     setSize(w, h);
   });
 }
-function setSize(w, h) {
+function setSize(w, h, template = null) {
   state.w = w;
   state.h = h;
+  state.template = template;
   renderSizes();
   layoutFrame();
+  renderFrameTemplate();
 }
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -402,6 +432,7 @@ function peaksInFrame(b) {
 function shareLink(b) {
   const p = new URLSearchParams({
     b: [b.west, b.south, b.east, b.north].map((v) => v.toFixed(5)).join(","),
+    ...(state.template ? { tpl: state.template } : {}),
     w: state.w,
     h: state.h,
     ci: state.interval,
@@ -434,6 +465,7 @@ $("#generate").addEventListener("click", async () => {
         peaks: peaksInFrame(b),
         labelMode: state.labelMode,
         fontMm: state.fontMm,
+        template: state.template ? await loadTemplate(state.template) : null,
         guides: true,
       },
       (f) => setStatus(`Fetching elevation data… ${Math.round(f * 100)}%`)
@@ -449,6 +481,9 @@ $("#generate").addEventListener("click", async () => {
   }
 });
 
+// "Clock 305 mm (Ø305 mm)" for templates, "210 × 297 mm" otherwise.
+const sizeText = (m) => (m.template ? `${m.template} (Ø${m.widthMm} mm)` : `${m.widthMm} × ${m.heightMm} mm`);
+
 const makeRef = () => "CM-" + Date.now().toString(36).toUpperCase().slice(-6);
 
 function stackHeight() {
@@ -459,7 +494,7 @@ function renderStats() {
   const m = lastResult.meta;
   const items = [
     ["Reference", lastResult.ref],
-    ["Size", `${m.widthMm} × ${m.heightMm} mm`],
+    ["Size", sizeText(m)],
     ["Heights", `${m.minElevation}–${m.maxElevation} m`],
     [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.layers - 1],
     ["Named peaks", lastResult.peaksPlaced],
@@ -503,9 +538,9 @@ function render3d() {
   const t = +$("#thickness").value;
   $("#scale-note").innerHTML =
     m.style === "layered"
-      ? `<b>${m.widthMm} × ${m.heightMm} mm</b>, <b>${m.layers} layers × ${t} mm = ${m.layers * t} mm tall</b>. ` +
+      ? `<b>${sizeText(m)}</b>, <b>${m.layers} layers × ${t} mm = ${m.layers * t} mm tall</b>. ` +
         `Map scale 1:${scale}. Each layer is ${m.interval} m of height, ${exaggeration(t)}. The ruler is in centimetres.`
-      : `<b>${m.widthMm} × ${m.heightMm} mm</b> board. Map scale 1:${scale}, contours every ${m.interval} m. The ruler is in centimetres.`;
+      : `<b>${sizeText(m)}</b> board. Map scale 1:${scale}, contours every ${m.interval} m. The ruler is in centimetres.`;
 }
 
 function selectTab(which) {
@@ -514,6 +549,8 @@ function selectTab(which) {
   $("#tab-plan").setAttribute("aria-selected", !is3d);
   $("#viewer").hidden = !is3d;
   $("#preview").hidden = is3d;
+  if (is3d) viewer?.start();
+  else viewer?.stop();
 }
 $("#tab-3d").addEventListener("click", () => selectTab("3d"));
 $("#tab-plan").addEventListener("click", () => selectTab("plan"));
@@ -595,7 +632,7 @@ $("#order").addEventListener("submit", async (e) => {
   const m = lastResult.meta;
   const summary = [
     `Reference: ${lastResult.ref}`,
-    `Board: ${m.widthMm} x ${m.heightMm} mm, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}`,
+    `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}`,
     `Contours every ${m.interval} m, smoothing ${m.smoothing}, heights ${m.minElevation}-${m.maxElevation} m`,
     `Material: ${fd.material}`,
     `Area (W,S,E,N): ${[m.bounds.west, m.bounds.south, m.bounds.east, m.bounds.north].map((v) => v.toFixed(5)).join(", ")}`,
@@ -630,4 +667,10 @@ $("#order").addEventListener("submit", async (e) => {
   status.className = "status ok";
 });
 
+if (state.template) {
+  const s = sizeOf(state.template);
+  state.w = s.w;
+  state.h = s.h;
+}
 renderSizes();
+renderFrameTemplate();

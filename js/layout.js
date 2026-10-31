@@ -4,7 +4,7 @@
 // Contours are traced with d3-contour as filled regions, so each contour
 // level is a closed shape that can be cut from one sheet and stacked.
 
-/* global d3 */
+/* global d3, polygonClipping */
 
 export const DEM_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 const DEM_MAXZOOM = 15;
@@ -165,6 +165,52 @@ function cleanPolygons(mp, sx, sy) {
   return out;
 }
 
+// --- Board templates (e.g. a round clock face) ---
+function circleRing(cx, cy, r, segments = 360) {
+  const ring = [];
+  for (let i = 0; i < segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    ring.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+  }
+  return ring;
+}
+
+// polygon-clipping repeats each ring's first point at the end; drop it and tiny bits.
+function tidy(mp) {
+  const out = [];
+  for (const polygon of mp) {
+    const rings = [];
+    for (let k = 0; k < polygon.length; k++) {
+      const ring = polygon[k].slice(0, -1);
+      if (ring.length < 3 || ringArea(ring) < MIN_FEATURE_MM2) {
+        if (k === 0) break;
+        continue;
+      }
+      rings.push(ring);
+    }
+    if (rings.length) out.push(rings);
+  }
+  return out;
+}
+
+const clip = (op, a, ...b) => {
+  if (!a.length) return [];
+  return tidy(polygonClipping[op](a, ...b.filter((p) => p.length)));
+};
+
+/** The board shape and engraving for a template, in layout millimetres. */
+function templateGeometry(t, W, H) {
+  const r = Math.min(W, H) / 2, cx = W / 2, cy = H / 2;
+  const board = [[circleRing(cx, cy, r)]];
+  if (t.holeDiameter) board[0].push(circleRing(cx, cy, t.holeDiameter / 2, 120).reverse());
+  // Template coordinates are relative to its own diameter; scale to this board.
+  const k = (2 * r) / t.diameter;
+  const rings = t.engrave.map((ring) => ring.map(([x, y]) => [cx - r + x * k, cy - r + y * k]));
+  // XOR turns the separate rings into shapes with holes (the inside of a 6 or 9).
+  const engrave = tidy(polygonClipping.xor(...rings.map((ring) => [[[...ring, ring[0]]]])));
+  return { board, engrave, cx, cy, r };
+}
+
 const polygonsToPath = (polys) =>
   polys.flat().map((r) => "M" + r.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join("L") + "Z").join("");
 
@@ -183,6 +229,7 @@ const esc = (s) =>
  * @param {"name"|"name-height"|"none"} o.labelMode
  * @param {number} o.fontMm
  * @param {boolean} o.guides   engrave each next layer's outline as a glue guide
+ * @param {object} [o.template]  board template, e.g. data/clock-305.json
  */
 export async function buildLayout(o, onProgress) {
   const grid = await fetchElevationGrid(o.bounds, onProgress);
@@ -198,14 +245,33 @@ export async function buildLayout(o, onProgress) {
 
   const W = o.widthMm, H = o.heightMm, sx = W / gw, sy = H / gh;
   const contours = d3.contours().size([gw, gh]).smooth(true).thresholds(levels)(values);
-  const rect = `M0 0H${W}V${H}H0Z`;
+  const tpl = o.template ? templateGeometry(o.template, W, H) : null;
+  const boardPolys = tpl ? tpl.board : [[[[0, 0], [W, 0], [W, H], [0, H]]]];
+  const outline = polygonsToPath(boardPolys);
   // Layer 0 is the base board; layer i>0 is the area at or above levels[i-1].
-  const layers = [{ elevation: Math.round(minE), d: rect, polys: [[[[0, 0], [W, 0], [W, H], [0, H]]]] }].concat(
+  const layers = [{ elevation: Math.round(minE), d: outline, polys: boardPolys }].concat(
     contours.map((c) => {
-      const polys = cleanPolygons(c, sx, sy);
+      let polys = cleanPolygons(c, sx, sy);
+      if (tpl) polys = clip("intersection", polys, tpl.board);
       return { elevation: c.value, d: polygonsToPath(polys), polys };
     })
   );
+  while (layers.length > 1 && !layers[layers.length - 1].polys.length) layers.pop();
+
+  // Template engraving goes on whichever layer is on top at that spot.
+  const engrave = [];
+  if (tpl) {
+    if (o.style === "engraved") engrave.push({ layer: 0, polys: tpl.engrave });
+    else {
+      layers.forEach((l, i) => {
+        const onLayer = clip("intersection", tpl.engrave, l.polys);
+        const visible = layers[i + 1] ? clip("difference", onLayer, layers[i + 1].polys) : onLayer;
+        if (visible.length) engrave.push({ layer: i, polys: visible });
+      });
+    }
+  }
+  const engravePath = (i) =>
+    engrave.filter((e) => e.layer === i).map((e) => `<path d="${polygonsToPath(e.polys)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>`).join("\n");
 
   // Place peaks that fall inside the frame on the layer they stand on.
   const z = zoom;
@@ -216,9 +282,11 @@ export async function buildLayout(o, onProgress) {
     const gx = ((lngToX(p.lng, z) - fx0) / (fx1 - fx0)) * gw;
     const gy = ((latToY(p.lat, z) - fy0) / (fy1 - fy0)) * gh;
     if (gx < 0 || gy < 0 || gx >= gw || gy >= gh) continue;
+    if (tpl && Math.hypot(gx * sx - tpl.cx, gy * sy - tpl.cy) > tpl.r - o.fontMm) continue;
     const v = values[Math.floor(gy) * gw + Math.floor(gx)];
     let layer = 0;
     while (layer < levels.length && levels[layer] <= v) layer++;
+    layer = Math.min(layer, layers.length - 1);
     placed.push({ ...p, x: gx * sx, y: gy * sy, layer });
   }
 
@@ -237,7 +305,7 @@ export async function buildLayout(o, onProgress) {
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
-    style: o.style, fontMm: o.fontMm, layers: layers.length, minElevation: Math.round(minE), maxElevation: Math.round(maxE), demZoom: zoom,
+    style: o.style, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length, minElevation: Math.round(minE), maxElevation: Math.round(maxE), demZoom: zoom,
   };
   const head =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
@@ -251,14 +319,15 @@ export async function buildLayout(o, onProgress) {
 
   let body = "";
   if (o.style === "engraved") {
-    body += `<g inkscape:groupmode="layer" inkscape:label="Board">\n${line(rect, COLOURS.cut)}\n`;
+    body += `<g inkscape:groupmode="layer" inkscape:label="Board">\n${line(outline, COLOURS.cut)}\n`;
     for (const l of layers.slice(1)) body += line(l.d, COLOURS.guide) + "\n";
-    body += placed.map(label).join("\n") + "\n</g>\n";
+    body += engravePath(0) + "\n" + placed.map(label).join("\n") + "\n</g>\n";
   } else {
     layers.forEach((l, i) => {
       const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.elevation} m)`;
       body += `<g inkscape:groupmode="layer" inkscape:label="${name}" id="layer-${i}">\n${line(l.d, COLOURS.cut)}\n`;
       if (o.guides && layers[i + 1]) body += line(layers[i + 1].d, COLOURS.guide) + "\n";
+      body += engravePath(i) + "\n";
       body += placed.filter((p) => p.layer === i).map(label).join("\n");
       body += "\n</g>\n";
     });
@@ -273,12 +342,13 @@ export async function buildLayout(o, onProgress) {
   };
   let preview =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="Arial, Helvetica, sans-serif">` +
-    `<rect width="${W}" height="${H}" fill="${tone(0)}"/>`;
+    `<path d="${outline}" fill="${tone(0)}" fill-rule="evenodd"/>`;
   layers.slice(1).forEach((l, i) => {
     preview += `<path d="${l.d}" fill="${tone(i + 1)}" fill-rule="evenodd" stroke="rgba(60,30,10,.55)" stroke-width="${Math.max(W, H) / 900}"/>`;
   });
+  if (tpl) preview += `<path d="${polygonsToPath(tpl.engrave)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>`;
   preview += placed.map(label).join("") + "</svg>";
 
   const labels = o.labelMode === "none" ? [] : placed.map((p) => ({ x: p.x, y: p.y, layer: p.layer, text: labelText(p) }));
-  return { svg, preview, meta, layers, labels, peaksPlaced: placed.length };
+  return { svg, preview, meta, layers, labels, engrave, peaksPlaced: placed.length };
 }

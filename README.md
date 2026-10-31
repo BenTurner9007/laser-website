@@ -7,9 +7,10 @@ board size, and send it as a layout for a laser-cut contour map.
 
 1. **Find their hills**: search any Wainwright, Munro, Welsh 3000, Ethel or
    Dales 30 hill, or jump to a region.
-2. **Pick a board size**: A4, A3, square, coaster or custom millimetres. A
-   fixed frame shows exactly what will be cut; they pan and zoom the map
-   underneath it.
+2. **Pick a board size**: A4, A3, square, coaster, custom millimetres, or the
+   **305 mm clock**. A fixed frame shows exactly what will be cut; they pan and
+   zoom the map underneath it. For the clock the frame is round and shows the
+   numbers and hour marks, so customers can see where they land on their hills.
 3. **Style it**: layered (stacked boards) or a single engraved board, the
    contour interval, smoothing, and which hill lists to name.
 4. **Preview and send**: an interactive **3D model** of the finished piece
@@ -55,6 +56,30 @@ To change the key, put the new hash there:
 This keeps the button away from customers. It is not strong security: the
 layout is built in the browser, so a technical person could still extract it.
 
+## Clock template
+
+"Clock 305 mm" turns the layout into a round clock face, from
+`scripts/source/clock-305.dxf`:
+
+- **Outer circle**: every layer is trimmed to the circle (cut, red).
+- **Numbers and hour marks**: engraved (black fill). On layered maps each part
+  is engraved on whichever layer is on top at that spot, so a number crossing
+  several contour levels is split across those layers.
+- **10 mm centre circle**: treated as the **hole for the clock movement** and
+  cut through every layer that covers the centre.
+
+To change the clock or add another template, export a DXF with the outline on
+`Layer_0` and the engraving on `Layer_2` (plus an optional centre circle), then:
+
+```
+pip install ezdxf
+python3 scripts/build-clock.py path/to/new.dxf data/new-template.json
+```
+
+and add a size to `sizes` in `js/config.js`, e.g.
+`{ id: "clock250", label: "Clock 250 mm", w: 250, h: 250, template: "data/new-template.json" }`.
+Templates are round and scale to the size given.
+
 ## Setting it up
 
 Edit [`js/config.js`](js/config.js):
@@ -92,9 +117,10 @@ js/config.js          business settings, regions, hill lists
 js/app.js             map, frame, form and share link
 js/layout.js          elevation download, contour tracing, SVG output
 js/viewer3d.js        3D preview of the stacked layers (three.js)
+data/clock-305.json   clock face template (built by scripts/build-clock.py)
 data/hills.geojson    636 named hills (built by scripts/build-hills.mjs)
 fonts/                map label glyphs (Noto Sans, OFL)
-vendor/               MapLibre GL JS 4.7.1, maplibre-contour 0.1.0, d3-contour 4.0.2, three.js r169
+vendor/               MapLibre GL JS 4.7.1, maplibre-contour 0.1.0, d3-contour 4.0.2, three.js r169, polygon-clipping 0.15.7
 ```
 
 ### Updating the hill data
@@ -125,7 +151,7 @@ list ids to the extract, rebuild, and add the list to `HILL_LISTS` in
   community services, so keep their use light. If the site gets busy, switch
   the street map to a paid tile provider.
 - **Libraries**: MapLibre GL JS (BSD-3), maplibre-contour (BSD-3), d3-contour
-  and d3-array (ISC), three.js (MIT). Licences are in `vendor/`.
+  and d3-array (ISC), three.js (MIT), polygon-clipping (MIT). Licences are in `vendor/`.
 
 Elevation data is accurate enough for decorative work. It is not survey-grade,
 and summit heights in the layout come from the hill database rather than the

@@ -226,6 +226,16 @@ export function createViewer(container) {
       model.add(mesh);
     });
 
+    // Template engraving (clock numbers etc.) as dark shapes on the layer they sit on.
+    const engraveMat = new THREE.MeshBasicMaterial({ color: ENGRAVE, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+    for (const e of result.engrave || []) {
+      const geo = new THREE.ShapeGeometry(shapesFor(e.polys, W, H));
+      geo.rotateX(-Math.PI / 2);
+      const mesh = new THREE.Mesh(geo, engraveMat);
+      mesh.position.y = (e.layer + 1) * boardT + 0.04;
+      model.add(mesh);
+    }
+
     for (const l of result.labels) {
       const layer = style === "engraved" ? 0 : l.layer;
       const fontMm = result.meta.fontMm || 3.5;
@@ -289,6 +299,13 @@ export function createViewer(container) {
 
   return {
     show,
+    // Pause drawing while the 3D view is hidden, so it doesn't compete with the page.
+    start() {
+      if (running || !model.children.length) return;
+      running = true;
+      resize();
+      loop();
+    },
     stop() {
       running = false;
     },

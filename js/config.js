@@ -19,6 +19,9 @@ export const CONFIG = {
     { id: "sq30", label: "Square 300 mm", w: 300, h: 300 },
     { id: "sq20", label: "Square 200 mm", w: 200, h: 200 },
     { id: "coaster", label: "Coaster 100 mm", w: 100, h: 100 },
+    // Board templates: shape, engraving and centre hole come from the JSON
+    // file (built from a DXF by scripts/build-clock.py).
+    { id: "clock305", label: "Clock 305 mm", w: 305, h: 305, template: "data/clock-305.json" },
   ],
 
   // Material thicknesses offered for layered designs, in millimetres.
