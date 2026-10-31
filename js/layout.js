@@ -25,6 +25,7 @@ export const COLOURS = {
   water: "#00e000",
   number: "#ff8000", // assembly numbers, hidden under the piece above
   numberVisible: "#ff00ff", // ids of pieces with nothing on top (would show)
+  sheet: "#999999", // sheet edges, for reference only
 };
 const NUMBER_MM = 4; // assembly number size
 
@@ -474,8 +475,9 @@ export async function buildLayout(o, onProgress) {
     fill(p.visibleNumbers, COLOURS.numberVisible);
   const legend =
     `<!-- Red = cut, blue = glue guide, black = engrave, green = water score lines, ` +
-    `orange = assembly numbers (hidden once glued), magenta = numbers on pieces with nothing on top. ` +
-    `Elevation: AWS Terrain Tiles (Mapzen). Hills: Database of British and Irish Hills v18.6, CC BY 4.0. -->\n`;
+    `orange = assembly numbers (hidden once glued), magenta = numbers on pieces with nothing on top, ` +
+    `grey = sheet edges (don't cut). Top left: the assembled model for reference. To the right: the same pieces ` +
+    `laid flat on cutting sheets, one layer per sheet; cut one sheet at a time. Elevation: AWS Terrain Tiles (Mapzen). Hills: Database of British and Irish Hills v18.6, CC BY 4.0. -->\n`;
   const svgOpen = (w, h, metaObj) =>
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" ` +
@@ -484,57 +486,63 @@ export async function buildLayout(o, onProgress) {
     legend;
 
   /**
-   * Pieces laid flat on cutting sheets: one SVG per sheet, plus a contents
-   * list. Layered layouts only.
-   * @param {{w:number, h:number, marginMm:number, gapMm:number}} sheet
+   * The production SVG: the assembled model at the top left and, for layered
+   * maps, the same pieces laid flat on cutting sheets to its right (two per
+   * row), each sheet its own layer.
+   * @param {{w:number, h:number, marginMm:number, gapMm:number}} [sheet]
+   * @returns {{text: string, sheets: number, oversize: number}}
    */
-  const buildSheets = (sheet) => {
-    const all = getPieces().flat();
-    const { sheets } = nestPieces(all, sheet);
-    const n = sheets.length;
-    const files = sheets.map((s, k) => {
-      const ids = s.placements.map((pl) => pl.piece.id);
-      const name = `sheet-${String(k + 1).padStart(2, "0")}-of-${String(n).padStart(2, "0")}${s.oversize ? "-OVERSIZE" : ""}.svg`;
-      let body = `<g inkscape:groupmode="layer" inkscape:label="Sheet ${k + 1} of ${n}">\n`;
+  const buildSvg = (sheet) => {
+    const pieces = o.style === "engraved" ? null : getPieces();
+    let assembled = "";
+    if (o.style === "engraved") {
+      assembled += `<g inkscape:groupmode="layer" inkscape:label="Board">\n${line(outline, COLOURS.cut)}\n`;
+      for (const l of layers.slice(1)) assembled += line(l.d, COLOURS.guide) + "\n";
+      assembled += engravePath(0) + "\n" + waterPath(0) + "</g>\n";
+    } else {
+      layers.forEach((l, i) => {
+        const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.elevation} m)`;
+        assembled += `<g inkscape:groupmode="layer" inkscape:label="${name}" id="layer-${i}">\n`;
+        for (const p of pieces[i]) assembled += `<g id="piece-${p.id}" inkscape:label="Piece ${p.id}">\n${pieceContent(p)}</g>\n`;
+        assembled += "</g>\n";
+      });
+    }
+
+    // Cutting sheets, laid out in a grid to the right of the model.
+    const sheets = pieces && sheet ? nestPieces(pieces.flat(), sheet).sheets : [];
+    const GAP = 40, COLS = 2, x0 = W + 60;
+    const cellW = Math.max(0, ...sheets.map((s) => s.w)), cellH = Math.max(0, ...sheets.map((s) => s.h));
+    let sheetsSvg = "";
+    sheets.forEach((s, k) => {
+      const sx = x0 + (k % COLS) * (cellW + GAP), sy = Math.floor(k / COLS) * (cellH + GAP);
+      const title = `Sheet ${k + 1} of ${sheets.length}${s.oversize ? " (OVERSIZE)" : ""}`;
+      sheetsSvg += `<g inkscape:groupmode="layer" inkscape:label="${title}" id="sheet-${k + 1}" transform="translate(${sx} ${sy})">\n`;
+      sheetsSvg += `<rect width="${s.w}" height="${s.h}" fill="none" stroke="${COLOURS.sheet}" stroke-width="0.1" inkscape:label="Sheet edge (don't cut)"/>\n`;
       for (const pl of s.placements) {
         const t = `translate(${pl.tx.toFixed(2)} ${pl.ty.toFixed(2)})${pl.deg ? ` rotate(${pl.deg})` : ""}`;
-        body += `<g id="piece-${pl.piece.id}" inkscape:label="Piece ${pl.piece.id}" transform="${t}">\n${pieceContent(pl.piece)}</g>\n`;
+        sheetsSvg += `<g id="sheet-${k + 1}-piece-${pl.piece.id}" inkscape:label="Piece ${pl.piece.id}" transform="${t}">\n${pieceContent(pl.piece)}</g>\n`;
       }
-      body += "</g>\n";
-      return { name, ids, text: svgOpen(s.w, s.h, { ...meta, sheet: k + 1, sheets: n, sheetMm: [s.w, s.h], pieces: ids }) + body + "</svg>\n" };
+      sheetsSvg += "</g>\n";
     });
-    const byLayer = (a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b);
-    const contents =
-      `Cut sheets: ${n} x ${sheet.w} x ${sheet.h} mm (${sheet.marginMm} mm border, ${sheet.gapMm} mm between pieces)\n` +
-      `Pieces: ${all.length} on ${layers.length} layers. Glue up from layer 0; each piece's id is engraved as #id\n` +
-      `and the id of each piece that goes on it is inside its glue outline.\n\n` +
-      files.map((f, k) => `${f.name}${sheets[k].oversize ? "  (piece is bigger than a sheet)" : ""}\n  ${[...f.ids].sort(byLayer).join(", ")}`).join("\n\n") +
-      "\n";
-    return { files: [...files.map(({ name, text }) => ({ name, text })), { name: "contents.txt", text: contents }], sheets: n, oversize: sheets.filter((s) => s.oversize).length };
-  };
+    const rows = Math.ceil(sheets.length / COLS);
+    const totalW = sheets.length ? x0 + Math.min(COLS, sheets.length) * cellW + (Math.min(COLS, sheets.length) - 1) * GAP : W;
+    const totalH = Math.max(H, rows * cellH + Math.max(0, rows - 1) * GAP);
 
-  const buildSvg = () => {
-    const pieces = o.style === "engraved" ? null : getPieces();
+    const byLayer = (a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b);
     const fileMeta = {
       ...meta,
       pieces: pieces?.flat().length,
       // Pieces too small to carry their number; match these by shape.
       unnumberedPieces: pieces?.flat().filter((p) => p.noOwnLabel).map((p) => p.id),
+      sheetMm: sheet && sheets.length ? [sheet.w, sheet.h] : undefined,
+      sheets: sheets.map((s, k) => ({ sheet: k + 1, oversize: s.oversize || undefined, pieces: s.placements.map((pl) => pl.piece.id).sort(byLayer) })),
     };
-    let body = "";
-    if (o.style === "engraved") {
-      body += `<g inkscape:groupmode="layer" inkscape:label="Board">\n${line(outline, COLOURS.cut)}\n`;
-      for (const l of layers.slice(1)) body += line(l.d, COLOURS.guide) + "\n";
-      body += engravePath(0) + "\n" + waterPath(0) + "</g>\n";
-    } else {
-      layers.forEach((l, i) => {
-        const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.elevation} m)`;
-        body += `<g inkscape:groupmode="layer" inkscape:label="${name}" id="layer-${i}">\n`;
-        for (const p of pieces[i]) body += `<g id="piece-${p.id}" inkscape:label="Piece ${p.id}">\n${pieceContent(p)}</g>\n`;
-        body += "</g>\n";
-      });
-    }
-    return svgOpen(W, H, fileMeta) + "<g>\n" + body + "</g>\n</svg>\n";
+    const text =
+      svgOpen(totalW, totalH, fileMeta) +
+      `<g inkscape:groupmode="layer" inkscape:label="Assembled model (reference)" id="assembled">\n${assembled}</g>\n` +
+      sheetsSvg +
+      "</svg>\n";
+    return { text, sheets: sheets.length, oversize: sheets.filter((s) => s.oversize).length };
   };
 
   // Preview: stacked layers filled light-to-dark like real plywood.
@@ -552,5 +560,5 @@ export async function buildLayout(o, onProgress) {
   for (const w of water) preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="#1f3f5c" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
   preview += `<path d="${polygonsToPath(allMarks)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/></svg>`;
 
-  return { buildSvg, buildSheets: o.style === "engraved" ? null : buildSheets, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
+  return { buildSvg, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }

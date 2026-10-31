@@ -5,7 +5,6 @@ import { createViewer } from "./viewer3d.js";
 import { SHAPES, DEFAULT_SHAPE, PLACE_SIZES, shapeIcon } from "./shapes.js";
 import { parseRouteFile, encodeRoute, decodeRoute, routeLengthKm } from "./route.js";
 import { WATER_KINDS, fetchWater } from "./water.js";
-import { zipFiles } from "./zip.js";
 
 const $ = (s) => document.querySelector(s);
 const FONT = ["NotoSans-Regular"];
@@ -598,8 +597,6 @@ function showResult() {
   renderStats();
   $("#order-status").textContent = "";
   $("#owner-note").textContent = "";
-  // Single engraved boards are one piece: nothing to lay out.
-  $("#download-sheets").hidden = !ownerMode || !lastResult.buildSheets;
   $("#result").showModal();
   if (!$("#tab-3d").hidden) selectTab("3d");
   render3d();
@@ -623,9 +620,7 @@ async function sha256(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
-let ownerMode = false;
 function setOwnerMode(on) {
-  ownerMode = on;
   for (const el of document.querySelectorAll(".owner-only")) el.hidden = !on;
   $("#owner-badge").hidden = !on;
 }
@@ -651,33 +646,6 @@ async function initOwnerMode() {
 }
 initOwnerMode();
 
-// Owner: pieces laid flat on cutting sheets, one SVG per sheet in a ZIP.
-$("#download-sheets").addEventListener("click", () => {
-  const btn = $("#download-sheets");
-  const label = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "Laying out pieces…";
-  setTimeout(() => {
-    try {
-      const s = CONFIG.sheet;
-      lastResult.sheets ??= lastResult.buildSheets(s);
-      const { files, sheets, oversize } = lastResult.sheets;
-      const blob = zipFiles(files.map((f) => ({ ...f, name: `${lastResult.ref}/${f.name}` })));
-      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `contour-sheets-${lastResult.ref}.zip` });
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      $("#owner-note").textContent =
-        `${sheets} sheet${sheets > 1 ? "s" : ""} of ${s.w} × ${s.h} mm` + (oversize ? ` – ${oversize} piece${oversize > 1 ? "s are" : " is"} bigger than a sheet (marked OVERSIZE).` : ".");
-    } catch (err) {
-      console.error(err);
-      $("#owner-note").textContent = "Couldn’t lay out the sheets – the assembled SVG still works.";
-    } finally {
-      btn.disabled = false;
-      btn.textContent = label;
-    }
-  }, 50);
-});
-
 $("#download").addEventListener("click", () => {
   const btn = $("#download");
   const label = btn.textContent;
@@ -686,11 +654,22 @@ $("#download").addEventListener("click", () => {
   // Let the button update before the (few seconds of) work starts.
   setTimeout(() => {
     try {
-      lastResult.svg ??= lastResult.buildSvg();
-      const blob = new Blob([lastResult.svg], { type: "image/svg+xml" });
+      // Assembled model plus the pieces laid flat on cutting sheets.
+      lastResult.svg ??= lastResult.buildSvg(CONFIG.sheet);
+      const { text, sheets, oversize } = lastResult.svg;
+      const blob = new Blob([text], { type: "image/svg+xml" });
       const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `contour-layout-${lastResult.ref}.svg` });
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      if (sheets) {
+        const s = CONFIG.sheet;
+        $("#owner-note").textContent =
+          `Includes ${sheets} cutting sheet${sheets > 1 ? "s" : ""} of ${s.w} × ${s.h} mm` +
+          (oversize ? ` – ${oversize} piece${oversize > 1 ? "s are" : " is"} bigger than a sheet (marked OVERSIZE).` : ".");
+      }
+    } catch (err) {
+      console.error(err);
+      $("#owner-note").textContent = "Couldn’t build the SVG – please try again.";
     } finally {
       btn.disabled = false;
       btn.textContent = label;
