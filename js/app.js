@@ -22,7 +22,6 @@ const state = {
   labelMode: params.get("labels") || "name-height",
   fontMm: +params.get("font") || 3.5,
   lists: params.has("lists") ? new Set(params.get("lists").split(",").filter(Boolean)) : new Set(HILL_LISTS.filter((l) => l.on).map((l) => l.id)),
-  osm: params.get("osm") === "1",
   sharedBounds: params.get("b") ? params.get("b").split(",").map(Number) : null,
   thickness: +params.get("t") || CONFIG.defaultThickness || CONFIG.thicknesses[0],
   material: params.get("mat") || "",
@@ -66,7 +65,6 @@ function parsePlaces(text) {
 }
 // A shared link's exact area is used for the layout until the map is moved by hand.
 let pinnedBounds = null;
-let osmPeaks = [];
 let lastResult = null;
 
 // ---------- Branding ----------
@@ -121,7 +119,6 @@ const map = new maplibregl.Map({
       },
       // Same data again without labels, so the dots still draw if label fonts fail to load.
       "hills-pts": { type: "geojson", data: "data/hills.geojson" },
-      osmpeaks: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       route: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       "route-draft": { type: "geojson", data: { type: "FeatureCollection", features: [] } },
     },
@@ -148,19 +145,6 @@ const map = new maplibregl.Map({
         filter: [">", ["get", "level"], 0],
         layout: { "symbol-placement": "line", "text-size": 10, "text-field": ["concat", ["to-string", ["get", "ele"]], " m"], "text-font": FONT },
         paint: { "text-color": "#685e52", "text-halo-color": "#efe2c8", "text-halo-width": 1.2 },
-      },
-      {
-        id: "osmpeaks-dots",
-        type: "circle",
-        source: "osmpeaks",
-        paint: { "circle-radius": 3, "circle-color": "#8a8173", "circle-stroke-color": "#fff", "circle-stroke-width": 1 },
-      },
-      {
-        id: "osmpeaks-labels",
-        type: "symbol",
-        source: "osmpeaks",
-        layout: { "text-field": ["get", "name"], "text-font": FONT, "text-size": 11, "text-offset": [0, 0.9], "text-anchor": "top", "text-optional": true },
-        paint: { "text-color": "#4b443b", "text-halo-color": "#fff", "text-halo-width": 1.2 },
       },
       {
         id: "route-casing",
@@ -314,7 +298,6 @@ onStyleReady(() => {
     const [west, south, east, north] = state.sharedBounds;
     pinnedBounds = { west, south, east, north };
   }
-  if (state.osm) loadOsmPeaks();
 });
 
 // ---------- Step 1: search and regions ----------
@@ -418,48 +401,6 @@ $("#lists").addEventListener("change", (e) => {
   map.setFilter("hills-labels", f);
 });
 
-$("#osm-peaks").checked = state.osm;
-$("#osm-peaks").addEventListener("change", (e) => {
-  state.osm = e.target.checked;
-  if (state.osm) loadOsmPeaks();
-  else {
-    osmPeaks = [];
-    map.getSource("osmpeaks").setData({ type: "FeatureCollection", features: [] });
-  }
-});
-map.on("moveend", () => {
-  if (state.osm) loadOsmPeaksDebounced();
-});
-
-let osmTimer;
-function loadOsmPeaksDebounced() {
-  clearTimeout(osmTimer);
-  osmTimer = setTimeout(loadOsmPeaks, 800);
-}
-
-async function loadOsmPeaks() {
-  const b = frameBounds();
-  if (groundWidthMetres(b) > 60000) {
-    setStatus("Zoom in a little to load extra OpenStreetMap peaks.");
-    return;
-  }
-  const pad = 0.02;
-  const q = `[out:json][timeout:20];node["natural"~"^(peak|hill)$"]["name"](${b.south - pad},${b.west - pad},${b.north + pad},${b.east + pad});out body;`;
-  try {
-    const res = await fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: new URLSearchParams({ data: q }) });
-    if (!res.ok) throw new Error(res.status);
-    const json = await res.json();
-    osmPeaks = json.elements.map((n) => ({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [n.lon, n.lat] },
-      properties: { name: n.tags.name, h: Math.round(parseFloat(n.tags.ele)) || null },
-    }));
-    map.getSource("osmpeaks").setData({ type: "FeatureCollection", features: osmPeaks });
-  } catch {
-    setStatus("Couldn’t reach OpenStreetMap for extra peaks just now – the main hill lists still work.", "error");
-  }
-}
-
 // ---------- Step 4: generate ----------
 function setStatus(msg, kind = "") {
   const el = $("#status");
@@ -469,18 +410,9 @@ function setStatus(msg, kind = "") {
 
 function peaksInFrame(b) {
   const inside = ([lng, lat]) => lng >= b.west && lng <= b.east && lat >= b.south && lat <= b.north;
-  const peaks = hillIndex
+  return hillIndex
     .filter((f) => inside(f.geometry.coordinates) && [...state.lists].some((id) => f.properties.lists.includes(`,${id},`)))
     .map((f) => ({ name: f.properties.name, h: f.properties.h, lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }));
-  if (state.osm) {
-    // Skip OSM peaks already covered by a listed hill (within ~150 m).
-    const near = (a, p) => Math.abs(a.lng - p.lng) < 0.0025 && Math.abs(a.lat - p.lat) < 0.0014;
-    for (const f of osmPeaks) {
-      const p = { name: f.properties.name, h: f.properties.h, lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] };
-      if (inside([p.lng, p.lat]) && !peaks.some((a) => near(a, p))) peaks.push(p);
-    }
-  }
-  return peaks;
 }
 
 function shareLink(b) {
@@ -499,7 +431,6 @@ function shareLink(b) {
     ...(state.route.lines.length ? { rt: encodeRoute(state.route.lines), rs: state.route.style, rw: state.route.widthMm } : {}),
     font: state.fontMm,
     lists: [...state.lists].join(","),
-    osm: state.osm ? "1" : "0",
     t: $("#thickness").value,
     mat: $("#material").value,
   });

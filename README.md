@@ -160,9 +160,6 @@ list ids to the extract, rebuild, and add the list to `HILL_LISTS` in
   (Mapzen Terrarium), which combine several sources including Environment
   Agency LIDAR (© Crown copyright). See the
   [attribution list](https://github.com/tilezen/joerd/blob/master/docs/attribution.md).
-- **Optional extra peaks**: © [OpenStreetMap](https://www.openstreetmap.org/copyright)
-  contributors, via the Overpass API, a free community service, so keep its
-  use light.
 - **Libraries**: MapLibre GL JS (BSD-3), maplibre-contour (BSD-3), d3-contour
   and d3-array (ISC), three.js (MIT), polygon-clipping (MIT), opentype.js (MIT). Licences are in
   `vendor/`. Engraving font: Noto Sans (SIL OFL 1.1), in `fonts/engrave/`.
