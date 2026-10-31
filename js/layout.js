@@ -11,6 +11,7 @@ import { loadFonts, textRings } from "./text.js";
 import { routeBand } from "./route.js";
 import { WATER_KINDS } from "./water.js";
 import { splitIntoPieces, numberPieces } from "./pieces.js";
+import { nestPieces } from "./nest.js";
 
 export const DEM_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 const DEM_MAXZOOM = 15;
@@ -460,10 +461,60 @@ export async function buildLayout(o, onProgress) {
 
   // The production SVG takes a few seconds (numbering every piece), so it is
   // only built when someone downloads it.
+  // Layered: each layer is a group of its separate pieces, so they can be
+  // nested on sheets; each piece carries its glue guides, engraving and numbers.
+  let piecesCache = null;
+  const getPieces = () => (piecesCache ??= numberPieces(splitIntoPieces(layers, engrave, water), NUMBER_MM));
+  const pieceContent = (p) =>
+    line(polygonsToPath([p.poly]), COLOURS.cut) + "\n" +
+    (o.guides && p.children.length ? line(polygonsToPath(p.children.map((c) => c.poly)), COLOURS.guide) + "\n" : "") +
+    (p.engrave.length ? `<path d="${polygonsToPath(p.engrave)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>\n` : "") +
+    (p.water.length ? `<path d="${linesToPath(p.water)}" fill="none" stroke="${COLOURS.water}" stroke-width="0.1"/>\n` : "") +
+    fill(p.numbers, COLOURS.number) +
+    fill(p.visibleNumbers, COLOURS.numberVisible);
+  const legend =
+    `<!-- Red = cut, blue = glue guide, black = engrave, green = water score lines, ` +
+    `orange = assembly numbers (hidden once glued), magenta = numbers on pieces with nothing on top. ` +
+    `Elevation: AWS Terrain Tiles (Mapzen). Hills: Database of British and Irish Hills v18.6, CC BY 4.0. -->\n`;
+  const svgOpen = (w, h, metaObj) =>
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" ` +
+    `width="${w}mm" height="${h}mm" viewBox="0 0 ${w} ${h}">\n` +
+    `<metadata>${esc(JSON.stringify(metaObj))}</metadata>\n` +
+    legend;
+
+  /**
+   * Pieces laid flat on cutting sheets: one SVG per sheet, plus a contents
+   * list. Layered layouts only.
+   * @param {{w:number, h:number, marginMm:number, gapMm:number}} sheet
+   */
+  const buildSheets = (sheet) => {
+    const all = getPieces().flat();
+    const { sheets } = nestPieces(all, sheet);
+    const n = sheets.length;
+    const files = sheets.map((s, k) => {
+      const ids = s.placements.map((pl) => pl.piece.id);
+      const name = `sheet-${String(k + 1).padStart(2, "0")}-of-${String(n).padStart(2, "0")}${s.oversize ? "-OVERSIZE" : ""}.svg`;
+      let body = `<g inkscape:groupmode="layer" inkscape:label="Sheet ${k + 1} of ${n}">\n`;
+      for (const pl of s.placements) {
+        const t = `translate(${pl.tx.toFixed(2)} ${pl.ty.toFixed(2)})${pl.deg ? ` rotate(${pl.deg})` : ""}`;
+        body += `<g id="piece-${pl.piece.id}" inkscape:label="Piece ${pl.piece.id}" transform="${t}">\n${pieceContent(pl.piece)}</g>\n`;
+      }
+      body += "</g>\n";
+      return { name, ids, text: svgOpen(s.w, s.h, { ...meta, sheet: k + 1, sheets: n, sheetMm: [s.w, s.h], pieces: ids }) + body + "</svg>\n" };
+    });
+    const byLayer = (a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b);
+    const contents =
+      `Cut sheets: ${n} x ${sheet.w} x ${sheet.h} mm (${sheet.marginMm} mm border, ${sheet.gapMm} mm between pieces)\n` +
+      `Pieces: ${all.length} on ${layers.length} layers. Glue up from layer 0; each piece's id is engraved as #id\n` +
+      `and the id of each piece that goes on it is inside its glue outline.\n\n` +
+      files.map((f, k) => `${f.name}${sheets[k].oversize ? "  (piece is bigger than a sheet)" : ""}\n  ${[...f.ids].sort(byLayer).join(", ")}`).join("\n\n") +
+      "\n";
+    return { files: [...files.map(({ name, text }) => ({ name, text })), { name: "contents.txt", text: contents }], sheets: n, oversize: sheets.filter((s) => s.oversize).length };
+  };
+
   const buildSvg = () => {
-    // Layered: each layer is a group of its separate pieces, so they can be
-    // nested on sheets; each piece carries its glue guides, engraving and numbers.
-    const pieces = o.style === "engraved" ? null : numberPieces(splitIntoPieces(layers, engrave, water), NUMBER_MM);
+    const pieces = o.style === "engraved" ? null : getPieces();
     const fileMeta = {
       ...meta,
       pieces: pieces?.flat().length,
@@ -479,28 +530,11 @@ export async function buildLayout(o, onProgress) {
       layers.forEach((l, i) => {
         const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.elevation} m)`;
         body += `<g inkscape:groupmode="layer" inkscape:label="${name}" id="layer-${i}">\n`;
-        for (const p of pieces[i]) {
-          body += `<g id="piece-${p.id}" inkscape:label="Piece ${p.id}">\n${line(polygonsToPath([p.poly]), COLOURS.cut)}\n`;
-          if (o.guides && p.children.length) body += line(polygonsToPath(p.children.map((c) => c.poly)), COLOURS.guide) + "\n";
-          if (p.engrave.length) body += `<path d="${polygonsToPath(p.engrave)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>\n`;
-          if (p.water.length) body += `<path d="${linesToPath(p.water)}" fill="none" stroke="${COLOURS.water}" stroke-width="0.1"/>\n`;
-          body += fill(p.numbers, COLOURS.number) + fill(p.visibleNumbers, COLOURS.numberVisible);
-          body += "</g>\n";
-        }
+        for (const p of pieces[i]) body += `<g id="piece-${p.id}" inkscape:label="Piece ${p.id}">\n${pieceContent(p)}</g>\n`;
         body += "</g>\n";
       });
     }
-    return (
-      `<?xml version="1.0" encoding="UTF-8"?>\n` +
-      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" ` +
-      `width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}">\n` +
-      `<metadata>${esc(JSON.stringify(fileMeta))}</metadata>\n` +
-      `<!-- Red = cut, blue = glue guide, black = engrave, green = water score lines, ` +
-      `orange = assembly numbers (hidden once glued), magenta = numbers on pieces with nothing on top. ` +
-      `Each layer group holds one group per piece. Elevation: AWS Terrain Tiles (Mapzen). ` +
-      `Hills: Database of British and Irish Hills v18.6, CC BY 4.0. -->\n` +
-      `<g>\n${body}</g>\n</svg>\n`
-    );
+    return svgOpen(W, H, fileMeta) + "<g>\n" + body + "</g>\n</svg>\n";
   };
 
   // Preview: stacked layers filled light-to-dark like real plywood.
@@ -518,5 +552,5 @@ export async function buildLayout(o, onProgress) {
   for (const w of water) preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="#1f3f5c" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
   preview += `<path d="${polygonsToPath(allMarks)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/></svg>`;
 
-  return { buildSvg, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
+  return { buildSvg, buildSheets: o.style === "engraved" ? null : buildSheets, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }

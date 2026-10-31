@@ -53,7 +53,15 @@ board size, and send it as a layout for a laser-cut contour map.
     score lines, **orange** = hidden assembly numbers, **magenta** = visible ids.
     Give each its own LightBurn layer; orange and green suit a quick light pass
   - all pieces sit in register (as assembled), so the file also shows the
-    whole model; nest the pieces onto sheets before cutting
+    whole model
+- **Cut sheets** (owner mode, layered maps): the same pieces laid flat on your
+  sheets (600 × 400 mm by default), packed biggest-first and rotated to fit,
+  with small pieces tucked into gaps and holes. Downloads as a ZIP of one SVG
+  per sheet (origin at the sheet corner, ready to cut) plus `contents.txt`
+  listing the pieces on each sheet. Pieces are at least 2 mm apart with a
+  5 mm border. A piece bigger than a sheet gets its own file marked
+  `OVERSIZE`. Tip: with pieces nested inside others' holes, turn on
+  LightBurn's "cut inner shapes first"
   - islands and holes smaller than about 2 × 2 mm are removed, as they are too
     fragile to cut
   - the order details (bounds, interval, layer count, elevation range) are
@@ -121,6 +129,7 @@ Edit [`js/config.js`](js/config.js):
 | `thicknesses` | Material thicknesses, used to estimate stack height |
 | `defaultThickness` | Thickness pre-selected on the order form |
 | `ownerKeyHash` | Hash of your private owner key (see above) |
+| `sheet` | Cutting sheet size, border and gap between pieces for the cut-sheets download |
 | `maxLayers` | Above this, customers see a hint to use a larger contour interval |
 
 ## Publishing on GitHub Pages
@@ -146,6 +155,9 @@ js/app.js             map, frame, form and share link
 js/layout.js          elevation download, contour tracing, SVG output
 js/viewer3d.js        3D preview of the stacked layers (three.js)
 js/shapes.js          special place marker shapes
+js/pieces.js          splits layers into numbered pieces with glue outlines
+js/nest.js            packs pieces onto cutting sheets
+js/zip.js             bundles the sheet files into one download
 js/text.js            label text to outlines (opentype.js)
 js/route.js           route files, share-link encoding, route band
 js/water.js           loads rivers, lakes and coastline from data/water/

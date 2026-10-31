@@ -34,6 +34,9 @@ export const CONFIG = {
   // never see the button. Change the key with: printf %s 'new-key' | sha256sum
   ownerKeyHash: "7cadbf249dcd2fafe249b54ce1fa0ca11fd43127bdf1e75716da65d5fb92819c",
 
+  // Your cutting sheets, for the "laid out flat" download (millimetres).
+  sheet: { w: 600, h: 400, marginMm: 5, gapMm: 2 },
+
   // Largest layer count you are willing to quote automatically.
   maxLayers: 30,
 };

@@ -91,13 +91,38 @@ export function splitIntoPieces(layers, engrave = [], water = []) {
   return byLayer;
 }
 
+// A piece drawn into an off-screen image once, so "is this point on the
+// piece?" is a pixel lookup instead of a walk round thousands of edge points.
+const MASK_PX_PER_MM = 4;
+function maskOf(region) {
+  if (region.mask) return region.mask;
+  const k = MASK_PX_PER_MM, b = region.bbox;
+  const w = Math.max(1, Math.ceil((b.x1 - b.x0) * k) + 2), h = Math.max(1, Math.ceil((b.y1 - b.y0) * k) + 2);
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const g = c.getContext("2d", { willReadFrequently: true });
+  g.setTransform(k, 0, 0, k, (1 - b.x0 * k), (1 - b.y0 * k));
+  g.fill(new Path2D(region.poly.map((r) => "M" + r.map(([x, y]) => `${x} ${y}`).join("L") + "Z").join("")), "evenodd");
+  const px = g.getImageData(0, 0, w, h).data;
+  // Only fully covered pixels count, so edge pixels err on the safe side.
+  const on = new Uint8Array(w * h);
+  for (let i = 0; i < on.length; i++) on[i] = px[i * 4 + 3] === 255 ? 1 : 0;
+  region.mask = ([x, y]) => {
+    const ix = Math.floor((x - b.x0) * k + 1), iy = Math.floor((y - b.y0) * k + 1);
+    return ix >= 0 && iy >= 0 && ix < w && iy < h && on[iy * w + ix] === 1;
+  };
+  return region.mask;
+}
+
 const overlaps = (a, b, gap) => a.x0 - gap < b.x1 && b.x0 - gap < a.x1 && a.y0 - gap < b.y1 && b.y0 - gap < a.y1;
 
 /**
  * Best centre for a w x h box inside poly, at least `gap` from `taken`
  * boxes and `margin` from the edge. Prefers the middle of the space that fits.
  */
-function findSpot(poly, bbox, w, h, taken, margin = 0.8, gap = margin) {
+function findSpot(region, w, h, taken, margin = 0.8, gap = margin) {
+  const bbox = region.bbox, isIn = maskOf(region);
   const bw = bbox.x1 - bbox.x0, bh = bbox.y1 - bbox.y0;
   const fw = w + margin * 2, fh = h + margin * 2;
   if (bw < fw || bh < fh) return null;
@@ -111,7 +136,7 @@ function findSpot(poly, bbox, w, h, taken, margin = 0.8, gap = margin) {
       // 5 x 3 sample points over the box plus margin.
       for (let iy = 0; iy < 3 && ok; iy++) {
         for (let ix = 0; ix < 5 && ok; ix++) {
-          ok = inside(poly, [cx - fw / 2 + (fw * ix) / 4, cy - fh / 2 + (fh * iy) / 2]);
+          ok = isIn([cx - fw / 2 + (fw * ix) / 4, cy - fh / 2 + (fh * iy) / 2]);
         }
       }
       if (ok) fits.push([cx, cy]);
@@ -145,7 +170,7 @@ function placeLabel(text, regions, taken, sizeMm, gapMm = 0) {
     for (const upright of [false, true]) {
       for (const r of regions) {
         const margin = Math.min(0.8, size * 0.2);
-        const spot = findSpot(r.poly, r.bbox, upright ? h : w, upright ? w : h, taken, margin, Math.max(margin, gapMm));
+        const spot = findSpot(r, upright ? h : w, upright ? w : h, taken, margin, Math.max(margin, gapMm));
         if (spot) {
           const l = label(text, spot[0], spot[1], size, upright);
           taken.push(l.box);
@@ -182,5 +207,6 @@ export function numberPieces(byLayer, sizeMm = 4) {
       }
     }
   }
+  for (const p of byLayer.flat()) delete p.mask; // free the images
   return byLayer;
 }
