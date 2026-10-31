@@ -24,6 +24,11 @@ export const CONFIG = {
   // Material thicknesses offered for layered designs, in millimetres.
   thicknesses: [3, 4, 6],
 
+  // SHA-256 of your private owner key. Open the site once with ?owner=<key>
+  // and that browser will show "Download SVG" on every layout. Customers
+  // never see the button. Change the key with: printf %s 'new-key' | sha256sum
+  ownerKeyHash: "7cadbf249dcd2fafe249b54ce1fa0ca11fd43127bdf1e75716da65d5fb92819c",
+
   // Largest layer count you are willing to quote automatically.
   maxLayers: 30,
 };

@@ -23,6 +23,7 @@
       </div>
     </div>
     <p class="header-note">Cut to order in the UK · Birch, oak or acrylic</p>
+    <p id="owner-badge" class="owner-badge" hidden>Owner mode · <button type="button" id="owner-exit" class="link-btn">turn off</button></p>
   </header>
 
   <main class="layout">
@@ -124,11 +125,19 @@
     <h2>Your layout</h2>
     <div class="result-grid">
       <div>
-        <div id="preview" class="preview"></div>
+        <div class="view-tabs" role="tablist" aria-label="Preview">
+          <button type="button" role="tab" class="tab" id="tab-3d" aria-selected="true" aria-controls="viewer">3D view</button>
+          <button type="button" role="tab" class="tab" id="tab-plan" aria-selected="false" aria-controls="preview">Flat plan</button>
+        </div>
+        <div id="viewer" class="viewer" role="tabpanel" aria-labelledby="tab-3d">
+          <p class="viewer-hint">Drag to turn · scroll or pinch to zoom</p>
+        </div>
+        <div id="preview" class="preview" role="tabpanel" aria-labelledby="tab-plan" hidden></div>
+        <p id="scale-note" class="scale-note"></p>
         <ul id="stats" class="stats"></ul>
         <div class="row">
-          <button id="download" class="btn" type="button">Download SVG</button>
           <button id="copy-link" class="btn" type="button">Copy share link</button>
+          <button id="download" class="btn owner-only" type="button" hidden>Download SVG (owner)</button>
         </div>
       </div>
       <form id="order" class="order">
@@ -137,7 +146,7 @@
         <label class="field"><span>Email</span><input name="email" type="email" required autocomplete="email"></label>
         <div class="row">
           <label class="field small"><span>Material</span>
-            <select name="material">
+            <select name="material" id="material">
               <option>Birch plywood</option>
               <option>Oak veneer MDF</option>
               <option>Coloured acrylic</option>
@@ -163,6 +172,7 @@
   <script src="vendor/maplibre-contour.min.js"></script>
   <script src="vendor/d3-array.min.js"></script>
   <script src="vendor/d3-contour.min.js"></script>
+  <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

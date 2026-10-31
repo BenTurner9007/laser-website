@@ -146,21 +146,27 @@ function simplify(points, tol) {
   return points.filter((_, i) => keep[i]);
 }
 
-function multiPolygonToPath(mp, sx, sy) {
-  let d = "";
+// Scale a d3 MultiPolygon to millimetres, dropping fragile bits and simplifying.
+// Returns polygons as [outerRing, ...holeRings].
+function cleanPolygons(mp, sx, sy) {
+  const out = [];
   for (const polygon of mp.coordinates) {
+    const rings = [];
     for (let k = 0; k < polygon.length; k++) {
       const ring = polygon[k].map(([x, y]) => [x * sx, y * sy]);
       if (ringArea(ring) < MIN_FEATURE_MM2) {
         if (k === 0) break; // outer ring too small: skip the polygon and its holes
         continue;
       }
-      const pts = simplify(ring, SIMPLIFY_MM);
-      d += "M" + pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join("L") + "Z";
+      rings.push(simplify(ring, SIMPLIFY_MM));
     }
+    if (rings.length) out.push(rings);
   }
-  return d;
+  return out;
 }
+
+const polygonsToPath = (polys) =>
+  polys.flat().map((r) => "M" + r.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join("L") + "Z").join("");
 
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]);
@@ -194,8 +200,11 @@ export async function buildLayout(o, onProgress) {
   const contours = d3.contours().size([gw, gh]).smooth(true).thresholds(levels)(values);
   const rect = `M0 0H${W}V${H}H0Z`;
   // Layer 0 is the base board; layer i>0 is the area at or above levels[i-1].
-  const layers = [{ elevation: Math.round(minE), d: rect }].concat(
-    contours.map((c) => ({ elevation: c.value, d: multiPolygonToPath(c, sx, sy) }))
+  const layers = [{ elevation: Math.round(minE), d: rect, polys: [[[[0, 0], [W, 0], [W, H], [0, H]]]] }].concat(
+    contours.map((c) => {
+      const polys = cleanPolygons(c, sx, sy);
+      return { elevation: c.value, d: polygonsToPath(polys), polys };
+    })
   );
 
   // Place peaks that fall inside the frame on the layer they stand on.
@@ -213,9 +222,10 @@ export async function buildLayout(o, onProgress) {
     placed.push({ ...p, x: gx * sx, y: gy * sy, layer });
   }
 
+  const labelText = (p) => (o.labelMode === "name-height" ? `${p.name} ${p.h} m` : p.name);
   const label = (p) => {
     if (o.labelMode === "none") return "";
-    const text = o.labelMode === "name-height" ? `${p.name} ${p.h} m` : p.name;
+    const text = labelText(p);
     const m = o.fontMm * 0.45; // marker half-size
     const right = p.x < W * 0.72;
     const tx = right ? p.x + m * 1.8 : p.x - m * 1.8;
@@ -227,7 +237,7 @@ export async function buildLayout(o, onProgress) {
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
-    style: o.style, layers: layers.length, minElevation: Math.round(minE), maxElevation: Math.round(maxE), demZoom: zoom,
+    style: o.style, fontMm: o.fontMm, layers: layers.length, minElevation: Math.round(minE), maxElevation: Math.round(maxE), demZoom: zoom,
   };
   const head =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
@@ -269,5 +279,6 @@ export async function buildLayout(o, onProgress) {
   });
   preview += placed.map(label).join("") + "</svg>";
 
-  return { svg, preview, meta, peaksPlaced: placed.length };
+  const labels = o.labelMode === "none" ? [] : placed.map((p) => ({ x: p.x, y: p.y, layer: p.layer, text: labelText(p) }));
+  return { svg, preview, meta, layers, labels, peaksPlaced: placed.length };
 }

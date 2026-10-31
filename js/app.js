@@ -1,6 +1,7 @@
 /* global maplibregl, mlcontour */
 import { CONFIG, REGIONS, HILL_LISTS } from "./config.js";
 import { buildLayout, DEM_URL } from "./layout.js";
+import { createViewer } from "./viewer3d.js";
 
 const $ = (s) => document.querySelector(s);
 const FONT = ["NotoSans-Regular"];
@@ -21,7 +22,11 @@ const state = {
   lists: params.has("lists") ? new Set(params.get("lists").split(",").filter(Boolean)) : new Set(HILL_LISTS.filter((l) => l.on).map((l) => l.id)),
   osm: params.get("osm") === "1",
   sharedBounds: params.get("b") ? params.get("b").split(",").map(Number) : null,
+  thickness: +params.get("t") || CONFIG.thicknesses[0],
+  material: params.get("mat") || "",
 };
+// A shared link's exact area is used for the layout until the map is moved by hand.
+let pinnedBounds = null;
 let osmPeaks = [];
 let lastResult = null;
 
@@ -225,11 +230,18 @@ function fitToSharedBounds() {
 
 new ResizeObserver(layoutFrame).observe($(".map-wrap"));
 map.on("move", updateScale);
+map.on("movestart", (e) => {
+  if (e.originalEvent) pinnedBounds = null;
+});
 // "load" waits for every tile; the style being ready is enough to position the map.
 const onStyleReady = (fn) => (map.isStyleLoaded() ? fn() : map.once("style.load", fn));
 onStyleReady(() => {
   layoutFrame();
-  if (state.sharedBounds?.length === 4 && state.sharedBounds.every(Number.isFinite)) fitToSharedBounds();
+  if (state.sharedBounds?.length === 4 && state.sharedBounds.every(Number.isFinite)) {
+    fitToSharedBounds();
+    const [west, south, east, north] = state.sharedBounds;
+    pinnedBounds = { west, south, east, north };
+  }
   if (state.osm) loadOsmPeaks();
 });
 
@@ -399,6 +411,8 @@ function shareLink(b) {
     font: state.fontMm,
     lists: [...state.lists].join(","),
     osm: state.osm ? "1" : "0",
+    t: $("#thickness").value,
+    mat: $("#material").value,
   });
   return `${location.origin}${location.pathname}?${p}`;
 }
@@ -406,7 +420,7 @@ function shareLink(b) {
 $("#generate").addEventListener("click", async () => {
   const btn = $("#generate");
   btn.disabled = true;
-  const b = frameBounds();
+  const b = pinnedBounds || frameBounds();
   try {
     setStatus("Fetching elevation data…");
     const result = await buildLayout(
@@ -458,15 +472,105 @@ function renderStats() {
   $("#stats").innerHTML = html;
 }
 
+// ---------- Result: 3D view, flat plan, scale ----------
+let viewer = null;
+
+function mapScale() {
+  const m = lastResult.meta;
+  return groundWidthMetres(m.bounds) / (m.widthMm / 1000);
+}
+
+// How much taller the hills look than true scale, in plain words.
+function exaggeration(t) {
+  const x = (t / 1000) * mapScale() / lastResult.meta.interval;
+  if (x < 1.3) return "so the hills are close to their true shape";
+  return `so the hills look about ${x < 3 ? x.toFixed(1) : Math.round(x)}× steeper than real life`;
+}
+
+function render3d() {
+  if (!lastResult) return;
+  try {
+    viewer ??= createViewer($("#viewer"));
+    viewer.show(lastResult, { thickness: +$("#thickness").value, material: $("#material").value });
+  } catch (err) {
+    // No WebGL: fall back to the flat plan.
+    console.error(err);
+    selectTab("plan");
+    $("#tab-3d").hidden = true;
+  }
+  const m = lastResult.meta;
+  const scale = (Math.round(mapScale() / 100) * 100).toLocaleString("en-GB");
+  const t = +$("#thickness").value;
+  $("#scale-note").innerHTML =
+    m.style === "layered"
+      ? `<b>${m.widthMm} × ${m.heightMm} mm</b>, <b>${m.layers} layers × ${t} mm = ${m.layers * t} mm tall</b>. ` +
+        `Map scale 1:${scale}. Each layer is ${m.interval} m of height, ${exaggeration(t)}. The ruler is in centimetres.`
+      : `<b>${m.widthMm} × ${m.heightMm} mm</b> board. Map scale 1:${scale}, contours every ${m.interval} m. The ruler is in centimetres.`;
+}
+
+function selectTab(which) {
+  const is3d = which === "3d";
+  $("#tab-3d").setAttribute("aria-selected", is3d);
+  $("#tab-plan").setAttribute("aria-selected", !is3d);
+  $("#viewer").hidden = !is3d;
+  $("#preview").hidden = is3d;
+}
+$("#tab-3d").addEventListener("click", () => selectTab("3d"));
+$("#tab-plan").addEventListener("click", () => selectTab("plan"));
+$("#result").addEventListener("close", () => viewer?.stop());
+
 function showResult() {
   $("#preview").innerHTML = lastResult.preview;
   renderStats();
   $("#order-status").textContent = "";
   $("#result").showModal();
+  if (!$("#tab-3d").hidden) selectTab("3d");
+  render3d();
 }
 
 $("#thickness").innerHTML = CONFIG.thicknesses.map((t) => `<option value="${t}">${t} mm</option>`).join("");
-$("#thickness").addEventListener("change", () => lastResult && renderStats());
+if (CONFIG.thicknesses.includes(state.thickness)) $("#thickness").value = String(state.thickness);
+if ([...$("#material").options].some((o) => o.value === state.material)) $("#material").value = state.material;
+for (const id of ["#thickness", "#material"]) {
+  $(id).addEventListener("change", () => {
+    if (!lastResult) return;
+    lastResult.link = shareLink(lastResult.bounds);
+    renderStats();
+    render3d();
+  });
+}
+
+// ---------- Owner mode: only the shop owner's browser can download the SVG ----------
+const OWNER_STORE = "tm-owner-key-hash";
+async function sha256(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function setOwnerMode(on) {
+  for (const el of document.querySelectorAll(".owner-only")) el.hidden = !on;
+  $("#owner-badge").hidden = !on;
+}
+async function initOwnerMode() {
+  const store = {
+    get: () => { try { return localStorage.getItem(OWNER_STORE); } catch { return null; } },
+    set: (v) => { try { v ? localStorage.setItem(OWNER_STORE, v) : localStorage.removeItem(OWNER_STORE); } catch { /* private mode */ } },
+  };
+  let hash = store.get();
+  const key = params.get("owner");
+  if (key && crypto.subtle) {
+    hash = await sha256(key);
+    params.delete("owner");
+    history.replaceState(null, "", `${location.pathname}${params.size ? "?" + params : ""}`);
+  }
+  const ok = !!CONFIG.ownerKeyHash && hash === CONFIG.ownerKeyHash;
+  store.set(ok ? hash : null);
+  setOwnerMode(ok);
+  $("#owner-exit").addEventListener("click", () => {
+    store.set(null);
+    setOwnerMode(false);
+  });
+}
+initOwnerMode();
 
 $("#download").addEventListener("click", () => {
   const blob = new Blob([lastResult.svg], { type: "image/svg+xml" });
@@ -514,7 +618,7 @@ $("#order").addEventListener("submit", async (e) => {
       status.textContent = `Thanks ${fd.name}! We’ve got your layout (${lastResult.ref}) and will be in touch soon.`;
       status.className = "status ok";
     } catch {
-      status.textContent = "Couldn’t send just now. Please download the SVG and email it to us instead.";
+      status.textContent = `Couldn’t send just now. Please copy the share link and email it to ${CONFIG.orderEmail}.`;
       status.className = "status error";
     }
     return;
@@ -522,7 +626,7 @@ $("#order").addEventListener("submit", async (e) => {
 
   const body = `Hi,\n\nI'd like a laser-cut contour map of this layout.\n\n${summary}\n\nName: ${fd.name}\nEmail: ${fd.email}\n`;
   location.href = `mailto:${CONFIG.orderEmail}?subject=${encodeURIComponent(`Contour map request ${lastResult.ref}`)}&body=${encodeURIComponent(body)}`;
-  status.textContent = "Your email app should open with the details filled in. Attach the downloaded SVG if you like.";
+  status.textContent = "Your email app should open with your layout link and details filled in – just press send.";
   status.className = "status ok";
 });
 
