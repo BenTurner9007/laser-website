@@ -1,10 +1,10 @@
 // Business settings. Edit these before publishing the site.
 export const CONFIG = {
-  businessName: "Contour Laser Co.",
+  businessName: "TurnerMadeUK",
   tagline: "Laser-cut contour maps of the hills you love",
 
   // Where layout requests are emailed when no form endpoint is set.
-  orderEmail: "orders@example.com",
+  orderEmail: "bturner9007@gmail.com",
 
   // Optional: a Formspree (or similar) endpoint that accepts JSON POSTs,
   // e.g. "https://formspree.io/f/abcdwxyz". Leave empty to use email instead.
