@@ -7,12 +7,13 @@ board size, and send it as a layout for a laser-cut contour map.
 
 1. **Find their hills**: search any Wainwright, Munro, Welsh 3000, Ethel or
    Dales 30 hill, or jump to a region.
-2. **Pick a board size**: A4, A3, square, coaster, custom millimetres, or the
-   **305 mm clock**. A fixed frame shows exactly what will be cut; they pan and
-   zoom the map underneath it. For the clock the frame is round and shows the
-   numbers and hour marks, so customers can see where they land on their hills.
+2. **Pick a board size**: A4, A3, custom millimetres, or a shaped board:
+   **clock, bookmark, round, square or rounded-square coaster** (see Board
+   templates). A fixed frame shows exactly what will be cut, in the board's
+   real shape; they pan and zoom the map underneath it.
 3. **Style it**: layered (stacked boards) or a single engraved board, the
-   contour interval, smoothing, which hill lists to name, and which water to
+   contour interval, smoothing, label style (every bundled hill list is
+   named), and which water to
    add: lake and reservoir shores, rivers and canals, streams and
    becks, and coastline (shown on the map as they choose; the data ships with
    the site, so nothing outside is needed).
@@ -94,29 +95,36 @@ To change the key, put the new hash there:
 This keeps the button away from customers. It is not strong security: the
 layout is built in the browser, so a technical person could still extract it.
 
-## Clock template
+## Board templates
 
-"Clock 305 mm" turns the layout into a round clock face, from
-`scripts/source/clock-305.dxf`:
+Besides A4 and A3, customers can pick shaped boards made from your DXFs in
+`scripts/source/`:
 
-- **Outer circle**: every layer is trimmed to the circle (cut, red).
-- **Numbers and hour marks**: engraved (black fill). On layered maps each part
-  is engraved on whichever layer is on top at that spot, so a number crossing
-  several contour levels is split across those layers.
-- **10 mm centre circle**: treated as the **hole for the clock movement** and
-  cut through every layer that covers the centre.
+| Size | Shape | Notes |
+| --- | --- | --- |
+| Clock 305 mm | circle | numbers and hour marks engraved; 10 mm centre hole for the movement, cut through every layer |
+| Bookmark | 50 × 169 mm rounded rectangle | 12 mm tassel hole, cut through every layer it crosses |
+| Round coaster | 100 mm circle | |
+| Square coaster | 98.7 mm square | map fills the inner 76.6 mm square; the rest is a plain border on the base |
+| Rounded square coaster | 100 mm, 11 mm corners | map fills the inner 76.6 mm square, plain border |
 
-To change the clock or add another template, export a DXF with the outline on
-`Layer_0` and the engraving on `Layer_2` (plus an optional centre circle), then:
+The map frame on the site shows each shape (outside dimmed, holes and map area
+marked). Every layer is trimmed to the shape, holes are cut through every
+layer that covers them, and labels, places, routes and water stay inside the
+map area.
+
+To add or change a template, put the DXF in `scripts/source/`, add an entry to
+`TEMPLATES` in `scripts/build-templates.py` (saying whether inner shapes are
+holes or a map area, and which layers are engraved), then:
 
 ```
 pip install ezdxf
-python3 scripts/build-clock.py path/to/new.dxf data/new-template.json
+python3 scripts/build-templates.py
 ```
 
-and add a size to `sizes` in `js/config.js`, e.g.
-`{ id: "clock250", label: "Clock 250 mm", w: 250, h: 250, template: "data/new-template.json" }`.
-Templates are round and scale to the size given.
+and add it to `sizes` in `js/config.js` with the width and height the script
+prints, e.g.
+`{ id: "coaster-hex", label: "Hex coaster", w: 100, h: 86.6, template: "data/templates/coaster-hex.json" }`.
 
 ## Setting it up
 
@@ -163,7 +171,7 @@ js/text.js            label text to outlines (opentype.js)
 js/route.js           route files, share-link encoding, route band
 js/water.js           loads rivers, lakes and coastline from data/water/
 data/water/           UK water tiles, 0.1° each (built by scripts/build-water.py)
-data/clock-305.json   clock face template (built by scripts/build-clock.py)
+data/templates/       board shapes: clock, bookmark, coasters (built by scripts/build-templates.py)
 data/hills.geojson    636 named hills (built by scripts/build-hills.mjs)
 fonts/                map label glyphs (Noto Sans, OFL)
 vendor/               MapLibre GL JS 4.7.1, maplibre-contour 0.1.0, d3-contour 4.0.2, three.js r169, polygon-clipping 0.15.7, opentype.js 1.3.4

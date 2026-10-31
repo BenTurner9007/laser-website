@@ -22,7 +22,8 @@ const state = {
   style: params.get("style") === "engraved" ? "engraved" : "layered",
   labelMode: params.get("labels") || "name-height",
   fontMm: +params.get("font") || 3.5,
-  lists: params.has("lists") ? new Set(params.get("lists").split(",").filter(Boolean)) : new Set(HILL_LISTS.filter((l) => l.on).map((l) => l.id)),
+  // Every bundled hill list is named; no per-list choice, to save space.
+  lists: new Set(HILL_LISTS.map((l) => l.id)),
   sharedBounds: params.get("b") ? params.get("b").split(",").map(Number) : null,
   thickness: +params.get("t") || CONFIG.defaultThickness || CONFIG.thicknesses[0],
   material: params.get("mat") || "",
@@ -258,17 +259,20 @@ function layoutFrame() {
 // where the numbers will fall on their hills.
 async function renderFrameTemplate() {
   const id = state.template;
-  frameEl.classList.toggle("round", !!id);
+  frameEl.classList.toggle("templated", !!id);
   $("#frame-overlay").innerHTML = "";
   if (!id) return;
   const t = await loadTemplate(id);
   if (state.template !== id) return;
-  const d = t.engrave.map((r) => "M" + r.map(([x, y]) => `${x} ${y}`).join("L") + "Z").join("");
-  const c = t.diameter / 2;
+  const path = (rings) => rings.map((r) => "M" + r.map(([x, y]) => `${x} ${y}`).join("L") + "Z").join("");
+  // Dim everything outside the board, show holes, the map area and engraving.
   $("#frame-overlay").innerHTML =
-    `<svg viewBox="0 0 ${t.diameter} ${t.diameter}" preserveAspectRatio="none">` +
-    `<path d="${d}" fill-rule="evenodd"/>` +
-    (t.holeDiameter ? `<circle cx="${c}" cy="${c}" r="${t.holeDiameter / 2}"/>` : "") +
+    `<svg viewBox="0 0 ${t.w} ${t.h}" preserveAspectRatio="none">` +
+    `<path class="tpl-outside" d="M0 0H${t.w}V${t.h}H0Z${path([t.outline])}" fill-rule="evenodd"/>` +
+    `<path class="tpl-edge" d="${path([t.outline])}" vector-effect="non-scaling-stroke"/>` +
+    (t.mapArea ? `<path class="tpl-map" d="${path([t.mapArea])}" vector-effect="non-scaling-stroke"/>` : "") +
+    (t.holes?.length ? `<path class="tpl-hole" d="${path(t.holes)}" vector-effect="non-scaling-stroke"/>` : "") +
+    (t.engrave?.length ? `<path class="tpl-engrave" d="${path(t.engrave)}" fill-rule="evenodd"/>` : "") +
     `</svg>`;
 }
 
@@ -407,16 +411,6 @@ $("#label-mode").addEventListener("change", (e) => (state.labelMode = e.target.v
 $("#font-mm").value = String(state.fontMm);
 $("#font-mm").addEventListener("change", (e) => (state.fontMm = +e.target.value));
 
-$("#lists").innerHTML = HILL_LISTS.map(
-  (l) => `<label class="check"><input type="checkbox" value="${l.id}" ${state.lists.has(l.id) ? "checked" : ""}> ${l.label}</label>`
-).join("");
-$("#lists").addEventListener("change", (e) => {
-  if (e.target.checked) state.lists.add(e.target.value);
-  else state.lists.delete(e.target.value);
-  const f = state.lists.size ? listFilter() : ["==", "id", -1];
-  map.setFilter("hills-dots", f);
-  map.setFilter("hills-labels", f);
-});
 
 // ---------- Step 4: generate ----------
 function setStatus(msg, kind = "") {
@@ -449,7 +443,6 @@ function shareLink(b, ref) {
     ...(state.route.lines.length ? { rt: encodeRoute(state.route.lines), rs: state.route.style, rw: state.route.widthMm } : {}),
     wtr: [...state.water].join(","),
     font: state.fontMm,
-    lists: [...state.lists].join(","),
     t: $("#thickness").value,
     mat: $("#material").value,
   });
@@ -504,7 +497,8 @@ $("#generate").addEventListener("click", async () => {
 });
 
 // "Clock 305 mm (Ø305 mm)" for templates, "210 × 297 mm" otherwise.
-const sizeText = (m) => (m.template ? `${m.template} (Ø${m.widthMm} mm)` : `${m.widthMm} × ${m.heightMm} mm`);
+const sizeText = (m) =>
+  m.template ? `${m.template} (${Math.round(m.widthMm)} × ${Math.round(m.heightMm)} mm)` : `${m.widthMm} × ${m.heightMm} mm`;
 
 const makeRef = () => "CM-" + Date.now().toString(36).toUpperCase().slice(-6);
 const sharedRef = /^CM-[A-Z0-9]{1,8}$/.test(params.get("ref") || "") ? params.get("ref") : null;

@@ -16,12 +16,14 @@ export const CONFIG = {
     { id: "a4l", label: "A4 landscape", w: 297, h: 210 },
     { id: "a3p", label: "A3 portrait", w: 297, h: 420 },
     { id: "a3l", label: "A3 landscape", w: 420, h: 297 },
-    { id: "sq30", label: "Square 300 mm", w: 300, h: 300 },
-    { id: "sq20", label: "Square 200 mm", w: 200, h: 200 },
-    { id: "coaster", label: "Coaster 100 mm", w: 100, h: 100 },
-    // Board templates: shape, engraving and centre hole come from the JSON
-    // file (built from a DXF by scripts/build-clock.py).
-    { id: "clock305", label: "Clock 305 mm", w: 305, h: 305, template: "data/clock-305.json" },
+    // Board templates: shape, holes, map area and engraving come from the
+    // JSON file (built from a DXF by scripts/build-templates.py); w and h
+    // must match the template.
+    { id: "clock305", label: "Clock 305 mm", w: 305, h: 305, template: "data/templates/clock-305.json" },
+    { id: "bookmark", label: "Bookmark", w: 50.3, h: 168.91, template: "data/templates/bookmark.json" },
+    { id: "coaster-round", label: "Round coaster", w: 100, h: 100, template: "data/templates/coaster-round.json" },
+    { id: "coaster-square", label: "Square coaster", w: 98.65, h: 98.65, template: "data/templates/coaster-square.json" },
+    { id: "coaster-rounded", label: "Rounded square coaster", w: 100, h: 100, template: "data/templates/coaster-rounded-square.json" },
   ],
 
   // Material thicknesses offered for layered designs, in millimetres.

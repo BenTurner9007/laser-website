@@ -182,16 +182,7 @@ function cleanPolygons(mp, sx, sy) {
   return out;
 }
 
-// --- Board templates (e.g. a round clock face) ---
-function circleRing(cx, cy, r, segments = 360) {
-  const ring = [];
-  for (let i = 0; i < segments; i++) {
-    const a = (i / segments) * Math.PI * 2;
-    ring.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
-  }
-  return ring;
-}
-
+// --- Board templates (clock, bookmark, coasters; see scripts/build-templates.py) ---
 // polygon-clipping repeats each ring's first point at the end; drop it and tiny bits.
 function tidy(mp, minArea = MIN_FEATURE_MM2) {
   const out = [];
@@ -215,17 +206,36 @@ const clip = (op, a, b, minArea) => {
   return tidy(b.length ? polygonClipping[op](a, b) : polygonClipping.union(a), minArea);
 };
 
-/** The board shape and engraving for a template, in layout millimetres. */
+/**
+ * A template's board (outline minus holes), the region the contour map may
+ * fill (its map area, or the whole board), and its own engraving, in layout
+ * millimetres.
+ */
 function templateGeometry(t, W, H) {
-  const r = Math.min(W, H) / 2, cx = W / 2, cy = H / 2;
-  const board = [[circleRing(cx, cy, r)]];
-  if (t.holeDiameter) board[0].push(circleRing(cx, cy, t.holeDiameter / 2, 120).reverse());
-  // Template coordinates are relative to its own diameter; scale to this board.
-  const k = (2 * r) / t.diameter;
-  const rings = t.engrave.map((ring) => ring.map(([x, y]) => [cx - r + x * k, cy - r + y * k]));
+  const kx = W / t.w, ky = H / t.h;
+  const at = (ring) => ring.map(([x, y]) => [x * kx, y * ky]);
+  const holes = (t.holes || []).map(at);
+  const board = [[at(t.outline), ...holes]];
+  const mapRegion = t.mapArea ? tidy(polygonClipping.difference([[at(t.mapArea)]], ...holes.map((h) => [[h]])), 0) : board;
+  const rings = (t.engrave || []).map(at);
   // XOR turns the separate rings into shapes with holes (the inside of a 6 or 9).
-  const engrave = tidy(polygonClipping.xor(...rings.map((ring) => [[[...ring, ring[0]]]])), ENGRAVE_MIN_MM2);
-  return { board, engrave, cx, cy, r };
+  const engrave = rings.length ? tidy(polygonClipping.xor(...rings.map((ring) => [[[...ring, ring[0]]]])), ENGRAVE_MIN_MM2) : [];
+  return { board, mapRegion, engrave };
+}
+
+// Even-odd point test across polygons ([outer, ...holes] each).
+function inPolys(polys, [x, y]) {
+  for (const poly of polys) {
+    let c = false;
+    for (const ring of poly) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i], [xj, yj] = ring[j];
+        if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
+      }
+    }
+    if (c) return true;
+  }
+  return false;
 }
 
 const lineLength = (l) => l.reduce((n, p, i) => (i ? n + Math.hypot(p[0] - l[i - 1][0], p[1] - l[i - 1][1]) : 0), 0);
@@ -358,7 +368,7 @@ export async function buildLayout(o, onProgress) {
   const layers = [{ elevation: Math.round(minE), d: outline, polys: boardPolys }].concat(
     contours.map((c) => {
       let polys = cleanPolygons(c, sx, sy);
-      if (tpl) polys = clip("intersection", polys, tpl.board);
+      if (tpl) polys = clip("intersection", polys, tpl.mapRegion);
       return { elevation: c.value, d: polygonsToPath(polys), polys };
     })
   );
@@ -369,14 +379,16 @@ export async function buildLayout(o, onProgress) {
   const fx0 = lngToX(o.bounds.west, z), fy0 = latToY(o.bounds.north, z);
   const fx1 = lngToX(o.bounds.east, z), fy1 = latToY(o.bounds.south, z);
   const toMm = ([lng, lat]) => [((lngToX(lng, z) - fx0) / (fx1 - fx0)) * W, ((latToY(lat, z) - fy0) / (fy1 - fy0)) * H];
+  // On the map: inside the frame, or the template's map region with a margin.
+  const AROUND = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]];
   const onBoard = ([x, y], margin = 0) =>
-    x >= 0 && y >= 0 && x < W && y < H && (!tpl || Math.hypot(x - tpl.cx, y - tpl.cy) <= tpl.r - margin);
+    tpl ? AROUND.every(([dx, dy]) => inPolys(tpl.mapRegion, [x + dx * margin, y + dy * margin])) : x >= 0 && y >= 0 && x < W && y < H;
+  const mapRegion = tpl ? tpl.mapRegion : boardPolys;
   // Separate rings (glyph outlines, holes) to filled shapes.
   const solid = (rings) => (rings.length ? polygonClipping.xor(...rings.map((r) => [[r]])) : []);
 
-  // Everything engraved, as shapes: clock numbers, peak labels, special places, route.
+  // Everything engraved on the map, as shapes: peak labels, special places, route.
   const marks = [];
-  if (tpl) marks.push(tpl.engrave);
 
   // Peaks: a small triangle on the summit with the name beside it.
   let peaksPlaced = 0;
@@ -413,14 +425,18 @@ export async function buildLayout(o, onProgress) {
   let routeOnBoard = false;
   if (o.route?.lines?.length) {
     const band = routeBand(o.route.lines.map((l) => l.map(toMm)), o.route.widthMm, o.route.style);
-    routeOnBoard = clip("intersection", band, boardPolys, ENGRAVE_MIN_MM2).length > 0;
+    routeOnBoard = clip("intersection", band, mapRegion, ENGRAVE_MIN_MM2).length > 0;
     marks.push(band);
   }
 
   // Each part of every mark is engraved on whichever layer is on top at that
   // spot, so labels crossing several contour levels stay readable when stacked.
+  // Map marks stay inside the map region; a template's own engraving (clock
+  // numbers) may sit anywhere on the board.
   const nonEmpty = marks.filter((m) => m.length);
-  const allMarks = nonEmpty.length ? clip("intersection", polygonClipping.union(...nonEmpty), boardPolys, ENGRAVE_MIN_MM2) : [];
+  const mapMarks = nonEmpty.length ? clip("intersection", polygonClipping.union(...nonEmpty), mapRegion, ENGRAVE_MIN_MM2) : [];
+  const tplMarks = tpl?.engrave.length ? clip("intersection", tpl.engrave, boardPolys, ENGRAVE_MIN_MM2) : [];
+  const allMarks = mapMarks.length && tplMarks.length ? tidy(polygonClipping.union(mapMarks, tplMarks), ENGRAVE_MIN_MM2) : mapMarks.length ? mapMarks : tplMarks;
   const engrave = [];
   if (allMarks.length && o.style === "engraved") engrave.push({ layer: 0, polys: allMarks });
   else if (allMarks.length) {
@@ -440,7 +456,9 @@ export async function buildLayout(o, onProgress) {
   const water = [];
   const waterKinds = WATER_KINDS.filter((k) => o.water?.[k.id]?.length);
   if (waterKinds.length) {
-    const mask = layerMask(o.style === "engraved" ? layers.slice(0, 1) : layers, W, H);
+    // Water stays inside the map region (not on a coaster's plain border).
+    const maskLayers = (o.style === "engraved" ? layers.slice(0, 1) : layers).map((l, i) => (i === 0 ? { d: polygonsToPath(mapRegion) } : l));
+    const mask = layerMask(maskLayers, W, H);
     for (const kind of waterKinds) {
       const lines = trimLines(o.water[kind.id].map((l) => l.map(toMm)), W, H, 1).filter((l) => lineLength(l) >= 2);
       for (const [layer, runs] of splitByLayer(lines, mask)) water.push({ layer, kind: kind.id, widthMm: kind.widthMm, lines: runs });
