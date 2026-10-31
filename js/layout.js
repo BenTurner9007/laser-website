@@ -301,6 +301,55 @@ function splitByLayer(lines, mask, step = 0.25) {
   return byLayer;
 }
 
+const linesToPathOf = (lines) => lines.map((l) => "M" + l.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join("L")).join("");
+
+/** Cut out the parts of lines (mm) that pass through any of the boxes. */
+function linesOutsideBoxes(lines, boxes) {
+  const out = [];
+  for (const line of lines) {
+    let run = [line[0]];
+    for (let i = 1; i < line.length; i++) {
+      const [ax, ay] = line[i - 1], [bx, by] = line[i];
+      // Parameter ranges [t0, t1] of this segment inside each box (Liang-Barsky).
+      const inside = [];
+      for (const b of boxes) {
+        let t0 = 0, t1 = 1;
+        const dx = bx - ax, dy = by - ay;
+        const edges = [[-dx, ax - b.x0], [dx, b.x1 - ax], [-dy, ay - b.y0], [dy, b.y1 - ay]];
+        let hit = true;
+        for (const [p, q] of edges) {
+          if (p === 0) {
+            if (q < 0) { hit = false; break; }
+          } else {
+            const r = q / p;
+            if (p < 0) t0 = Math.max(t0, r);
+            else t1 = Math.min(t1, r);
+            if (t0 > t1) { hit = false; break; }
+          }
+        }
+        if (hit && t1 > t0) inside.push([t0, t1]);
+      }
+      if (!inside.length) {
+        run.push(line[i]);
+        continue;
+      }
+      inside.sort((p, q) => p[0] - q[0]);
+      const at = (t) => [ax + (bx - ax) * t, ay + (by - ay) * t];
+      let t = 0;
+      for (const [s, e] of inside) {
+        if (s > t) run.push(at(s));
+        if (run.length > 1) out.push(run);
+        t = Math.max(t, e);
+        run = [at(t)];
+      }
+      if (t < 1) run.push(line[i]);
+      else run = [line[i]];
+    }
+    if (run.length > 1) out.push(run);
+  }
+  return out;
+}
+
 // Keep only the parts of lines (in mm) that come near the board.
 function trimLines(lines, W, H, margin) {
   const near = ([x, y]) => x >= -margin && y >= -margin && x <= W + margin && y <= H + margin;
@@ -343,6 +392,7 @@ const esc = (s) =>
  * @param {number} [o.placeMm]  special place marker size
  * @param {{lines:number[][][], widthMm:number, style:"solid"|"dashed"}} [o.route]  hiking route, lines of [lng, lat]
  * @param {Object<string, number[][][]>} [o.water]  lines of [lng, lat] by kind (see WATER_KINDS)
+ * @param {boolean} [o.labelBoxes]  clear contours (and water) from a box behind each peak label
  */
 export async function buildLayout(o, onProgress) {
   const [grid] = await Promise.all([fetchElevationGrid(o.bounds, onProgress), loadFonts()]);
@@ -392,6 +442,7 @@ export async function buildLayout(o, onProgress) {
 
   // Peaks: a small triangle on the summit with the name beside it.
   let peaksPlaced = 0;
+  const labelBoxes = []; // { x0, y0, x1, y1 } in mm, when o.labelBoxes
   if (o.labelMode !== "none") {
     for (const p of o.peaks) {
       const [x, y] = toMm([p.lng, p.lat]);
@@ -400,9 +451,38 @@ export async function buildLayout(o, onProgress) {
       const m = o.fontMm * 0.45;
       const right = x < W * 0.72;
       const text = o.labelMode === "name-height" ? `${p.name} ${p.h} m` : p.name;
-      const t = textRings(text, right ? x + m * 1.8 : x - m * 1.8, y + o.fontMm * 0.35, o.fontMm, { align: right ? "left" : "right" });
+      const tx = right ? x + m * 1.8 : x - m * 1.8, baseline = y + o.fontMm * 0.35;
+      const t = textRings(text, tx, baseline, o.fontMm, { align: right ? "left" : "right" });
       marks.push([[[x - m, y + m * 0.8], [x, y - m], [x + m, y + m * 0.8]]], solid(t.rings));
+      if (o.labelBoxes) {
+        // Just round the text (caps to descenders), with a little padding.
+        const pad = 0.5, x0 = right ? tx : tx - t.width;
+        labelBoxes.push({ x0: x0 - pad, x1: x0 + t.width + pad, y0: baseline - o.fontMm * 0.78 - pad, y1: baseline + o.fontMm * 0.24 + pad });
+      }
     }
+  }
+
+  // Label boxes on a layered map: each box becomes a flat recess at the
+  // lowest ground under it, cut out of every layer above, so the name sits
+  // on one flat surface with no layer edges running through it.
+  if (labelBoxes.length && o.style !== "engraved") {
+    const lowestLayer = (b) => {
+      let min = Infinity;
+      for (let gy = Math.max(0, Math.floor(b.y0 / sy)); gy <= Math.min(gh - 1, Math.ceil(b.y1 / sy)); gy++) {
+        for (let gx = Math.max(0, Math.floor(b.x0 / sx)); gx <= Math.min(gw - 1, Math.ceil(b.x1 / sx)); gx++) min = Math.min(min, values[gy * gw + gx]);
+      }
+      let layer = 0;
+      while (layer < levels.length && levels[layer] <= min) layer++;
+      return layer;
+    };
+    const boxes = labelBoxes.map((b) => ({ poly: [[[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]]], layer: lowestLayer(b) }));
+    for (let i = 1; i < layers.length; i++) {
+      const cut = boxes.filter((b) => b.layer < i).map((b) => b.poly);
+      if (!cut.length) continue;
+      layers[i].polys = clip("difference", layers[i].polys, polygonClipping.union(...cut));
+      layers[i].d = polygonsToPath(layers[i].polys);
+    }
+    while (layers.length > 1 && !layers[layers.length - 1].polys.length) layers.pop();
   }
 
   // Special places: the chosen shape with a bold label beside it.
@@ -461,9 +541,13 @@ export async function buildLayout(o, onProgress) {
     const mask = layerMask(maskLayers, W, H);
     for (const kind of waterKinds) {
       const lines = trimLines(o.water[kind.id].map((l) => l.map(toMm)), W, H, 1).filter((l) => lineLength(l) >= 2);
-      for (const [layer, runs] of splitByLayer(lines, mask)) water.push({ layer, kind: kind.id, widthMm: kind.widthMm, lines: runs });
+      const clear = labelBoxes.length ? linesOutsideBoxes(lines, labelBoxes) : lines;
+      for (const [layer, runs] of splitByLayer(clear, mask)) water.push({ layer, kind: kind.id, widthMm: kind.widthMm, lines: runs });
     }
   }
+  // Engraved boards: contour lines as open lines, with the label boxes left clear.
+  const contourLines = layers.slice(1).flatMap((l) => l.polys.flat().map((r) => [...r, r[0]]));
+  const contourPath = linesToPathOf(labelBoxes.length ? linesOutsideBoxes(contourLines, labelBoxes) : contourLines);
   const linesToPath = (lines) => lines.map((l) => "M" + l.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join("L")).join("");
   const waterPath = (i) => {
     const lines = water.filter((w) => w.layer === i).flatMap((w) => w.lines);
@@ -515,7 +599,7 @@ export async function buildLayout(o, onProgress) {
     let assembled = "";
     if (o.style === "engraved") {
       assembled += `<g inkscape:groupmode="layer" inkscape:label="Board">\n${line(outline, COLOURS.cut)}\n`;
-      for (const l of layers.slice(1)) assembled += line(l.d, COLOURS.guide) + "\n";
+      if (contourPath) assembled += line(contourPath, COLOURS.guide) + "\n";
       assembled += engravePath(0) + "\n" + waterPath(0) + "</g>\n";
     } else {
       layers.forEach((l, i) => {
@@ -572,11 +656,16 @@ export async function buildLayout(o, onProgress) {
   let preview =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}">` +
     `<path d="${outline}" fill="${tone(0)}" fill-rule="evenodd"/>`;
-  layers.slice(1).forEach((l, i) => {
-    preview += `<path d="${l.d}" fill="${tone(i + 1)}" fill-rule="evenodd" stroke="rgba(60,30,10,.55)" stroke-width="${Math.max(W, H) / 900}"/>`;
-  });
+  if (o.style === "engraved") {
+    // One board: contour lines only, as they'll be engraved.
+    preview += `<path d="${contourPath}" fill="none" stroke="rgba(60,30,10,.7)" stroke-width="${Math.max(W, H) / 900}"/>`;
+  } else {
+    layers.slice(1).forEach((l, i) => {
+      preview += `<path d="${l.d}" fill="${tone(i + 1)}" fill-rule="evenodd" stroke="rgba(60,30,10,.55)" stroke-width="${Math.max(W, H) / 900}"/>`;
+    });
+  }
   for (const w of water) preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="#1f3f5c" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
   preview += `<path d="${polygonsToPath(allMarks)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/></svg>`;
 
-  return { buildSvg, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
+  return { buildSvg, contourPath, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }

@@ -253,7 +253,7 @@ export function createViewer(container) {
     g.strokeStyle = ENGRAVE;
     g.globalAlpha = 0.75;
     g.lineWidth = 0.35;
-    for (const l of result.layers.slice(1)) g.stroke(new Path2D(l.d));
+    g.stroke(new Path2D(result.contourPath ?? result.layers.slice(1).map((l) => l.d).join("")));
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;

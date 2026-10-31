@@ -22,6 +22,7 @@ const state = {
   style: params.get("style") === "engraved" ? "engraved" : "layered",
   labelMode: params.get("labels") || "name-height",
   fontMm: +params.get("font") || 3.5,
+  labelBoxes: params.get("lbox") === "1",
   // Every bundled hill list is named; no per-list choice, to save space.
   lists: new Set(HILL_LISTS.map((l) => l.id)),
   sharedBounds: params.get("b") ? params.get("b").split(",").map(Number) : null,
@@ -410,6 +411,8 @@ $("#label-mode").value = state.labelMode;
 $("#label-mode").addEventListener("change", (e) => (state.labelMode = e.target.value));
 $("#font-mm").value = String(state.fontMm);
 $("#font-mm").addEventListener("change", (e) => (state.fontMm = +e.target.value));
+$("#label-boxes").checked = state.labelBoxes;
+$("#label-boxes").addEventListener("change", (e) => (state.labelBoxes = e.target.checked));
 
 
 // ---------- Step 4: generate ----------
@@ -443,6 +446,7 @@ function shareLink(b, ref) {
     ...(state.route.lines.length ? { rt: encodeRoute(state.route.lines), rs: state.route.style, rw: state.route.widthMm } : {}),
     wtr: [...state.water].join(","),
     font: state.fontMm,
+    ...(state.labelBoxes ? { lbox: "1" } : {}),
     t: $("#thickness").value,
     mat: $("#material").value,
   });
@@ -474,6 +478,7 @@ $("#generate").addEventListener("click", async () => {
         peaks: peaksInFrame(b),
         labelMode: state.labelMode,
         fontMm: state.fontMm,
+        labelBoxes: state.labelBoxes,
         template: state.template ? await loadTemplate(state.template) : null,
         places: state.places,
         placeMm: state.placeMm,

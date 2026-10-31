@@ -13,7 +13,10 @@ board size, and send it as a layout for a laser-cut contour map.
    real shape; they pan and zoom the map underneath it.
 3. **Style it**: layered (stacked boards) or a single engraved board, the
    contour interval, smoothing, label style (every bundled hill list is
-   named), and which water to
+   named), an optional **clear space behind peak labels** (contours and water
+   are removed from a box that just fits the name and height; on layered maps
+   the box is a flat recess at the lowest ground under it, so the name sits on
+   one surface), and which water to
    add: lake and reservoir shores, rivers and canals, streams and
    becks, and coastline (shown on the map as they choose; the data ships with
    the site, so nothing outside is needed).
