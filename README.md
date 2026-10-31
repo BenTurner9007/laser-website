@@ -15,10 +15,12 @@ board size, and send it as a layout for a laser-cut contour map.
    contour interval, smoothing, and which hill lists to name.
 4. **Mark a special place** (optional): up to 3 draggable markers, each with
    a shape (heart, star, pin, circle, house, cross, diamond, triangle) and
-   their own label, e.g. "Where we got engaged". Engraved in black on the
-   layer the spot sits on, at 5, 8 or 12 mm. The request email lists each
-   place with its coordinates.
-5. **Preview and send**: an interactive **3D model** of the finished piece
+   their own label, e.g. "Where we got engaged", at 5, 8 or 12 mm. The
+   request email lists each place with its coordinates.
+5. **Add a hiking route** (optional): draw it by clicking on the map, or
+   upload a GPX, KML or GeoJSON file. Engraved as a solid or dashed line
+   (0.8, 1.2 or 2 mm). The frame moves to fit an uploaded route.
+6. **Preview and send**: an interactive **3D model** of the finished piece
    (each layer at the real material thickness, in birch, oak or acrylic, with
    a centimetre ruler, overall size, stack height and map scale), a flat plan,
    a share link, and a request form. Customers cannot download the SVG; they
@@ -31,15 +33,19 @@ board size, and send it as a layout for a laser-cut contour map.
 - A **production SVG** at real size (mm), downloaded by you in owner mode (below):
   - one Inkscape layer per contour level (`Layer 00 base`, `Layer 01 (200 m)` …)
   - **red** = cut, **blue** = score/glue guide (the outline of the layer
-    above), **black** = engrave (peak markers and names)
+    above), **black** = engrave (filled shapes: names, markers, special
+    places, the route and clock numbers)
   - all layers sit in register on top of each other, so separate or nest them
     onto sheets in Inkscape/LightBurn before cutting
   - islands and holes smaller than about 2 × 2 mm are removed, as they are too
     fragile to cut
   - the order details (bounds, interval, layer count, elevation range) are
     stored in the SVG's `<metadata>`
-- Text is live SVG text (Arial). Convert it to paths in Inkscape
-  (*Path → Object to Path*) if your laser software needs that.
+- **Engraving follows the layers.** Every label, marker and route is split so
+  each part is engraved on whichever layer is on top at that spot. A name
+  that runs from a summit down a slope is spread over several layers and
+  reads as one once glued. Text is already converted to outlines (Noto Sans),
+  so no fonts are needed in your laser software.
 
 ## Owner mode (downloading the SVG)
 
@@ -123,10 +129,12 @@ js/app.js             map, frame, form and share link
 js/layout.js          elevation download, contour tracing, SVG output
 js/viewer3d.js        3D preview of the stacked layers (three.js)
 js/shapes.js          special place marker shapes
+js/text.js            label text to outlines (opentype.js)
+js/route.js           route files, share-link encoding, route band
 data/clock-305.json   clock face template (built by scripts/build-clock.py)
 data/hills.geojson    636 named hills (built by scripts/build-hills.mjs)
 fonts/                map label glyphs (Noto Sans, OFL)
-vendor/               MapLibre GL JS 4.7.1, maplibre-contour 0.1.0, d3-contour 4.0.2, three.js r169, polygon-clipping 0.15.7
+vendor/               MapLibre GL JS 4.7.1, maplibre-contour 0.1.0, d3-contour 4.0.2, three.js r169, polygon-clipping 0.15.7, opentype.js 1.3.4
 ```
 
 ### Updating the hill data
@@ -157,7 +165,8 @@ list ids to the extract, rebuild, and add the list to `HILL_LISTS` in
   community services, so keep their use light. If the site gets busy, switch
   the street map to a paid tile provider.
 - **Libraries**: MapLibre GL JS (BSD-3), maplibre-contour (BSD-3), d3-contour
-  and d3-array (ISC), three.js (MIT), polygon-clipping (MIT). Licences are in `vendor/`.
+  and d3-array (ISC), three.js (MIT), polygon-clipping (MIT), opentype.js (MIT). Licences are in
+  `vendor/`. Engraving font: Noto Sans (SIL OFL 1.1), in `fonts/engrave/`.
 
 Elevation data is accurate enough for decorative work. It is not survey-grade,
 and summit heights in the layout come from the hill database rather than the

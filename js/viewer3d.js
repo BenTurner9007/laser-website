@@ -4,7 +4,6 @@
 
 import * as THREE from "three";
 import { OrbitControls } from "../vendor/OrbitControls.js";
-import { SHAPES } from "./shapes.js";
 
 // Material looks, keyed by the order form's material names.
 const FINISHES = {
@@ -37,84 +36,6 @@ function grainTexture(base, grain) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
-}
-
-// Flat text decal with the peak marker, positioned like the SVG label.
-function labelMesh(text, fontMm, rightOfMarker) {
-  const pxPerMm = 24;
-  const font = `600 ${fontMm * pxPerMm}px Arial, Helvetica, sans-serif`;
-  const c = document.createElement("canvas");
-  const g = c.getContext("2d");
-  g.font = font;
-  const m = fontMm * 0.45 * pxPerMm; // marker half-size, matches layout.js
-  const gap = m * 0.8;
-  const textW = g.measureText(text).width;
-  c.width = Math.ceil(textW + m * 2 + gap + 8);
-  c.height = Math.ceil(fontMm * pxPerMm * 1.5);
-  g.font = font;
-  g.fillStyle = ENGRAVE;
-  g.textBaseline = "middle";
-  const cy = c.height / 2;
-  const mx = rightOfMarker ? m + 4 : c.width - m - 4;
-  g.beginPath();
-  g.moveTo(mx - m, cy + m * 0.8);
-  g.lineTo(mx, cy - m);
-  g.lineTo(mx + m, cy + m * 0.8);
-  g.fill();
-  g.textAlign = rightOfMarker ? "left" : "right";
-  g.fillText(text, rightOfMarker ? mx + m + gap : mx - m - gap, cy);
-
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
-  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-  const w = c.width / pxPerMm, h = c.height / pxPerMm;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
-  mesh.rotation.x = -Math.PI / 2;
-  // Shift so the marker, not the plane centre, sits on the peak.
-  const markerX = (rightOfMarker ? m + 4 : c.width - m - 4) / pxPerMm;
-  mesh.userData.offsetX = w / 2 - markerX;
-  return mesh;
-}
-
-// Special place: engraved shape with a bold label, laid out like layout.js.
-function placeMesh(p, fontMm) {
-  const ppm = 24;
-  const sh = SHAPES[p.shape];
-  const s = p.sizeMm * ppm;
-  const fs = fontMm * 1.2 * ppm;
-  const c = document.createElement("canvas");
-  const g = c.getContext("2d");
-  const font = `700 ${fs}px Arial, Helvetica, sans-serif`;
-  g.font = font;
-  const gap = s * 0.3;
-  const textW = p.label ? g.measureText(p.label).width + gap : 0;
-  c.width = Math.ceil(s + textW + 8);
-  c.height = Math.ceil(Math.max(s, fs * 1.4) + 8);
-  const right = p.right;
-  const ox = right ? 4 : c.width - s - 4, oy = (c.height - s) / 2;
-  g.fillStyle = ENGRAVE;
-  g.save();
-  g.translate(ox, oy);
-  g.scale(s, s);
-  g.fill(new Path2D(sh.d), "evenodd");
-  g.restore();
-  if (p.label) {
-    g.font = font;
-    g.textBaseline = "middle";
-    g.textAlign = right ? "left" : "right";
-    g.fillText(p.label, right ? ox + s + gap : ox - gap, c.height / 2);
-  }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
-  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(c.width / ppm, c.height / ppm), mat);
-  mesh.rotation.x = -Math.PI / 2;
-  // Offsets that put the shape's anchor point on the spot.
-  mesh.userData.offsetX = (c.width / 2 - (ox + sh.anchor[0] * s)) / ppm;
-  mesh.userData.offsetZ = (c.height / 2 - (oy + sh.anchor[1] * s)) / ppm;
-  return mesh;
 }
 
 // Flat ruler along the front edge: mm ticks, numbered every centimetre band.
@@ -267,29 +188,13 @@ export function createViewer(container) {
       model.add(mesh);
     });
 
-    // Template engraving (clock numbers etc.) as dark shapes on the layer they sit on.
+    // Engraving (labels, special places, route, clock numbers) on the layer it sits on.
     const engraveMat = new THREE.MeshBasicMaterial({ color: ENGRAVE, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     for (const e of result.engrave || []) {
       const geo = new THREE.ShapeGeometry(shapesFor(e.polys, W, H));
       geo.rotateX(-Math.PI / 2);
       const mesh = new THREE.Mesh(geo, engraveMat);
       mesh.position.y = (e.layer + 1) * boardT + 0.04;
-      model.add(mesh);
-    }
-
-    for (const l of result.labels) {
-      const layer = style === "engraved" ? 0 : l.layer;
-      const fontMm = result.meta.fontMm || 3.5;
-      const right = l.x < W * 0.72;
-      const mesh = labelMesh(l.text, fontMm, right);
-      mesh.position.set(l.x - W / 2 + mesh.userData.offsetX, (layer + 1) * boardT + 0.05, l.y - H / 2);
-      model.add(mesh);
-    }
-
-    for (const p of result.places || []) {
-      const layer = style === "engraved" ? 0 : p.layer;
-      const mesh = placeMesh({ ...p, right: p.x < W * 0.68 }, result.meta.fontMm || 3.5);
-      mesh.position.set(p.x - W / 2 + mesh.userData.offsetX, (layer + 1) * boardT + 0.06, p.y - H / 2 + mesh.userData.offsetZ);
       model.add(mesh);
     }
 

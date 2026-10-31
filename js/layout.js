@@ -6,7 +6,9 @@
 
 /* global d3, polygonClipping */
 
-import { SHAPES, DEFAULT_SHAPE } from "./shapes.js";
+import { SHAPES, DEFAULT_SHAPE, placeShape } from "./shapes.js";
+import { loadFonts, textRings } from "./text.js";
+import { routeBand } from "./route.js";
 
 export const DEM_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 const DEM_MAXZOOM = 15;
@@ -18,6 +20,7 @@ export const COLOURS = { cut: "#ff0000", guide: "#0000ff", engrave: "#000000" };
 const MAX_GRID_PX = 1400; // longest side of the elevation grid
 const MAX_TILES = 120;
 const MIN_FEATURE_MM2 = 4; // drop islands/holes smaller than ~2 x 2 mm, too fragile to cut
+const ENGRAVE_MIN_MM2 = 0.01; // engraving can be fine (the dot on an "i")
 const SIMPLIFY_MM = 0.05;
 
 // --- Web Mercator helpers (world pixel coordinates at zoom z) ---
@@ -178,13 +181,13 @@ function circleRing(cx, cy, r, segments = 360) {
 }
 
 // polygon-clipping repeats each ring's first point at the end; drop it and tiny bits.
-function tidy(mp) {
+function tidy(mp, minArea = MIN_FEATURE_MM2) {
   const out = [];
   for (const polygon of mp) {
     const rings = [];
     for (let k = 0; k < polygon.length; k++) {
       const ring = polygon[k].slice(0, -1);
-      if (ring.length < 3 || ringArea(ring) < MIN_FEATURE_MM2) {
+      if (ring.length < 3 || ringArea(ring) < minArea) {
         if (k === 0) break;
         continue;
       }
@@ -195,9 +198,9 @@ function tidy(mp) {
   return out;
 }
 
-const clip = (op, a, ...b) => {
-  if (!a.length) return [];
-  return tidy(polygonClipping[op](a, ...b.filter((p) => p.length)));
+const clip = (op, a, b, minArea) => {
+  if (!a.length || (op === "intersection" && !b.length)) return [];
+  return tidy(b.length ? polygonClipping[op](a, b) : polygonClipping.union(a), minArea);
 };
 
 /** The board shape and engraving for a template, in layout millimetres. */
@@ -209,7 +212,7 @@ function templateGeometry(t, W, H) {
   const k = (2 * r) / t.diameter;
   const rings = t.engrave.map((ring) => ring.map(([x, y]) => [cx - r + x * k, cy - r + y * k]));
   // XOR turns the separate rings into shapes with holes (the inside of a 6 or 9).
-  const engrave = tidy(polygonClipping.xor(...rings.map((ring) => [[[...ring, ring[0]]]])));
+  const engrave = tidy(polygonClipping.xor(...rings.map((ring) => [[[...ring, ring[0]]]])), ENGRAVE_MIN_MM2);
   return { board, engrave, cx, cy, r };
 }
 
@@ -234,9 +237,10 @@ const esc = (s) =>
  * @param {object} [o.template]  board template, e.g. data/clock-305.json
  * @param {Array<{lng:number,lat:number,shape:string,label:string}>} [o.places]  customers' special places
  * @param {number} [o.placeMm]  special place marker size
+ * @param {{lines:number[][][], widthMm:number, style:"solid"|"dashed"}} [o.route]  hiking route, lines of [lng, lat]
  */
 export async function buildLayout(o, onProgress) {
-  const grid = await fetchElevationGrid(o.bounds, onProgress);
+  const [grid] = await Promise.all([fetchElevationGrid(o.bounds, onProgress), loadFonts()]);
   const { width: gw, height: gh, zoom } = grid;
   const radius = Math.round(o.smoothing * Math.max(1, gw / 350));
   const values = smooth(grid.values, gw, gh, radius);
@@ -262,76 +266,75 @@ export async function buildLayout(o, onProgress) {
   );
   while (layers.length > 1 && !layers[layers.length - 1].polys.length) layers.pop();
 
-  // Template engraving goes on whichever layer is on top at that spot.
+  // Millimetre position of a lng/lat, and whether it is on the board.
+  const z = zoom;
+  const fx0 = lngToX(o.bounds.west, z), fy0 = latToY(o.bounds.north, z);
+  const fx1 = lngToX(o.bounds.east, z), fy1 = latToY(o.bounds.south, z);
+  const toMm = ([lng, lat]) => [((lngToX(lng, z) - fx0) / (fx1 - fx0)) * W, ((latToY(lat, z) - fy0) / (fy1 - fy0)) * H];
+  const onBoard = ([x, y], margin = 0) =>
+    x >= 0 && y >= 0 && x < W && y < H && (!tpl || Math.hypot(x - tpl.cx, y - tpl.cy) <= tpl.r - margin);
+  // Separate rings (glyph outlines, holes) to filled shapes.
+  const solid = (rings) => (rings.length ? polygonClipping.xor(...rings.map((r) => [[r]])) : []);
+
+  // Everything engraved, as shapes: clock numbers, peak labels, special places, route.
+  const marks = [];
+  if (tpl) marks.push(tpl.engrave);
+
+  // Peaks: a small triangle on the summit with the name beside it.
+  let peaksPlaced = 0;
+  if (o.labelMode !== "none") {
+    for (const p of o.peaks) {
+      const [x, y] = toMm([p.lng, p.lat]);
+      if (!onBoard([x, y], o.fontMm)) continue;
+      peaksPlaced++;
+      const m = o.fontMm * 0.45;
+      const right = x < W * 0.72;
+      const text = o.labelMode === "name-height" ? `${p.name} ${p.h} m` : p.name;
+      const t = textRings(text, right ? x + m * 1.8 : x - m * 1.8, y + o.fontMm * 0.35, o.fontMm, { align: right ? "left" : "right" });
+      marks.push([[[x - m, y + m * 0.8], [x, y - m], [x + m, y + m * 0.8]]], solid(t.rings));
+    }
+  }
+
+  // Special places: the chosen shape with a bold label beside it.
+  const places = [];
+  for (const p of o.places || []) {
+    const [x, y] = toMm([p.lng, p.lat]);
+    if (!onBoard([x, y])) continue;
+    const shape = SHAPES[p.shape] ? p.shape : DEFAULT_SHAPE, s = o.placeMm || 8;
+    places.push({ ...p, shape, x, y, sizeMm: s });
+    marks.push(solid(placeShape(shape, x, y, s)));
+    if (p.label) {
+      const right = x < W * 0.68, fs = o.fontMm * 1.2;
+      const cy = y + (0.5 - SHAPES[shape].anchor[1]) * s;
+      const t = textRings(p.label, right ? x + s * 0.8 : x - s * 0.8, cy + fs * 0.35, fs, { weight: "bold", align: right ? "left" : "right" });
+      marks.push(solid(t.rings));
+    }
+  }
+
+  // Hiking route: a band along the line, solid or dashed.
+  let routeOnBoard = false;
+  if (o.route?.lines?.length) {
+    const band = routeBand(o.route.lines.map((l) => l.map(toMm)), o.route.widthMm, o.route.style);
+    routeOnBoard = clip("intersection", band, boardPolys, ENGRAVE_MIN_MM2).length > 0;
+    marks.push(band);
+  }
+
+  // Each part of every mark is engraved on whichever layer is on top at that
+  // spot, so labels crossing several contour levels stay readable when stacked.
+  const nonEmpty = marks.filter((m) => m.length);
+  const allMarks = nonEmpty.length ? clip("intersection", polygonClipping.union(...nonEmpty), boardPolys, ENGRAVE_MIN_MM2) : [];
   const engrave = [];
-  if (tpl) {
-    if (o.style === "engraved") engrave.push({ layer: 0, polys: tpl.engrave });
-    else {
-      layers.forEach((l, i) => {
-        const onLayer = clip("intersection", tpl.engrave, l.polys);
-        const visible = layers[i + 1] ? clip("difference", onLayer, layers[i + 1].polys) : onLayer;
-        if (visible.length) engrave.push({ layer: i, polys: visible });
-      });
+  if (allMarks.length && o.style === "engraved") engrave.push({ layer: 0, polys: allMarks });
+  else if (allMarks.length) {
+    for (let i = 0; i < layers.length; i++) {
+      const onLayer = i === 0 ? allMarks : clip("intersection", allMarks, layers[i].polys, ENGRAVE_MIN_MM2);
+      if (!onLayer.length) break; // layers are nested, so nothing higher up either
+      const visible = layers[i + 1] ? clip("difference", onLayer, layers[i + 1].polys, ENGRAVE_MIN_MM2) : onLayer;
+      if (visible.length) engrave.push({ layer: i, polys: visible });
     }
   }
   const engravePath = (i) =>
     engrave.filter((e) => e.layer === i).map((e) => `<path d="${polygonsToPath(e.polys)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>`).join("\n");
-
-  // Place peaks that fall inside the frame on the layer they stand on.
-  const z = zoom;
-  const fx0 = lngToX(o.bounds.west, z), fy0 = latToY(o.bounds.north, z);
-  const fx1 = lngToX(o.bounds.east, z), fy1 = latToY(o.bounds.south, z);
-  // Grid position, layer and in-frame test shared by peaks and special places.
-  const locate = (p) => {
-    const gx = ((lngToX(p.lng, z) - fx0) / (fx1 - fx0)) * gw;
-    const gy = ((latToY(p.lat, z) - fy0) / (fy1 - fy0)) * gh;
-    if (gx < 0 || gy < 0 || gx >= gw || gy >= gh) return null;
-    if (tpl && Math.hypot(gx * sx - tpl.cx, gy * sy - tpl.cy) > tpl.r - o.fontMm) return null;
-    const v = values[Math.floor(gy) * gw + Math.floor(gx)];
-    let layer = 0;
-    while (layer < levels.length && levels[layer] <= v) layer++;
-    return { x: gx * sx, y: gy * sy, layer: Math.min(layer, layers.length - 1) };
-  };
-  const places = [];
-  for (const p of o.places || []) {
-    const at = locate(p);
-    if (at) places.push({ ...p, ...at, shape: SHAPES[p.shape] ? p.shape : DEFAULT_SHAPE, sizeMm: o.placeMm || 8 });
-  }
-
-  const placed = [];
-  for (const p of o.peaks) {
-    const at = locate(p);
-    if (at) placed.push({ ...p, ...at });
-  }
-
-  const labelText = (p) => (o.labelMode === "name-height" ? `${p.name} ${p.h} m` : p.name);
-  const label = (p) => {
-    if (o.labelMode === "none") return "";
-    const text = labelText(p);
-    const m = o.fontMm * 0.45; // marker half-size
-    const right = p.x < W * 0.72;
-    const tx = right ? p.x + m * 1.8 : p.x - m * 1.8;
-    return (
-      `<path d="M${(p.x - m).toFixed(2)} ${(p.y + m * 0.8).toFixed(2)}L${p.x.toFixed(2)} ${(p.y - m).toFixed(2)}L${(p.x + m).toFixed(2)} ${(p.y + m * 0.8).toFixed(2)}Z" fill="${COLOURS.engrave}"/>` +
-      `<text x="${tx.toFixed(2)}" y="${(p.y + o.fontMm * 0.35).toFixed(2)}" font-size="${o.fontMm}" text-anchor="${right ? "start" : "end"}" fill="${COLOURS.engrave}">${esc(text)}</text>`
-    );
-  };
-
-  // Special place: filled shape plus a bold label beside it, both engraved.
-  const placeSvg = (p) => {
-    const sh = SHAPES[p.shape], s = p.sizeMm;
-    const ox = p.x - sh.anchor[0] * s, oy = p.y - sh.anchor[1] * s;
-    const cy = oy + s / 2;
-    const right = p.x < W * 0.68;
-    const tx = right ? ox + s + s * 0.3 : ox - s * 0.3;
-    const fs = o.fontMm * 1.2;
-    return (
-      `<path transform="translate(${ox.toFixed(2)} ${oy.toFixed(2)}) scale(${s})" d="${sh.d}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>` +
-      (p.label
-        ? `<text x="${tx.toFixed(2)}" y="${(cy + fs * 0.35).toFixed(2)}" font-size="${fs}" font-weight="bold" text-anchor="${right ? "start" : "end"}" fill="${COLOURS.engrave}">${esc(p.label)}</text>`
-        : "")
-    );
-  };
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
@@ -344,23 +347,20 @@ export async function buildLayout(o, onProgress) {
     `<metadata>${esc(JSON.stringify(meta))}</metadata>\n` +
     `<!-- Red = cut, blue = score/guide, black = engrave. Elevation: AWS Terrain Tiles (Mapzen). ` +
     `Hills: Database of British and Irish Hills v18.6, CC BY 4.0. -->\n` +
-    `<g font-family="Arial, Helvetica, sans-serif">\n`;
+    `<g>\n`;
   const line = (d, colour) => `<path d="${d}" fill="none" stroke="${colour}" stroke-width="0.1"/>`;
 
   let body = "";
   if (o.style === "engraved") {
     body += `<g inkscape:groupmode="layer" inkscape:label="Board">\n${line(outline, COLOURS.cut)}\n`;
     for (const l of layers.slice(1)) body += line(l.d, COLOURS.guide) + "\n";
-    body += engravePath(0) + "\n" + placed.map(label).join("\n") + "\n" + places.map(placeSvg).join("\n") + "\n</g>\n";
+    body += engravePath(0) + "\n</g>\n";
   } else {
     layers.forEach((l, i) => {
       const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.elevation} m)`;
       body += `<g inkscape:groupmode="layer" inkscape:label="${name}" id="layer-${i}">\n${line(l.d, COLOURS.cut)}\n`;
       if (o.guides && layers[i + 1]) body += line(layers[i + 1].d, COLOURS.guide) + "\n";
-      body += engravePath(i) + "\n";
-      body += placed.filter((p) => p.layer === i).map(label).join("\n");
-      body += places.filter((p) => p.layer === i).map(placeSvg).join("\n");
-      body += "\n</g>\n";
+      body += engravePath(i) + "\n</g>\n";
     });
   }
   const svg = head + body + "</g>\n</svg>\n";
@@ -372,14 +372,12 @@ export async function buildLayout(o, onProgress) {
     return `rgb(${mix(238, 150)},${mix(214, 100)},${mix(170, 55)})`;
   };
   let preview =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="Arial, Helvetica, sans-serif">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}">` +
     `<path d="${outline}" fill="${tone(0)}" fill-rule="evenodd"/>`;
   layers.slice(1).forEach((l, i) => {
     preview += `<path d="${l.d}" fill="${tone(i + 1)}" fill-rule="evenodd" stroke="rgba(60,30,10,.55)" stroke-width="${Math.max(W, H) / 900}"/>`;
   });
-  if (tpl) preview += `<path d="${polygonsToPath(tpl.engrave)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>`;
-  preview += placed.map(label).join("") + places.map(placeSvg).join("") + "</svg>";
+  preview += `<path d="${polygonsToPath(allMarks)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/></svg>`;
 
-  const labels = o.labelMode === "none" ? [] : placed.map((p) => ({ x: p.x, y: p.y, layer: p.layer, text: labelText(p) }));
-  return { svg, preview, meta, layers, labels, engrave, places, peaksPlaced: placed.length };
+  return { svg, preview, meta, layers, engrave, places, routeOnBoard, peaksPlaced };
 }

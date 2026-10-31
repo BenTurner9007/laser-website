@@ -391,3 +391,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   pointer-events: none;
 }
 .place-marker span:empty { display: none; }
+
+/* Step 5: hiking route */
+.route-actions { align-items: center; }
+.route-actions .btn { flex: 1; min-height: 44px; }
+.file-btn { display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+.btn.dark { background: var(--ink); border-color: var(--ink); color: var(--panel); font-weight: 600; }
+.btn.dark:hover { background: #000; }
+.route-panel { margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.route-panel p { margin: 0 0 10px; font-size: .9rem; }
+.route-panel .row .btn { flex: 1; }
+#route-points { color: var(--muted); }

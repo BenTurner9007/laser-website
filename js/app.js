@@ -3,6 +3,7 @@ import { CONFIG, REGIONS, HILL_LISTS } from "./config.js";
 import { buildLayout, DEM_URL } from "./layout.js";
 import { createViewer } from "./viewer3d.js";
 import { SHAPES, DEFAULT_SHAPE, PLACE_SIZES, shapeIcon } from "./shapes.js";
+import { parseRouteFile, encodeRoute, decodeRoute, routeLengthKm } from "./route.js";
 
 const $ = (s) => document.querySelector(s);
 const FONT = ["NotoSans-Regular"];
@@ -28,6 +29,12 @@ const state = {
   // Customers' special places: { lng, lat, shape, label }.
   places: parsePlaces(params.get("poi")),
   placeMm: +params.get("psz") || PLACE_SIZES[1].mm,
+  // Hiking route: lines of [lng, lat], engraved as a band.
+  route: {
+    lines: safeDecodeRoute(params.get("rt")),
+    style: params.get("rs") === "dashed" ? "dashed" : "solid",
+    widthMm: [0.8, 1.2, 2].includes(+params.get("rw")) ? +params.get("rw") : 1.2,
+  },
   // Board template id (e.g. the clock); null for plain rectangles.
   template: CONFIG.sizes.find((s) => s.id === params.get("tpl") && s.template)?.id || null,
 };
@@ -39,6 +46,14 @@ async function loadTemplate(id) {
   templates[id] ??= await fetch(s.template).then((r) => r.json());
   return templates[id];
 }
+function safeDecodeRoute(text) {
+  try {
+    return decodeRoute(text);
+  } catch {
+    return [];
+  }
+}
+
 function parsePlaces(text) {
   try {
     return JSON.parse(text || "[]")
@@ -114,6 +129,8 @@ const map = new maplibregl.Map({
       // Same data again without labels, so the dots still draw if label fonts fail to load.
       "hills-pts": { type: "geojson", data: "data/hills.geojson" },
       osmpeaks: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
+      route: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
+      "route-draft": { type: "geojson", data: { type: "FeatureCollection", features: [] } },
     },
     layers: [
       { id: "paper", type: "background", paint: { "background-color": "#efe2c8" } },
@@ -154,6 +171,33 @@ const map = new maplibregl.Map({
         paint: { "text-color": "#4b443b", "text-halo-color": "#fff", "text-halo-width": 1.2 },
       },
       {
+        id: "route-casing",
+        type: "line",
+        source: "route",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#fbf7f0", "line-width": 6.5 },
+      },
+      {
+        id: "route-line",
+        type: "line",
+        source: "route",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#b9581f", "line-width": 3.5 },
+      },
+      {
+        id: "route-draft-line",
+        type: "line",
+        source: "route-draft",
+        paint: { "line-color": "#2e2723", "line-width": 2.5, "line-dasharray": [2, 1.5] },
+      },
+      {
+        id: "route-draft-pts",
+        type: "circle",
+        source: "route-draft",
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: { "circle-radius": 4, "circle-color": "#fff", "circle-stroke-color": "#2e2723", "circle-stroke-width": 2 },
+      },
+      {
         id: "hills-dots",
         type: "circle",
         source: "hills-pts",
@@ -192,6 +236,7 @@ $("#show-osm").addEventListener("change", (e) => map.setLayoutProperty("osm", "v
 
 // Hill popups
 map.on("click", "hills-dots", (e) => {
+  if (drawing) return;
   const p = e.features[0].properties;
   const lists = p.lists.split(",").filter(Boolean).map((id) => HILL_LISTS.find((l) => l.id === id)?.label || id).join(", ");
   new maplibregl.Popup({ offset: 8 })
@@ -261,12 +306,12 @@ function updateScale() {
   $("#frame-scale").textContent = `${km < 10 ? km.toFixed(1) : Math.round(km)} km across · 1:${(Math.round(scale / 100) * 100).toLocaleString("en-GB")}`;
 }
 
-function fitToSharedBounds() {
-  const [w, s, e, n] = state.sharedBounds;
+// Move the map so [west, south, east, north] fills the frame.
+function fitFrameTo([w, s, e, n], duration = 0) {
   const r = frameRect();
   map.fitBounds(
     [[w, s], [e, n]],
-    { padding: { top: r.y, left: r.x, bottom: r.ch - r.y - r.h, right: r.cw - r.x - r.w }, duration: 0 }
+    { padding: { top: r.y, left: r.x, bottom: r.ch - r.y - r.h, right: r.cw - r.x - r.w }, duration }
   );
 }
 
@@ -280,7 +325,7 @@ const onStyleReady = (fn) => (map.isStyleLoaded() ? fn() : map.once("style.load"
 onStyleReady(() => {
   layoutFrame();
   if (state.sharedBounds?.length === 4 && state.sharedBounds.every(Number.isFinite)) {
-    fitToSharedBounds();
+    fitFrameTo(state.sharedBounds);
     const [west, south, east, north] = state.sharedBounds;
     pinnedBounds = { west, south, east, north };
   }
@@ -340,7 +385,17 @@ for (const id of ["#size-w", "#size-h"]) {
     setSize(w, h);
   });
 }
+// A shared link's area is only reused if its shape matches the board.
+function pinnedMatchesFrame() {
+  if (!pinnedBounds) return false;
+  const b = pinnedBounds;
+  const merc = (lat) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+  const aspect = (((b.east - b.west) * Math.PI) / 180) / (merc(b.north) - merc(b.south));
+  return Math.abs(aspect / (state.w / state.h) - 1) < 0.02;
+}
+
 function setSize(w, h, template = null) {
+  pinnedBounds = null; // a shared link's area no longer matches the new frame
   state.w = w;
   state.h = h;
   state.template = template;
@@ -456,6 +511,7 @@ function shareLink(b) {
     ...(state.places.length
       ? { poi: JSON.stringify(state.places.map((p) => [+p.lng.toFixed(5), +p.lat.toFixed(5), p.shape, p.label])), psz: state.placeMm }
       : {}),
+    ...(state.route.lines.length ? { rt: encodeRoute(state.route.lines), rs: state.route.style, rw: state.route.widthMm } : {}),
     font: state.fontMm,
     lists: [...state.lists].join(","),
     osm: state.osm ? "1" : "0",
@@ -468,7 +524,7 @@ function shareLink(b) {
 $("#generate").addEventListener("click", async () => {
   const btn = $("#generate");
   btn.disabled = true;
-  const b = pinnedBounds || frameBounds();
+  const b = pinnedMatchesFrame() ? pinnedBounds : frameBounds();
   try {
     setStatus("Fetching elevation data…");
     const result = await buildLayout(
@@ -485,6 +541,7 @@ $("#generate").addEventListener("click", async () => {
         template: state.template ? await loadTemplate(state.template) : null,
         places: state.places,
         placeMm: state.placeMm,
+        route: state.route.lines.length ? state.route : null,
         guides: true,
       },
       (f) => setStatus(`Fetching elevation data… ${Math.round(f * 100)}%`)
@@ -518,9 +575,13 @@ function renderStats() {
     [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.layers - 1],
     ["Named peaks", lastResult.peaksPlaced],
     ...(state.places.length ? [["Special places", lastResult.places.length]] : []),
+    ...(state.route.lines.length ? [["Route", `${routeLengthKm(state.route.lines).toFixed(1)} km`]] : []),
   ];
   if (m.style === "layered") items.push(["Stack height", `≈ ${stackHeight()} mm`]);
   let html = items.map(([k, v]) => `<li>${k}: <b>${escapeHtml(v)}</b></li>`).join("");
+  if (state.route.lines.length && !lastResult.routeOnBoard) {
+    html += `<li class="status error">Your route is outside the ${m.template ? "clock face" : "frame"}, so not included. Close this and use “Fit frame to route”.</li>`;
+  }
   const missing = state.places.length - lastResult.places.length;
   if (missing > 0) {
     html += `<li class="status error">${missing === 1 ? "One special place is" : `${missing} special places are`} outside the ${m.template ? "clock face" : "frame"}, so not included. Close this, drag it inside the frame and create the layout again.</li>`;
@@ -662,6 +723,9 @@ $("#order").addEventListener("submit", async (e) => {
     ...lastResult.places.map(
       (p) => `Special place: ${SHAPES[p.shape].label} "${p.label || "(no label)"}" at ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)} (${p.sizeMm} mm marker)`
     ),
+    ...(lastResult.routeOnBoard
+      ? [`Route: ${routeLengthKm(state.route.lines).toFixed(1)} km, ${state.route.style} line, ${state.route.widthMm} mm (included in the design link)`]
+      : []),
     `Area (W,S,E,N): ${[m.bounds.west, m.bounds.south, m.bounds.east, m.bounds.north].map((v) => v.toFixed(5)).join(", ")}`,
     `Open the design: ${lastResult.link}`,
     "",
@@ -804,3 +868,146 @@ $("#place-size").value = String(state.placeMm);
 $("#place-size").addEventListener("change", (e) => (state.placeMm = +e.target.value));
 
 renderPlaces();
+
+// ---------- Step 5: hiking route ----------
+let drawing = false;
+let draft = [];
+
+const lineFeatures = (lines) => ({
+  type: "FeatureCollection",
+  features: lines.map((l) => ({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: l } })),
+});
+
+function setRouteStatus(msg, kind = "") {
+  $("#route-status").textContent = msg;
+  $("#route-status").className = `status ${kind}`;
+}
+
+function routeBounds(lines) {
+  const b = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const [x, y] of lines.flat()) {
+    b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], y);
+    b[2] = Math.max(b[2], x); b[3] = Math.max(b[3], y);
+  }
+  // A little breathing room around the route.
+  const px = (b[2] - b[0]) * 0.08, py = (b[3] - b[1]) * 0.08;
+  return [b[0] - px, b[1] - py, b[2] + px, b[3] + py];
+}
+
+function routeFitsFrame(lines) {
+  const f = frameBounds();
+  return lines.flat().every(([x, y]) => x >= f.west && x <= f.east && y >= f.south && y <= f.north);
+}
+
+function renderRoute() {
+  const has = state.route.lines.length > 0;
+  onStyleReady(() => {
+    map.getSource("route").setData(lineFeatures(state.route.lines));
+    map.setPaintProperty("route-line", "line-dasharray", state.route.style === "dashed" ? [2, 1.4] : null);
+  });
+  $("#route-info").hidden = !has || drawing;
+  $("#route-draw").textContent = has ? "Redraw on map" : "Draw on map";
+  if (has) {
+    const km = routeLengthKm(state.route.lines);
+    $("#route-summary").innerHTML = `<b>${km.toFixed(1)} km route</b>${state.route.lines.length > 1 ? ` in ${state.route.lines.length} parts` : ""}.`;
+  }
+  $("#route-style").value = state.route.style;
+  $("#route-width").value = String(state.route.widthMm);
+}
+
+// Store routes as they will travel in the share link, so the customer's
+// preview and the owner's file are built from exactly the same line.
+function setRoute(lines) {
+  state.route.lines = decodeRoute(encodeRoute(lines));
+  renderRoute();
+}
+
+function updateDraft() {
+  const features = draft.map((c) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: c } }));
+  if (draft.length > 1) features.push({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: draft } });
+  map.getSource("route-draft").setData({ type: "FeatureCollection", features });
+  $("#route-points").textContent = draft.length ? `${draft.length} point${draft.length > 1 ? "s" : ""} · ${routeLengthKm([draft]).toFixed(1)} km` : "";
+}
+
+function startDrawing() {
+  drawing = true;
+  draft = [];
+  updateDraft();
+  map.doubleClickZoom.disable();
+  map.getCanvas().style.cursor = "crosshair";
+  $("#route-drawing").hidden = false;
+  $("#route-info").hidden = true;
+  setRouteStatus("");
+}
+
+function stopDrawing(keep) {
+  drawing = false;
+  map.doubleClickZoom.enable();
+  map.getCanvas().style.cursor = "";
+  $("#route-drawing").hidden = true;
+  if (keep && draft.length > 1) setRoute([draft]);
+  else if (keep) setRouteStatus("A route needs at least two points.", "error");
+  draft = [];
+  updateDraft();
+  renderRoute();
+}
+
+map.on("click", (e) => {
+  if (!drawing) return;
+  draft.push([e.lngLat.lng, e.lngLat.lat]);
+  updateDraft();
+});
+map.on("dblclick", () => drawing && stopDrawing(true));
+document.addEventListener("keydown", (e) => {
+  if (!drawing) return;
+  if (e.key === "Enter") stopDrawing(true);
+  if (e.key === "Escape") stopDrawing(false);
+});
+
+$("#route-draw").addEventListener("click", startDrawing);
+$("#route-undo").addEventListener("click", () => {
+  draft.pop();
+  updateDraft();
+});
+$("#route-done").addEventListener("click", () => stopDrawing(true));
+
+$("#route-file").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    const lines = parseRouteFile(await file.text(), file.name);
+    if (!lines.length) throw new Error("no route");
+    setRoute(lines);
+    if (!routeFitsFrame(state.route.lines)) {
+      pinnedBounds = null;
+      fitFrameTo(routeBounds(state.route.lines), 600);
+    }
+    setRouteStatus(`Loaded ${file.name}.`, "ok");
+  } catch {
+    setRouteStatus("Couldn’t find a route in that file. Try a GPX, KML or GeoJSON track.", "error");
+  }
+});
+$(".file-btn").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    $("#route-file").click();
+  }
+});
+
+$("#route-fit").addEventListener("click", () => {
+  pinnedBounds = null;
+  fitFrameTo(routeBounds(state.route.lines), 600);
+});
+$("#route-clear").addEventListener("click", () => {
+  state.route.lines = [];
+  renderRoute();
+  setRouteStatus("");
+});
+$("#route-style").addEventListener("change", (e) => {
+  state.route.style = e.target.value;
+  renderRoute();
+});
+$("#route-width").addEventListener("change", (e) => (state.route.widthMm = +e.target.value));
+
+onStyleReady(renderRoute);
