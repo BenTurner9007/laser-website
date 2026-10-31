@@ -6,8 +6,13 @@ export const CONFIG = {
   // Where layout requests are emailed when no form endpoint is set.
   orderEmail: "bturner9007@gmail.com",
 
-  // Optional: a Formspree (or similar) endpoint that accepts JSON POSTs,
-  // e.g. "https://formspree.io/f/abcdwxyz". Leave empty to use email instead.
+  // Send requests straight from the page (no email app). Get a free access
+  // key at https://web3forms.com by entering orderEmail; requests then arrive
+  // there with the customer's address as reply-to. 250 a month free.
+  web3formsKey: "",
+
+  // Alternative: a Formspree endpoint, e.g. "https://formspree.io/f/abcdwxyz".
+  // If neither is set, "Send request" opens the customer's email app instead.
   formEndpoint: "",
 
   // Board sizes offered to customers, in millimetres.

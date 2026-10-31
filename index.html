@@ -201,7 +201,9 @@
           <label class="field small"><span>Layer thickness</span><select name="thickness" id="thickness"></select></label>
         </div>
         <label class="field"><span>Anything else? (title, engraving, frame, gift message)</span><textarea name="notes" rows="3"></textarea></label>
-        <button class="btn primary" type="submit">Send request</button>
+        <!-- Spam trap: people never see or tick this; bots that fill everything in get rejected. -->
+        <input type="checkbox" name="botcheck" class="visually-hidden" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <button class="btn primary" type="submit" id="send-request">Send request</button>
         <p id="order-status" class="status" role="status"></p>
       </form>
     </div>

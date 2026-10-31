@@ -593,6 +593,8 @@ $("#result").addEventListener("close", () => viewer?.stop());
 
 function showResult() {
   $("#preview").innerHTML = lastResult.preview;
+  $("#send-request").disabled = false;
+  $("#send-request").textContent = "Send request";
   renderStats();
   $("#order-status").textContent = "";
   $("#owner-note").textContent = "";
@@ -708,22 +710,46 @@ $("#order").addEventListener("submit", async (e) => {
     `Notes: ${fd.notes || "-"}`,
   ].join("\n");
   const status = $("#order-status");
+  const subject = `Contour map request ${lastResult.ref}`;
 
-  if (CONFIG.formEndpoint) {
+  // Send from the page when a form service is set up (Web3Forms or Formspree).
+  const service = CONFIG.web3formsKey
+    ? {
+        url: "https://api.web3forms.com/submit",
+        body: {
+          access_key: CONFIG.web3formsKey,
+          subject,
+          from_name: `${CONFIG.businessName} website`,
+          name: fd.name,
+          email: fd.email,
+          replyto: fd.email,
+          message: summary,
+          botcheck: !!fd.botcheck,
+        },
+      }
+    : CONFIG.formEndpoint
+      ? { url: CONFIG.formEndpoint, body: { name: fd.name, email: fd.email, _subject: subject, message: summary } }
+      : null;
+  if (service) {
+    const btn = $("#send-request");
+    btn.disabled = true;
     status.textContent = "Sending…";
     status.className = "status";
     try {
-      const res = await fetch(CONFIG.formEndpoint, {
+      const res = await fetch(service.url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ name: fd.name, email: fd.email, _subject: `Contour map request ${lastResult.ref}`, message: summary }),
+        body: JSON.stringify(service.body),
       });
-      if (!res.ok) throw new Error(res.status);
+      const reply = await res.json().catch(() => ({}));
+      if (!res.ok || reply.success === false) throw new Error(reply.message || res.status);
       status.textContent = `Thanks ${fd.name}! We’ve got your layout (${lastResult.ref}) and will be in touch soon.`;
       status.className = "status ok";
+      btn.textContent = "Request sent ✓"; // stays disabled so it isn't sent twice
     } catch {
-      status.textContent = `Couldn’t send just now. Please copy the share link and email it to ${CONFIG.orderEmail}.`;
+      status.textContent = `Couldn’t send just now. Please try again, or copy the share link and email it to ${CONFIG.orderEmail}.`;
       status.className = "status error";
+      btn.disabled = false;
     }
     return;
   }

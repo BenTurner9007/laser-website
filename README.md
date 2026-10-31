@@ -137,7 +137,8 @@ Edit [`js/config.js`](js/config.js):
 | --- | --- |
 | `businessName`, `tagline` | Shown in the header and page title |
 | `orderEmail` | Where requests go by email (opens the customer's email app) |
-| `formEndpoint` | Optional [Formspree](https://formspree.io) (or similar) URL. When set, requests are posted straight to you instead of using email |
+| `web3formsKey` | Free [Web3Forms](https://web3forms.com) access key: requests are sent straight from the page to `orderEmail`, no email app (250 a month free) |
+| `formEndpoint` | Alternative: a [Formspree](https://formspree.io) endpoint. If neither is set, "Send request" opens the customer's email app |
 | `sizes` | Board sizes offered |
 | `thicknesses` | Material thicknesses, used to estimate stack height |
 | `defaultThickness` | Thickness pre-selected on the order form |
