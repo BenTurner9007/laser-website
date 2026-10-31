@@ -66,6 +66,7 @@ Edit [`js/config.js`](js/config.js):
 | `formEndpoint` | Optional [Formspree](https://formspree.io) (or similar) URL. When set, requests are posted straight to you instead of using email |
 | `sizes` | Board sizes offered |
 | `thicknesses` | Material thicknesses, used to estimate stack height |
+| `defaultThickness` | Thickness pre-selected on the order form |
 | `ownerKeyHash` | Hash of your private owner key (see above) |
 | `maxLayers` | Above this, customers see a hint to use a larger contour interval |
 

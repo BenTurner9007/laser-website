@@ -22,7 +22,7 @@ const state = {
   lists: params.has("lists") ? new Set(params.get("lists").split(",").filter(Boolean)) : new Set(HILL_LISTS.filter((l) => l.on).map((l) => l.id)),
   osm: params.get("osm") === "1",
   sharedBounds: params.get("b") ? params.get("b").split(",").map(Number) : null,
-  thickness: +params.get("t") || CONFIG.thicknesses[0],
+  thickness: +params.get("t") || CONFIG.defaultThickness || CONFIG.thicknesses[0],
   material: params.get("mat") || "",
 };
 // A shared link's exact area is used for the layout until the map is moved by hand.

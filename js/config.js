@@ -22,7 +22,9 @@ export const CONFIG = {
   ],
 
   // Material thicknesses offered for layered designs, in millimetres.
-  thicknesses: [3, 4, 6],
+  thicknesses: [1, 2, 3, 4, 6],
+  // Thickness pre-selected on the order form.
+  defaultThickness: 3,
 
   // SHA-256 of your private owner key. Open the site once with ?owner=<key>
   // and that browser will show "Download SVG" on every layout. Customers
