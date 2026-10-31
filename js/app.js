@@ -87,20 +87,20 @@ const map = new maplibregl.Map({
       osmpeaks: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
     },
     layers: [
-      { id: "paper", type: "background", paint: { "background-color": "#f3ead8" } },
+      { id: "paper", type: "background", paint: { "background-color": "#efe2c8" } },
       { id: "osm", type: "raster", source: "osm", layout: { visibility: "none" }, paint: { "raster-opacity": 0.55, "raster-saturation": -0.6 } },
       {
         id: "hillshade",
         type: "hillshade",
         source: "dem",
-        paint: { "hillshade-exaggeration": 0.35, "hillshade-shadow-color": "#5a4632", "hillshade-highlight-color": "#fffaf0" },
+        paint: { "hillshade-exaggeration": 0.35, "hillshade-shadow-color": "#4a3d34", "hillshade-highlight-color": "#fbf7f0" },
       },
       {
         id: "contour-lines",
         type: "line",
         source: "contours",
         "source-layer": "contours",
-        paint: { "line-color": "#7a4f2a", "line-opacity": ["match", ["get", "level"], 1, 0.85, 0.45], "line-width": ["match", ["get", "level"], 1, 1.3, 0.6] },
+        paint: { "line-color": "#6e6457", "line-opacity": ["match", ["get", "level"], 1, 0.85, 0.45], "line-width": ["match", ["get", "level"], 1, 1.3, 0.6] },
       },
       {
         id: "contour-labels",
@@ -109,7 +109,7 @@ const map = new maplibregl.Map({
         "source-layer": "contours",
         filter: [">", ["get", "level"], 0],
         layout: { "symbol-placement": "line", "text-size": 10, "text-field": ["concat", ["to-string", ["get", "ele"]], " m"], "text-font": FONT },
-        paint: { "text-color": "#7a4f2a", "text-halo-color": "#f3ead8", "text-halo-width": 1.2 },
+        paint: { "text-color": "#685e52", "text-halo-color": "#efe2c8", "text-halo-width": 1.2 },
       },
       {
         id: "osmpeaks-dots",
@@ -129,7 +129,7 @@ const map = new maplibregl.Map({
         type: "circle",
         source: "hills-pts",
         filter: listFilter(),
-        paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 7, 2.5, 12, 5], "circle-color": "#2f5d50", "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 },
+        paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 7, 2.5, 12, 5], "circle-color": "#b9581f", "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 },
       },
       {
         id: "hills-labels",
@@ -144,7 +144,7 @@ const map = new maplibregl.Map({
           "text-anchor": "top",
           "symbol-sort-key": ["-", ["get", "h"]],
         },
-        paint: { "text-color": "#1f3d35", "text-halo-color": "#fffdf8", "text-halo-width": 1.5 },
+        paint: { "text-color": "#2e2723", "text-halo-color": "#fbf7f0", "text-halo-width": 1.5 },
       },
     ],
   },

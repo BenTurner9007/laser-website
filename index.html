@@ -4,19 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Contour Map Designer</title>
+  <link rel="icon" type="image/png" href="images/icon.png">
   <meta name="description" content="Choose any area of the British hills and send it to us as a layout for a laser-cut contour map.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Instrument+Sans:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="vendor/maplibre-gl.css">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header class="site-header">
     <div class="brand">
-      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M3 26 12 10l5 8 4-5 8 13Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M8 26c3-4 6-5 9-4s6 0 8-3" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+      <img class="brand-logo" src="images/logo.jpg" width="430" height="205" alt="TurnerMadeUK">
       <div>
-        <h1 id="brand-name">Contour Map Designer</h1>
+        <h1 id="brand-name" class="visually-hidden">Contour Map Designer</h1>
+        <p class="brand-title">Contour Map Designer</p>
         <p id="brand-tagline" class="tagline"></p>
       </div>
     </div>
+    <p class="header-note">Cut to order in the UK · Birch, oak or acrylic</p>
   </header>
 
   <main class="layout">
@@ -32,7 +38,7 @@
     <aside class="panel">
       <ol class="steps">
         <li class="step">
-          <h2><span class="num">1</span> Find your hills</h2>
+          <h2><span class="num">01</span> Find your hills</h2>
           <label class="field">
             <span>Search a fell, Munro or peak</span>
             <input id="hill-search" type="search" list="hill-names" placeholder="e.g. Helvellyn" autocomplete="off">
@@ -42,7 +48,7 @@
         </li>
 
         <li class="step">
-          <h2><span class="num">2</span> Pick a board size</h2>
+          <h2><span class="num">02</span> Pick a board size</h2>
           <div class="chips" id="sizes" role="radiogroup" aria-label="Board size"></div>
           <div class="row custom-size">
             <label class="field small"><span>Width (mm)</span><input id="size-w" type="number" min="50" max="1000" step="1"></label>
@@ -51,7 +57,7 @@
         </li>
 
         <li class="step">
-          <h2><span class="num">3</span> Style it</h2>
+          <h2><span class="num">03</span> Style it</h2>
           <div class="seg" role="radiogroup" aria-label="Design style">
             <label><input type="radio" name="style" value="layered" checked><span>Layered (stacked boards)</span></label>
             <label><input type="radio" name="style" value="engraved"><span>Single engraved board</span></label>
@@ -104,8 +110,8 @@
           </div>
         </li>
 
-        <li class="step">
-          <h2><span class="num">4</span> Preview and send</h2>
+        <li class="step send">
+          <h2><span class="num">04</span> Preview and send</h2>
           <button id="generate" class="btn primary" type="button">Create my layout</button>
           <p id="status" class="status" role="status"></p>
         </li>
