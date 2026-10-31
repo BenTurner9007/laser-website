@@ -9,6 +9,7 @@
 import { SHAPES, DEFAULT_SHAPE, placeShape } from "./shapes.js";
 import { loadFonts, textRings } from "./text.js";
 import { routeBand } from "./route.js";
+import { WATER_KINDS } from "./water.js";
 
 export const DEM_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 const DEM_MAXZOOM = 15;
@@ -216,6 +217,25 @@ function templateGeometry(t, W, H) {
   return { board, engrave, cx, cy, r };
 }
 
+// Keep only the parts of lines (in mm) that come near the board.
+function trimLines(lines, W, H, margin) {
+  const near = ([x, y]) => x >= -margin && y >= -margin && x <= W + margin && y <= H + margin;
+  const out = [];
+  for (const line of lines) {
+    let run = [];
+    for (let i = 0; i < line.length; i++) {
+      // Keep a point if it, or a neighbour, is near the board, so segments crossing the edge survive.
+      if (near(line[i]) || (i > 0 && near(line[i - 1])) || (i < line.length - 1 && near(line[i + 1]))) run.push(line[i]);
+      else if (run.length) {
+        if (run.length > 1) out.push(run);
+        run = [];
+      }
+    }
+    if (run.length > 1) out.push(run);
+  }
+  return out;
+}
+
 const polygonsToPath = (polys) =>
   polys.flat().map((r) => "M" + r.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join("L") + "Z").join("");
 
@@ -238,6 +258,7 @@ const esc = (s) =>
  * @param {Array<{lng:number,lat:number,shape:string,label:string}>} [o.places]  customers' special places
  * @param {number} [o.placeMm]  special place marker size
  * @param {{lines:number[][][], widthMm:number, style:"solid"|"dashed"}} [o.route]  hiking route, lines of [lng, lat]
+ * @param {Object<string, number[][][]>} [o.water]  lines of [lng, lat] by kind (see WATER_KINDS)
  */
 export async function buildLayout(o, onProgress) {
   const [grid] = await Promise.all([fetchElevationGrid(o.bounds, onProgress), loadFonts()]);
@@ -317,6 +338,14 @@ export async function buildLayout(o, onProgress) {
     const band = routeBand(o.route.lines.map((l) => l.map(toMm)), o.route.widthMm, o.route.style);
     routeOnBoard = clip("intersection", band, boardPolys, ENGRAVE_MIN_MM2).length > 0;
     marks.push(band);
+  }
+
+  // Water: lake shores, rivers, streams and coastline as fine engraved lines.
+  for (const kind of WATER_KINDS) {
+    const lines = o.water?.[kind.id];
+    if (!lines?.length) continue;
+    const onBoardLines = trimLines(lines.map((l) => l.map(toMm)), W, H, kind.widthMm * 2);
+    if (onBoardLines.length) marks.push(routeBand(onBoardLines, kind.widthMm, "solid"));
   }
 
   // Each part of every mark is engraved on whichever layer is on top at that

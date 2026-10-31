@@ -12,7 +12,9 @@ board size, and send it as a layout for a laser-cut contour map.
    zoom the map underneath it. For the clock the frame is round and shows the
    numbers and hour marks, so customers can see where they land on their hills.
 3. **Style it**: layered (stacked boards) or a single engraved board, the
-   contour interval, smoothing, and which hill lists to name.
+   contour interval, smoothing, which hill lists to name, and which water to
+   engrave: lake and reservoir shores, rivers and canals, streams and
+   becks, and coastline (from OpenStreetMap, shown on the map as they choose).
 4. **Mark a special place** (optional): up to 3 draggable markers, each with
    a shape (heart, star, pin, circle, house, cross, diamond, triangle) and
    their own label, e.g. "Where we got engaged", at 5, 8 or 12 mm. The
@@ -131,6 +133,7 @@ js/viewer3d.js        3D preview of the stacked layers (three.js)
 js/shapes.js          special place marker shapes
 js/text.js            label text to outlines (opentype.js)
 js/route.js           route files, share-link encoding, route band
+js/water.js           rivers, lakes and coastline from OpenStreetMap (Overpass)
 data/clock-305.json   clock face template (built by scripts/build-clock.py)
 data/hills.geojson    636 named hills (built by scripts/build-hills.mjs)
 fonts/                map label glyphs (Noto Sans, OFL)
@@ -160,7 +163,7 @@ list ids to the extract, rebuild, and add the list to `HILL_LISTS` in
   (Mapzen Terrarium), which combine several sources including Environment
   Agency LIDAR (© Crown copyright). See the
   [attribution list](https://github.com/tilezen/joerd/blob/master/docs/attribution.md).
-- **Optional extra peaks and street map**: © [OpenStreetMap](https://www.openstreetmap.org/copyright)
+- **Water, optional extra peaks and street map**: © [OpenStreetMap](https://www.openstreetmap.org/copyright)
   contributors, via the Overpass API and the OSM tile servers. Both are free
   community services, so keep their use light. If the site gets busy, switch
   the street map to a paid tile provider.
