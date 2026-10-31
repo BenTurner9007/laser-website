@@ -432,8 +432,9 @@ function peaksInFrame(b) {
     .map((f) => ({ name: f.properties.name, h: f.properties.h, lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }));
 }
 
-function shareLink(b) {
+function shareLink(b, ref) {
   const p = new URLSearchParams({
+    ref,
     b: [b.west, b.south, b.east, b.north].map((v) => v.toFixed(5)).join(","),
     ...(state.template ? { tpl: state.template } : {}),
     w: state.w,
@@ -458,7 +459,8 @@ function shareLink(b) {
 $("#generate").addEventListener("click", async () => {
   const btn = $("#generate");
   btn.disabled = true;
-  const b = pinnedMatchesFrame() ? pinnedBounds : frameBounds();
+  const fromLink = pinnedMatchesFrame();
+  const b = fromLink ? pinnedBounds : frameBounds();
   try {
     setStatus("Fetching elevation data…");
     // Water tiles ship with the site; if one fails to load, carry on without water.
@@ -488,7 +490,9 @@ $("#generate").addEventListener("click", async () => {
       },
       (f) => setStatus(`Fetching elevation data… ${Math.round(f * 100)}%`)
     );
-    lastResult = { ...result, bounds: b, link: shareLink(b), ref: makeRef(), waterFailed };
+    // Rebuilding a customer's link keeps their reference, so files match emails.
+    const ref = (fromLink && sharedRef) || makeRef();
+    lastResult = { ...result, bounds: b, link: shareLink(b, ref), ref, waterFailed };
     showResult();
     setStatus("");
   } catch (err) {
@@ -503,6 +507,7 @@ $("#generate").addEventListener("click", async () => {
 const sizeText = (m) => (m.template ? `${m.template} (Ø${m.widthMm} mm)` : `${m.widthMm} × ${m.heightMm} mm`);
 
 const makeRef = () => "CM-" + Date.now().toString(36).toUpperCase().slice(-6);
+const sharedRef = /^CM-[A-Z0-9]{1,8}$/.test(params.get("ref") || "") ? params.get("ref") : null;
 
 function stackHeight() {
   return lastResult ? lastResult.meta.layers * +$("#thickness").value : 0;
@@ -602,7 +607,7 @@ if ([...$("#material").options].some((o) => o.value === state.material)) $("#mat
 for (const id of ["#thickness", "#material"]) {
   $(id).addEventListener("change", () => {
     if (!lastResult) return;
-    lastResult.link = shareLink(lastResult.bounds);
+    lastResult.link = shareLink(lastResult.bounds, lastResult.ref);
     renderStats();
     render3d();
   });
