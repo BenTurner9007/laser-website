@@ -106,24 +106,6 @@ a:hover { color: var(--ink); }
   max-width: calc(100% - 32px);
 }
 
-.map-toggle {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  z-index: 3;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 12px;
-  border-radius: 12px;
-  background: var(--panel);
-  font-size: 13px;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(46, 39, 35, .15);
-  cursor: pointer;
-}
-.map-toggle input { width: auto; accent-color: var(--accent); }
-
 /* MapLibre controls, restyled to match */
 .maplibregl-ctrl-group { border-radius: 12px !important; box-shadow: 0 2px 8px rgba(46, 39, 35, .15) !important; background: var(--panel) !important; }
 .maplibregl-ctrl-group button { width: 40px !important; height: 40px !important; }
@@ -402,5 +384,3 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .route-panel p { margin: 0 0 10px; font-size: .9rem; }
 .route-panel .row .btn { flex: 1; }
 #route-points { color: var(--muted); }
-.field-note { margin: 4px 0 0; font-size: .8rem; color: var(--muted); }
-.field-note:empty { display: none; }

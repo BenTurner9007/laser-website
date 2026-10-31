@@ -198,19 +198,6 @@ export function createViewer(container) {
       model.add(mesh);
     }
 
-    // Water score lines, drawn as thin lines on the layer they sit on.
-    const waterMat = new THREE.LineBasicMaterial({ color: ENGRAVE, transparent: true, opacity: 0.8 });
-    for (const w of result.water || []) {
-      const y = (style === "engraved" ? 1 : w.layer + 1) * boardT + 0.05;
-      const pos = [];
-      for (const l of w.lines) {
-        for (let i = 1; i < l.length; i++) pos.push(l[i - 1][0] - W / 2, y, l[i - 1][1] - H / 2, l[i][0] - W / 2, y, l[i][1] - H / 2);
-      }
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-      model.add(new THREE.LineSegments(geo, waterMat));
-    }
-
     const { mesh: ruler, depthMm } = rulerMesh(W);
     ruler.position.set(0, 0.5, H / 2 + depthMm / 2 + 8);
     model.add(ruler);
