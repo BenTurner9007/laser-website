@@ -16,7 +16,7 @@ const DEM_MAXZOOM = 15;
 const TILE = 256;
 
 // Laser colour conventions (LightBurn / most laser software map colour to operation).
-export const COLOURS = { cut: "#ff0000", guide: "#0000ff", engrave: "#000000" };
+export const COLOURS = { cut: "#ff0000", guide: "#0000ff", engrave: "#000000", water: "#00e000" };
 
 const MAX_GRID_PX = 1400; // longest side of the elevation grid
 const MAX_TILES = 120;
@@ -217,6 +217,69 @@ function templateGeometry(t, W, H) {
   return { board, engrave, cx, cy, r };
 }
 
+const lineLength = (l) => l.reduce((n, p, i) => (i ? n + Math.hypot(p[0] - l[i - 1][0], p[1] - l[i - 1][1]) : 0), 0);
+
+/**
+ * Which layer is on top at each point: draws every layer (holes and all)
+ * into an off-screen canvas, each in a colour holding its index. Returns
+ * get(x, y) in mm, or -1 off the board.
+ */
+function layerMask(layers, W, H) {
+  const k = Math.min(5, 2400 / Math.max(W, H)); // pixels per mm
+  const c = document.createElement("canvas");
+  c.width = Math.ceil(W * k);
+  c.height = Math.ceil(H * k);
+  const g = c.getContext("2d", { willReadFrequently: true });
+  g.fillStyle = "rgb(0,0,0)";
+  g.fillRect(0, 0, c.width, c.height);
+  g.scale(k, k);
+  layers.forEach((l, i) => {
+    g.fillStyle = `rgb(${i + 1},0,0)`;
+    g.fill(new Path2D(l.d), "evenodd");
+  });
+  const px = g.getImageData(0, 0, c.width, c.height).data;
+  return (x, y) => {
+    const ix = Math.floor(x * k), iy = Math.floor(y * k);
+    if (ix < 0 || iy < 0 || ix >= c.width || iy >= c.height) return -1;
+    return px[(iy * c.width + ix) * 4] - 1;
+  };
+}
+
+/** Cut lines (mm) into runs by the layer on top, stepping every ~0.25 mm. */
+function splitByLayer(lines, mask, step = 0.25) {
+  const byLayer = new Map();
+  const add = (layer, run) => {
+    if (layer < 0 || run.length < 2) return;
+    if (!byLayer.has(layer)) byLayer.set(layer, []);
+    byLayer.get(layer).push(simplify(run, SIMPLIFY_MM));
+  };
+  for (const line of lines) {
+    // Points every ~step mm along the line.
+    const pts = [line[0]];
+    for (let i = 1; i < line.length; i++) {
+      const [x1, y1] = line[i - 1], [x2, y2] = line[i];
+      const n = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / step));
+      for (let j = 1; j <= n; j++) pts.push([x1 + ((x2 - x1) * j) / n, y1 + ((y2 - y1) * j) / n]);
+    }
+    let run = [], layer = null;
+    for (const p of pts) {
+      const l = mask(p[0], p[1]);
+      if (l !== layer) {
+        // Join the runs at the midpoint so there's no gap at the step.
+        const prev = run[run.length - 1];
+        const mid = prev ? [(prev[0] + p[0]) / 2, (prev[1] + p[1]) / 2] : null;
+        if (mid) run.push(mid);
+        add(layer, run);
+        run = mid ? [mid] : [];
+        layer = l;
+      }
+      run.push(p);
+    }
+    add(layer, run);
+  }
+  return byLayer;
+}
+
 // Keep only the parts of lines (in mm) that come near the board.
 function trimLines(lines, W, H, margin) {
   const near = ([x, y]) => x >= -margin && y >= -margin && x <= W + margin && y <= H + margin;
@@ -340,14 +403,6 @@ export async function buildLayout(o, onProgress) {
     marks.push(band);
   }
 
-  // Water: lake shores, rivers, streams and coastline as fine engraved lines.
-  for (const kind of WATER_KINDS) {
-    const lines = o.water?.[kind.id];
-    if (!lines?.length) continue;
-    const onBoardLines = trimLines(lines.map((l) => l.map(toMm)), W, H, kind.widthMm * 2);
-    if (onBoardLines.length) marks.push(routeBand(onBoardLines, kind.widthMm, "solid"));
-  }
-
   // Each part of every mark is engraved on whichever layer is on top at that
   // spot, so labels crossing several contour levels stay readable when stacked.
   const nonEmpty = marks.filter((m) => m.length);
@@ -364,6 +419,24 @@ export async function buildLayout(o, onProgress) {
   }
   const engravePath = (i) =>
     engrave.filter((e) => e.layer === i).map((e) => `<path d="${polygonsToPath(e.polys)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>`).join("\n");
+
+  // Water: lake shores, rivers, streams and coastline as score lines, each
+  // stretch on whichever layer is on top there (looked up in a layer mask,
+  // which stays fast with thousands of OpenStreetMap points).
+  const water = [];
+  const waterKinds = WATER_KINDS.filter((k) => o.water?.[k.id]?.length);
+  if (waterKinds.length) {
+    const mask = layerMask(o.style === "engraved" ? layers.slice(0, 1) : layers, W, H);
+    for (const kind of waterKinds) {
+      const lines = trimLines(o.water[kind.id].map((l) => l.map(toMm)), W, H, 1).filter((l) => lineLength(l) >= 2);
+      for (const [layer, runs] of splitByLayer(lines, mask)) water.push({ layer, kind: kind.id, widthMm: kind.widthMm, lines: runs });
+    }
+  }
+  const linesToPath = (lines) => lines.map((l) => "M" + l.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join("L")).join("");
+  const waterPath = (i) => {
+    const lines = water.filter((w) => w.layer === i).flatMap((w) => w.lines);
+    return lines.length ? `<path d="${linesToPath(lines)}" fill="none" stroke="${COLOURS.water}" stroke-width="0.1"/>\n` : "";
+  };
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
@@ -383,13 +456,13 @@ export async function buildLayout(o, onProgress) {
   if (o.style === "engraved") {
     body += `<g inkscape:groupmode="layer" inkscape:label="Board">\n${line(outline, COLOURS.cut)}\n`;
     for (const l of layers.slice(1)) body += line(l.d, COLOURS.guide) + "\n";
-    body += engravePath(0) + "\n</g>\n";
+    body += engravePath(0) + "\n" + waterPath(0) + "</g>\n";
   } else {
     layers.forEach((l, i) => {
       const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.elevation} m)`;
       body += `<g inkscape:groupmode="layer" inkscape:label="${name}" id="layer-${i}">\n${line(l.d, COLOURS.cut)}\n`;
       if (o.guides && layers[i + 1]) body += line(layers[i + 1].d, COLOURS.guide) + "\n";
-      body += engravePath(i) + "\n</g>\n";
+      body += engravePath(i) + "\n" + waterPath(i) + "</g>\n";
     });
   }
   const svg = head + body + "</g>\n</svg>\n";
@@ -406,7 +479,8 @@ export async function buildLayout(o, onProgress) {
   layers.slice(1).forEach((l, i) => {
     preview += `<path d="${l.d}" fill="${tone(i + 1)}" fill-rule="evenodd" stroke="rgba(60,30,10,.55)" stroke-width="${Math.max(W, H) / 900}"/>`;
   });
+  for (const w of water) preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="#1f3f5c" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
   preview += `<path d="${polygonsToPath(allMarks)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/></svg>`;
 
-  return { svg, preview, meta, layers, engrave, places, routeOnBoard, peaksPlaced };
+  return { svg, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }

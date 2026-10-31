@@ -13,7 +13,7 @@ board size, and send it as a layout for a laser-cut contour map.
    numbers and hour marks, so customers can see where they land on their hills.
 3. **Style it**: layered (stacked boards) or a single engraved board, the
    contour interval, smoothing, which hill lists to name, and which water to
-   engrave: lake and reservoir shores, rivers and canals, streams and
+   add: lake and reservoir shores, rivers and canals, streams and
    becks, and coastline (from OpenStreetMap, shown on the map as they choose).
 4. **Mark a special place** (optional): up to 3 draggable markers, each with
    a shape (heart, star, pin, circle, house, cross, diamond, triangle) and
@@ -36,7 +36,9 @@ board size, and send it as a layout for a laser-cut contour map.
   - one Inkscape layer per contour level (`Layer 00 base`, `Layer 01 (200 m)` …)
   - **red** = cut, **blue** = score/glue guide (the outline of the layer
     above), **black** = engrave (filled shapes: names, markers, special
-    places, the route and clock numbers)
+    places, the route and clock numbers), **green** = water score lines
+    (lake shores, rivers, streams, coastline) on their own colour so you can
+    give them a light line pass
   - all layers sit in register on top of each other, so separate or nest them
     onto sheets in Inkscape/LightBurn before cutting
   - islands and holes smaller than about 2 × 2 mm are removed, as they are too
