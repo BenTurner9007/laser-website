@@ -34,14 +34,26 @@ board size, and send it as a layout for a laser-cut contour map.
 - A **share link** that reopens the exact area and settings, so you can
   regenerate the layout yourself at any time.
 - A **production SVG** at real size (mm), downloaded by you in owner mode (below):
-  - one Inkscape layer per contour level (`Layer 00 base`, `Layer 01 (200 m)` …)
-  - **red** = cut, **blue** = score/glue guide (the outline of the layer
-    above), **black** = engrave (filled shapes: names, markers, special
-    places, the route and clock numbers), **green** = water score lines
-    (lake shores, rivers, streams, coastline) on their own colour so you can
-    give them a light line pass
-  - all layers sit in register on top of each other, so separate or nest them
-    onto sheets in Inkscape/LightBurn before cutting
+  - one Inkscape layer per contour level (`Layer 00 base`, `Layer 01 (200 m)` …),
+    and inside it **one group per separate piece** (`Piece 5A`, `Piece 5B` …),
+    so you can select a whole level or pull pieces apart to nest them tightly
+  - every piece carries its own cut line, the **glue outline of each piece
+    that sits on it**, and the engraving and water that land on it
+  - **assembly numbers**: piece ids are the layer number plus a letter
+    (`5B` = second piece on layer 5). Each piece is engraved with its own id
+    (`#5B`), and inside each glue outline is the id of the piece that goes
+    there (`6A`). Both sit under the piece above, so they're hidden once glued.
+    Labels turn sideways or shrink (to ~1.6 mm) to fit thin pieces
+  - pieces with nothing on top can't hide their id, so it's in its own colour
+    (magenta) for you to engrave lightly or switch off. Any piece too small for
+    even a tiny number (a few mm across) is listed in the SVG metadata as
+    `unnumberedPieces`; match those by shape against their glue outline
+  - colours: **red** = cut, **blue** = glue outline, **black** = engrave
+    (names, markers, special places, route, clock numbers), **green** = water
+    score lines, **orange** = hidden assembly numbers, **magenta** = visible ids.
+    Give each its own LightBurn layer; orange and green suit a quick light pass
+  - all pieces sit in register (as assembled), so the file also shows the
+    whole model; nest the pieces onto sheets before cutting
   - islands and holes smaller than about 2 × 2 mm are removed, as they are too
     fragile to cut
   - the order details (bounds, interval, layer count, elevation range) are

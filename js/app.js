@@ -646,10 +646,23 @@ async function initOwnerMode() {
 initOwnerMode();
 
 $("#download").addEventListener("click", () => {
-  const blob = new Blob([lastResult.svg], { type: "image/svg+xml" });
-  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `contour-layout-${lastResult.ref}.svg` });
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  const btn = $("#download");
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Preparing pieces…";
+  // Let the button update before the (few seconds of) work starts.
+  setTimeout(() => {
+    try {
+      lastResult.svg ??= lastResult.buildSvg();
+      const blob = new Blob([lastResult.svg], { type: "image/svg+xml" });
+      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `contour-layout-${lastResult.ref}.svg` });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
+    }
+  }, 50);
 });
 
 $("#copy-link").addEventListener("click", async () => {

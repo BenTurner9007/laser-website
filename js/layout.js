@@ -10,13 +10,22 @@ import { SHAPES, DEFAULT_SHAPE, placeShape } from "./shapes.js";
 import { loadFonts, textRings } from "./text.js";
 import { routeBand } from "./route.js";
 import { WATER_KINDS } from "./water.js";
+import { splitIntoPieces, numberPieces } from "./pieces.js";
 
 export const DEM_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 const DEM_MAXZOOM = 15;
 const TILE = 256;
 
 // Laser colour conventions (LightBurn / most laser software map colour to operation).
-export const COLOURS = { cut: "#ff0000", guide: "#0000ff", engrave: "#000000", water: "#00e000" };
+export const COLOURS = {
+  cut: "#ff0000",
+  guide: "#0000ff",
+  engrave: "#000000",
+  water: "#00e000",
+  number: "#ff8000", // assembly numbers, hidden under the piece above
+  numberVisible: "#ff00ff", // ids of pieces with nothing on top (would show)
+};
+const NUMBER_MM = 4; // assembly number size
 
 const MAX_GRID_PX = 1400; // longest side of the elevation grid
 const MAX_TILES = 120;
@@ -443,32 +452,56 @@ export async function buildLayout(o, onProgress) {
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
-    style: o.style, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length, minElevation: Math.round(minE), maxElevation: Math.round(maxE), demZoom: zoom,
+    style: o.style, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length,
+    minElevation: Math.round(minE), maxElevation: Math.round(maxE), demZoom: zoom,
   };
-  const head =
-    `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" ` +
-    `width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}">\n` +
-    `<metadata>${esc(JSON.stringify(meta))}</metadata>\n` +
-    `<!-- Red = cut, blue = score/guide, black = engrave. Elevation: AWS Terrain Tiles (Mapzen). ` +
-    `Hills: Database of British and Irish Hills v18.6, CC BY 4.0. -->\n` +
-    `<g>\n`;
   const line = (d, colour) => `<path d="${d}" fill="none" stroke="${colour}" stroke-width="0.1"/>`;
+  const fill = (rings, colour) => (rings.length ? `<path d="${polygonsToPath([rings])}" fill="${colour}" fill-rule="evenodd"/>\n` : "");
 
-  let body = "";
-  if (o.style === "engraved") {
-    body += `<g inkscape:groupmode="layer" inkscape:label="Board">\n${line(outline, COLOURS.cut)}\n`;
-    for (const l of layers.slice(1)) body += line(l.d, COLOURS.guide) + "\n";
-    body += engravePath(0) + "\n" + waterPath(0) + "</g>\n";
-  } else {
-    layers.forEach((l, i) => {
-      const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.elevation} m)`;
-      body += `<g inkscape:groupmode="layer" inkscape:label="${name}" id="layer-${i}">\n${line(l.d, COLOURS.cut)}\n`;
-      if (o.guides && layers[i + 1]) body += line(layers[i + 1].d, COLOURS.guide) + "\n";
-      body += engravePath(i) + "\n" + waterPath(i) + "</g>\n";
-    });
-  }
-  const svg = head + body + "</g>\n</svg>\n";
+  // The production SVG takes a few seconds (numbering every piece), so it is
+  // only built when someone downloads it.
+  const buildSvg = () => {
+    // Layered: each layer is a group of its separate pieces, so they can be
+    // nested on sheets; each piece carries its glue guides, engraving and numbers.
+    const pieces = o.style === "engraved" ? null : numberPieces(splitIntoPieces(layers, engrave, water), NUMBER_MM);
+    const fileMeta = {
+      ...meta,
+      pieces: pieces?.flat().length,
+      // Pieces too small to carry their number; match these by shape.
+      unnumberedPieces: pieces?.flat().filter((p) => p.noOwnLabel).map((p) => p.id),
+    };
+    let body = "";
+    if (o.style === "engraved") {
+      body += `<g inkscape:groupmode="layer" inkscape:label="Board">\n${line(outline, COLOURS.cut)}\n`;
+      for (const l of layers.slice(1)) body += line(l.d, COLOURS.guide) + "\n";
+      body += engravePath(0) + "\n" + waterPath(0) + "</g>\n";
+    } else {
+      layers.forEach((l, i) => {
+        const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.elevation} m)`;
+        body += `<g inkscape:groupmode="layer" inkscape:label="${name}" id="layer-${i}">\n`;
+        for (const p of pieces[i]) {
+          body += `<g id="piece-${p.id}" inkscape:label="Piece ${p.id}">\n${line(polygonsToPath([p.poly]), COLOURS.cut)}\n`;
+          if (o.guides && p.children.length) body += line(polygonsToPath(p.children.map((c) => c.poly)), COLOURS.guide) + "\n";
+          if (p.engrave.length) body += `<path d="${polygonsToPath(p.engrave)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>\n`;
+          if (p.water.length) body += `<path d="${linesToPath(p.water)}" fill="none" stroke="${COLOURS.water}" stroke-width="0.1"/>\n`;
+          body += fill(p.numbers, COLOURS.number) + fill(p.visibleNumbers, COLOURS.numberVisible);
+          body += "</g>\n";
+        }
+        body += "</g>\n";
+      });
+    }
+    return (
+      `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" ` +
+      `width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}">\n` +
+      `<metadata>${esc(JSON.stringify(fileMeta))}</metadata>\n` +
+      `<!-- Red = cut, blue = glue guide, black = engrave, green = water score lines, ` +
+      `orange = assembly numbers (hidden once glued), magenta = numbers on pieces with nothing on top. ` +
+      `Each layer group holds one group per piece. Elevation: AWS Terrain Tiles (Mapzen). ` +
+      `Hills: Database of British and Irish Hills v18.6, CC BY 4.0. -->\n` +
+      `<g>\n${body}</g>\n</svg>\n`
+    );
+  };
 
   // Preview: stacked layers filled light-to-dark like real plywood.
   const tone = (i) => {
@@ -485,5 +518,5 @@ export async function buildLayout(o, onProgress) {
   for (const w of water) preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="#1f3f5c" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
   preview += `<path d="${polygonsToPath(allMarks)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/></svg>`;
 
-  return { svg, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
+  return { buildSvg, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }
