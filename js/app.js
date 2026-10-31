@@ -2,6 +2,7 @@
 import { CONFIG, REGIONS, HILL_LISTS } from "./config.js";
 import { buildLayout, DEM_URL } from "./layout.js";
 import { createViewer } from "./viewer3d.js";
+import { SHAPES, DEFAULT_SHAPE, PLACE_SIZES, shapeIcon } from "./shapes.js";
 
 const $ = (s) => document.querySelector(s);
 const FONT = ["NotoSans-Regular"];
@@ -24,6 +25,9 @@ const state = {
   sharedBounds: params.get("b") ? params.get("b").split(",").map(Number) : null,
   thickness: +params.get("t") || CONFIG.defaultThickness || CONFIG.thicknesses[0],
   material: params.get("mat") || "",
+  // Customers' special places: { lng, lat, shape, label }.
+  places: parsePlaces(params.get("poi")),
+  placeMm: +params.get("psz") || PLACE_SIZES[1].mm,
   // Board template id (e.g. the clock); null for plain rectangles.
   template: CONFIG.sizes.find((s) => s.id === params.get("tpl") && s.template)?.id || null,
 };
@@ -34,6 +38,16 @@ async function loadTemplate(id) {
   if (!s?.template) return null;
   templates[id] ??= await fetch(s.template).then((r) => r.json());
   return templates[id];
+}
+function parsePlaces(text) {
+  try {
+    return JSON.parse(text || "[]")
+      .slice(0, 3)
+      .map(([lng, lat, shape, label]) => ({ lng: +lng, lat: +lat, shape: SHAPES[shape] ? shape : DEFAULT_SHAPE, label: String(label || "").slice(0, 40) }))
+      .filter((p) => Number.isFinite(p.lng) && Number.isFinite(p.lat));
+  } catch {
+    return [];
+  }
 }
 // A shared link's exact area is used for the layout until the map is moved by hand.
 let pinnedBounds = null;
@@ -439,6 +453,9 @@ function shareLink(b) {
     sm: state.smoothing,
     style: state.style,
     labels: state.labelMode,
+    ...(state.places.length
+      ? { poi: JSON.stringify(state.places.map((p) => [+p.lng.toFixed(5), +p.lat.toFixed(5), p.shape, p.label])), psz: state.placeMm }
+      : {}),
     font: state.fontMm,
     lists: [...state.lists].join(","),
     osm: state.osm ? "1" : "0",
@@ -466,6 +483,8 @@ $("#generate").addEventListener("click", async () => {
         labelMode: state.labelMode,
         fontMm: state.fontMm,
         template: state.template ? await loadTemplate(state.template) : null,
+        places: state.places,
+        placeMm: state.placeMm,
         guides: true,
       },
       (f) => setStatus(`Fetching elevation data… ${Math.round(f * 100)}%`)
@@ -498,9 +517,14 @@ function renderStats() {
     ["Heights", `${m.minElevation}–${m.maxElevation} m`],
     [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.layers - 1],
     ["Named peaks", lastResult.peaksPlaced],
+    ...(state.places.length ? [["Special places", lastResult.places.length]] : []),
   ];
   if (m.style === "layered") items.push(["Stack height", `≈ ${stackHeight()} mm`]);
   let html = items.map(([k, v]) => `<li>${k}: <b>${escapeHtml(v)}</b></li>`).join("");
+  const missing = state.places.length - lastResult.places.length;
+  if (missing > 0) {
+    html += `<li class="status error">${missing === 1 ? "One special place is" : `${missing} special places are`} outside the ${m.template ? "clock face" : "frame"}, so not included. Close this, drag it inside the frame and create the layout again.</li>`;
+  }
   if (m.style === "layered" && m.layers > CONFIG.maxLayers) {
     html += `<li class="status error">That’s a lot of layers – try a bigger contour interval for a quicker, cheaper piece.</li>`;
   }
@@ -635,6 +659,9 @@ $("#order").addEventListener("submit", async (e) => {
     `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}`,
     `Contours every ${m.interval} m, smoothing ${m.smoothing}, heights ${m.minElevation}-${m.maxElevation} m`,
     `Material: ${fd.material}`,
+    ...lastResult.places.map(
+      (p) => `Special place: ${SHAPES[p.shape].label} "${p.label || "(no label)"}" at ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)} (${p.sizeMm} mm marker)`
+    ),
     `Area (W,S,E,N): ${[m.bounds.west, m.bounds.south, m.bounds.east, m.bounds.north].map((v) => v.toFixed(5)).join(", ")}`,
     `Open the design: ${lastResult.link}`,
     "",
@@ -674,3 +701,106 @@ if (state.template) {
 }
 renderSizes();
 renderFrameTemplate();
+
+// ---------- Step 4: special places ----------
+const MAX_PLACES = 3;
+const MARKER_PX = 30;
+const markers = [];
+
+function markerElement(p) {
+  const el = document.createElement("div");
+  el.className = "place-marker";
+  el.innerHTML = shapeIcon(p.shape, MARKER_PX, 'fill="#b9581f" stroke="#fff" stroke-width="0.07"') + `<span></span>`;
+  el.querySelector("span").textContent = p.label;
+  el.title = "Drag to move";
+  return el;
+}
+
+// Put the shape's anchor point (e.g. the tip of the pin) on the spot.
+function markerOffset(shape) {
+  const [ax, ay] = SHAPES[shape].anchor;
+  const unit = MARKER_PX / 1.1; // icon viewBox is 1.1 units wide
+  return [-(0.05 + ax) * unit, -(0.05 + ay) * unit];
+}
+
+function addMarker(p, i) {
+  const marker = new maplibregl.Marker({ element: markerElement(p), anchor: "top-left", offset: markerOffset(p.shape), draggable: true })
+    .setLngLat([p.lng, p.lat])
+    .addTo(map);
+  marker.on("dragend", () => {
+    const { lng, lat } = marker.getLngLat();
+    Object.assign(state.places[i], { lng, lat });
+  });
+  markers[i] = marker;
+}
+
+function refreshMarkers() {
+  markers.splice(0).forEach((m) => m.remove());
+  state.places.forEach(addMarker);
+}
+
+function renderPlaces() {
+  $("#places").innerHTML = state.places
+    .map(
+      (p, i) => `
+      <div class="place" data-i="${i}">
+        <div class="place-head">
+          <span>Place ${i + 1}</span>
+          <button type="button" class="link-btn remove-place">Remove</button>
+        </div>
+        <div class="shape-picker" role="radiogroup" aria-label="Shape for place ${i + 1}">
+          ${Object.entries(SHAPES)
+            .map(([id, s]) => `<button type="button" class="shape-btn" role="radio" aria-checked="${id === p.shape}" data-shape="${id}" title="${s.label}" aria-label="${s.label}">${shapeIcon(id, 20)}</button>`)
+            .join("")}
+        </div>
+        <label class="field"><span>Label (optional)</span>
+          <input class="place-label" maxlength="40" placeholder="e.g. Where we got engaged" value="${escapeHtml(p.label)}">
+        </label>
+      </div>`
+    )
+    .join("");
+  $("#add-place").hidden = state.places.length >= MAX_PLACES;
+  $(".place-size").hidden = !state.places.length;
+  refreshMarkers();
+}
+
+$("#add-place").addEventListener("click", () => {
+  if (state.places.length >= MAX_PLACES) return;
+  // Start in the middle of the frame, nudged so new markers don't stack.
+  const r = frameRect();
+  const n = state.places.length;
+  const at = map.unproject([r.x + r.w / 2 + n * 36, r.y + r.h / 2 + n * 24]);
+  state.places.push({ lng: at.lng, lat: at.lat, shape: DEFAULT_SHAPE, label: "" });
+  renderPlaces();
+  $(`.place[data-i="${n}"] .place-label`)?.focus();
+});
+
+$("#places").addEventListener("click", (e) => {
+  const row = e.target.closest(".place");
+  if (!row) return;
+  const i = +row.dataset.i;
+  if (e.target.closest(".remove-place")) {
+    state.places.splice(i, 1);
+    renderPlaces();
+    return;
+  }
+  const btn = e.target.closest(".shape-btn");
+  if (btn) {
+    state.places[i].shape = btn.dataset.shape;
+    row.querySelectorAll(".shape-btn").forEach((b) => b.setAttribute("aria-checked", b === btn));
+    refreshMarkers();
+  }
+});
+
+$("#places").addEventListener("input", (e) => {
+  if (!e.target.classList.contains("place-label")) return;
+  const i = +e.target.closest(".place").dataset.i;
+  state.places[i].label = e.target.value;
+  markers[i].getElement().querySelector("span").textContent = e.target.value;
+});
+
+$("#place-size").innerHTML = PLACE_SIZES.map((s) => `<option value="${s.mm}">${s.label} (${s.mm} mm)</option>`).join("");
+$("#place-size").value = String(state.placeMm);
+$("#place-size").addEventListener("change", (e) => (state.placeMm = +e.target.value));
+
+renderPlaces();

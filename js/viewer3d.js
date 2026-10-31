@@ -4,6 +4,7 @@
 
 import * as THREE from "three";
 import { OrbitControls } from "../vendor/OrbitControls.js";
+import { SHAPES } from "./shapes.js";
 
 // Material looks, keyed by the order form's material names.
 const FINISHES = {
@@ -73,6 +74,46 @@ function labelMesh(text, fontMm, rightOfMarker) {
   // Shift so the marker, not the plane centre, sits on the peak.
   const markerX = (rightOfMarker ? m + 4 : c.width - m - 4) / pxPerMm;
   mesh.userData.offsetX = w / 2 - markerX;
+  return mesh;
+}
+
+// Special place: engraved shape with a bold label, laid out like layout.js.
+function placeMesh(p, fontMm) {
+  const ppm = 24;
+  const sh = SHAPES[p.shape];
+  const s = p.sizeMm * ppm;
+  const fs = fontMm * 1.2 * ppm;
+  const c = document.createElement("canvas");
+  const g = c.getContext("2d");
+  const font = `700 ${fs}px Arial, Helvetica, sans-serif`;
+  g.font = font;
+  const gap = s * 0.3;
+  const textW = p.label ? g.measureText(p.label).width + gap : 0;
+  c.width = Math.ceil(s + textW + 8);
+  c.height = Math.ceil(Math.max(s, fs * 1.4) + 8);
+  const right = p.right;
+  const ox = right ? 4 : c.width - s - 4, oy = (c.height - s) / 2;
+  g.fillStyle = ENGRAVE;
+  g.save();
+  g.translate(ox, oy);
+  g.scale(s, s);
+  g.fill(new Path2D(sh.d), "evenodd");
+  g.restore();
+  if (p.label) {
+    g.font = font;
+    g.textBaseline = "middle";
+    g.textAlign = right ? "left" : "right";
+    g.fillText(p.label, right ? ox + s + gap : ox - gap, c.height / 2);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(c.width / ppm, c.height / ppm), mat);
+  mesh.rotation.x = -Math.PI / 2;
+  // Offsets that put the shape's anchor point on the spot.
+  mesh.userData.offsetX = (c.width / 2 - (ox + sh.anchor[0] * s)) / ppm;
+  mesh.userData.offsetZ = (c.height / 2 - (oy + sh.anchor[1] * s)) / ppm;
   return mesh;
 }
 
@@ -242,6 +283,13 @@ export function createViewer(container) {
       const right = l.x < W * 0.72;
       const mesh = labelMesh(l.text, fontMm, right);
       mesh.position.set(l.x - W / 2 + mesh.userData.offsetX, (layer + 1) * boardT + 0.05, l.y - H / 2);
+      model.add(mesh);
+    }
+
+    for (const p of result.places || []) {
+      const layer = style === "engraved" ? 0 : p.layer;
+      const mesh = placeMesh({ ...p, right: p.x < W * 0.68 }, result.meta.fontMm || 3.5);
+      mesh.position.set(p.x - W / 2 + mesh.userData.offsetX, (layer + 1) * boardT + 0.06, p.y - H / 2 + mesh.userData.offsetZ);
       model.add(mesh);
     }
 

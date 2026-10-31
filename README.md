@@ -13,7 +13,12 @@ board size, and send it as a layout for a laser-cut contour map.
    numbers and hour marks, so customers can see where they land on their hills.
 3. **Style it**: layered (stacked boards) or a single engraved board, the
    contour interval, smoothing, and which hill lists to name.
-4. **Preview and send**: an interactive **3D model** of the finished piece
+4. **Mark a special place** (optional): up to 3 draggable markers, each with
+   a shape (heart, star, pin, circle, house, cross, diamond, triangle) and
+   their own label, e.g. "Where we got engaged". Engraved in black on the
+   layer the spot sits on, at 5, 8 or 12 mm. The request email lists each
+   place with its coordinates.
+5. **Preview and send**: an interactive **3D model** of the finished piece
    (each layer at the real material thickness, in birch, oak or acrylic, with
    a centimetre ruler, overall size, stack height and map scale), a flat plan,
    a share link, and a request form. Customers cannot download the SVG; they
@@ -117,6 +122,7 @@ js/config.js          business settings, regions, hill lists
 js/app.js             map, frame, form and share link
 js/layout.js          elevation download, contour tracing, SVG output
 js/viewer3d.js        3D preview of the stacked layers (three.js)
+js/shapes.js          special place marker shapes
 data/clock-305.json   clock face template (built by scripts/build-clock.py)
 data/hills.geojson    636 named hills (built by scripts/build-hills.mjs)
 fonts/                map label glyphs (Noto Sans, OFL)

@@ -6,6 +6,8 @@
 
 /* global d3, polygonClipping */
 
+import { SHAPES, DEFAULT_SHAPE } from "./shapes.js";
+
 export const DEM_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 const DEM_MAXZOOM = 15;
 const TILE = 256;
@@ -230,6 +232,8 @@ const esc = (s) =>
  * @param {number} o.fontMm
  * @param {boolean} o.guides   engrave each next layer's outline as a glue guide
  * @param {object} [o.template]  board template, e.g. data/clock-305.json
+ * @param {Array<{lng:number,lat:number,shape:string,label:string}>} [o.places]  customers' special places
+ * @param {number} [o.placeMm]  special place marker size
  */
 export async function buildLayout(o, onProgress) {
   const grid = await fetchElevationGrid(o.bounds, onProgress);
@@ -277,17 +281,27 @@ export async function buildLayout(o, onProgress) {
   const z = zoom;
   const fx0 = lngToX(o.bounds.west, z), fy0 = latToY(o.bounds.north, z);
   const fx1 = lngToX(o.bounds.east, z), fy1 = latToY(o.bounds.south, z);
-  const placed = [];
-  for (const p of o.peaks) {
+  // Grid position, layer and in-frame test shared by peaks and special places.
+  const locate = (p) => {
     const gx = ((lngToX(p.lng, z) - fx0) / (fx1 - fx0)) * gw;
     const gy = ((latToY(p.lat, z) - fy0) / (fy1 - fy0)) * gh;
-    if (gx < 0 || gy < 0 || gx >= gw || gy >= gh) continue;
-    if (tpl && Math.hypot(gx * sx - tpl.cx, gy * sy - tpl.cy) > tpl.r - o.fontMm) continue;
+    if (gx < 0 || gy < 0 || gx >= gw || gy >= gh) return null;
+    if (tpl && Math.hypot(gx * sx - tpl.cx, gy * sy - tpl.cy) > tpl.r - o.fontMm) return null;
     const v = values[Math.floor(gy) * gw + Math.floor(gx)];
     let layer = 0;
     while (layer < levels.length && levels[layer] <= v) layer++;
-    layer = Math.min(layer, layers.length - 1);
-    placed.push({ ...p, x: gx * sx, y: gy * sy, layer });
+    return { x: gx * sx, y: gy * sy, layer: Math.min(layer, layers.length - 1) };
+  };
+  const places = [];
+  for (const p of o.places || []) {
+    const at = locate(p);
+    if (at) places.push({ ...p, ...at, shape: SHAPES[p.shape] ? p.shape : DEFAULT_SHAPE, sizeMm: o.placeMm || 8 });
+  }
+
+  const placed = [];
+  for (const p of o.peaks) {
+    const at = locate(p);
+    if (at) placed.push({ ...p, ...at });
   }
 
   const labelText = (p) => (o.labelMode === "name-height" ? `${p.name} ${p.h} m` : p.name);
@@ -300,6 +314,22 @@ export async function buildLayout(o, onProgress) {
     return (
       `<path d="M${(p.x - m).toFixed(2)} ${(p.y + m * 0.8).toFixed(2)}L${p.x.toFixed(2)} ${(p.y - m).toFixed(2)}L${(p.x + m).toFixed(2)} ${(p.y + m * 0.8).toFixed(2)}Z" fill="${COLOURS.engrave}"/>` +
       `<text x="${tx.toFixed(2)}" y="${(p.y + o.fontMm * 0.35).toFixed(2)}" font-size="${o.fontMm}" text-anchor="${right ? "start" : "end"}" fill="${COLOURS.engrave}">${esc(text)}</text>`
+    );
+  };
+
+  // Special place: filled shape plus a bold label beside it, both engraved.
+  const placeSvg = (p) => {
+    const sh = SHAPES[p.shape], s = p.sizeMm;
+    const ox = p.x - sh.anchor[0] * s, oy = p.y - sh.anchor[1] * s;
+    const cy = oy + s / 2;
+    const right = p.x < W * 0.68;
+    const tx = right ? ox + s + s * 0.3 : ox - s * 0.3;
+    const fs = o.fontMm * 1.2;
+    return (
+      `<path transform="translate(${ox.toFixed(2)} ${oy.toFixed(2)}) scale(${s})" d="${sh.d}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>` +
+      (p.label
+        ? `<text x="${tx.toFixed(2)}" y="${(cy + fs * 0.35).toFixed(2)}" font-size="${fs}" font-weight="bold" text-anchor="${right ? "start" : "end"}" fill="${COLOURS.engrave}">${esc(p.label)}</text>`
+        : "")
     );
   };
 
@@ -321,7 +351,7 @@ export async function buildLayout(o, onProgress) {
   if (o.style === "engraved") {
     body += `<g inkscape:groupmode="layer" inkscape:label="Board">\n${line(outline, COLOURS.cut)}\n`;
     for (const l of layers.slice(1)) body += line(l.d, COLOURS.guide) + "\n";
-    body += engravePath(0) + "\n" + placed.map(label).join("\n") + "\n</g>\n";
+    body += engravePath(0) + "\n" + placed.map(label).join("\n") + "\n" + places.map(placeSvg).join("\n") + "\n</g>\n";
   } else {
     layers.forEach((l, i) => {
       const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.elevation} m)`;
@@ -329,6 +359,7 @@ export async function buildLayout(o, onProgress) {
       if (o.guides && layers[i + 1]) body += line(layers[i + 1].d, COLOURS.guide) + "\n";
       body += engravePath(i) + "\n";
       body += placed.filter((p) => p.layer === i).map(label).join("\n");
+      body += places.filter((p) => p.layer === i).map(placeSvg).join("\n");
       body += "\n</g>\n";
     });
   }
@@ -347,8 +378,8 @@ export async function buildLayout(o, onProgress) {
     preview += `<path d="${l.d}" fill="${tone(i + 1)}" fill-rule="evenodd" stroke="rgba(60,30,10,.55)" stroke-width="${Math.max(W, H) / 900}"/>`;
   });
   if (tpl) preview += `<path d="${polygonsToPath(tpl.engrave)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>`;
-  preview += placed.map(label).join("") + "</svg>";
+  preview += placed.map(label).join("") + places.map(placeSvg).join("") + "</svg>";
 
   const labels = o.labelMode === "none" ? [] : placed.map((p) => ({ x: p.x, y: p.y, layer: p.layer, text: labelText(p) }));
-  return { svg, preview, meta, layers, labels, engrave, peaksPlaced: placed.length };
+  return { svg, preview, meta, layers, labels, engrave, places, peaksPlaced: placed.length };
 }

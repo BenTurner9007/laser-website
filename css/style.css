@@ -335,3 +335,59 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   .result { padding: 16px; }
   .site-footer { padding: 0 16px 12px; }
 }
+
+/* Step 4: special places */
+.optional {
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-size: .72rem;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.step-note { margin: 0 0 12px; font-size: .88rem; color: var(--muted); }
+.places { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+.places:empty { display: none; }
+.place { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.place .field { margin-bottom: 0; }
+.place-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; font-weight: 600; font-size: .9rem; }
+.place-head .link-btn { color: var(--accent-hover); font-size: .85rem; }
+.shape-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.shape-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+}
+.shape-btn:hover { border-color: var(--ink); }
+.shape-btn[aria-checked="true"] { background: var(--ink); border-color: var(--ink); color: var(--panel); }
+.shape-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.places-actions { align-items: flex-end; }
+.places-actions .btn { flex: 1; min-height: 44px; }
+.places-actions .field { margin-bottom: 0; }
+
+.place-marker { position: relative; cursor: grab; filter: drop-shadow(0 1px 2px rgba(46, 39, 35, .45)); }
+.place-marker:active { cursor: grabbing; }
+.place-marker svg { display: block; }
+.place-marker span {
+  position: absolute;
+  left: 34px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(251, 247, 240, .95);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.place-marker span:empty { display: none; }
