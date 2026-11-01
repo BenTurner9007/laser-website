@@ -3,3 +3,4 @@ node_modules/
 scripts/source/uk_water.parquet
 scripts/source/planet-cache/
 scripts/source/uk_roads.parquet
+__pycache__/
