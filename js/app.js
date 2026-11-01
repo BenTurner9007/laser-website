@@ -114,6 +114,9 @@ if (BODY !== "earth") {
   state.route.lines = [];
 }
 
+// Etsy mode: design here, buy on Etsy (see CONFIG.etsy).
+const ETSY = !!CONFIG.etsy?.enabled || params.get("etsy") === "1";
+
 // ---------- Branding ----------
 document.title = `${CONFIG.businessName} – Contour Map Designer`;
 $("#brand-name").textContent = CONFIG.businessName;
@@ -429,6 +432,7 @@ document.querySelectorAll(".world-switch a").forEach((a) => {
   // Keep the board size and style when hopping between worlds.
   const keep = new URLSearchParams({ ...(a.dataset.body !== "earth" ? { body: a.dataset.body } : {}), w: state.w, h: state.h, style: state.style });
   if (state.template) keep.set("tpl", state.template);
+  if (params.get("etsy") === "1") keep.set("etsy", "1");
   a.href = "?" + keep;
 });
 
@@ -685,7 +689,8 @@ $("#result").addEventListener("close", () => viewer?.stop());
 function showResult() {
   $("#preview").innerHTML = lastResult.preview;
   $("#send-request").disabled = false;
-  $("#send-request").textContent = "Send request";
+  $("#send-request").textContent = ETSY ? "Save my design" : "Send request";
+  $("#etsy-done").hidden = true;
   renderStats();
   $("#order-status").textContent = "";
   $("#owner-note").textContent = "";
@@ -803,6 +808,7 @@ $("#order").addEventListener("submit", async (e) => {
   ].join("\n");
   const status = $("#order-status");
   const subject = `Contour map request ${lastResult.ref}`;
+  if (ETSY) return saveForEtsy(fd, summary);
 
   // Send from the page when a form service is set up (Web3Forms or Formspree).
   const service = CONFIG.web3formsKey
@@ -1167,3 +1173,73 @@ $("#water-kinds").addEventListener("change", (e) => {
 });
 map.on("moveend", showWaterSoon);
 onStyleReady(showWaterSoon);
+
+// ---------- Etsy mode ----------
+// The order and payment happen on Etsy; this only saves the design and gives
+// the customer a code to paste into the Etsy personalisation box.
+let etsyCopyText = "";
+
+if (ETSY) {
+  $("#order-title").textContent = "Order on Etsy";
+  $("#etsy-intro").hidden = false;
+  $("#email-field").hidden = true;
+  $("#email-field input").required = false;
+  $("#name-field input").required = false;
+  $("#name-field span").textContent = "Your name (optional, helps us match your order)";
+  $("#send-request").textContent = "Save my design";
+  const buy = $("#etsy-buy");
+  if (CONFIG.etsy?.listingUrl) buy.href = CONFIG.etsy.listingUrl;
+  else buy.hidden = true;
+}
+
+async function saveForEtsy(fd, summary) {
+  const btn = $("#send-request");
+  const status = $("#order-status");
+  const ref = lastResult.ref;
+  btn.disabled = true;
+  status.className = "status";
+  let saved = false;
+  // With a form service, the design is emailed to the shop under its code,
+  // so the short code is all the customer needs to paste into Etsy.
+  if (CONFIG.web3formsKey || CONFIG.formEndpoint) {
+    status.textContent = "Saving your design…";
+    const message = `${summary}\n\nEtsy mode: the customer will order and pay on Etsy, quoting ${ref}.`;
+    const body = CONFIG.web3formsKey
+      ? { access_key: CONFIG.web3formsKey, subject: `Etsy design ${ref}`, from_name: `${CONFIG.businessName} website`, name: fd.name || "Etsy customer", message, botcheck: !!fd.botcheck }
+      : { name: fd.name || "Etsy customer", _subject: `Etsy design ${ref}`, message };
+    try {
+      const res = await fetch(CONFIG.web3formsKey ? "https://api.web3forms.com/submit" : CONFIG.formEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(body),
+      });
+      const reply = await res.json().catch(() => ({}));
+      saved = res.ok && reply.success !== false;
+    } catch {
+      saved = false;
+    }
+  }
+  // Without one (or if saving failed), the customer pastes the full design link.
+  etsyCopyText = saved ? ref : `${ref} ${lastResult.link}`;
+  $("#etsy-code").textContent = ref;
+  $("#etsy-copy").textContent = saved ? "Copy code" : "Copy code and design link";
+  $("#etsy-help").textContent = saved
+    ? "Paste this code into the personalisation box when you buy on Etsy. We have your design saved under it."
+    : "Paste this into the personalisation box when you buy on Etsy. It includes your design link, so we can make exactly what you designed." +
+      (etsyCopyText.length > 1000 ? " If it doesn't fit, send it to us in an Etsy message instead." : "");
+  status.textContent = "";
+  $("#etsy-done").hidden = false;
+  btn.textContent = "Design saved ✓";
+}
+
+$("#etsy-copy").addEventListener("click", async () => {
+  const btn = $("#etsy-copy");
+  const label = btn.textContent;
+  try {
+    await navigator.clipboard.writeText(etsyCopyText);
+    btn.textContent = "Copied ✓";
+  } catch {
+    prompt("Copy this:", etsyCopyText);
+  }
+  setTimeout(() => (btn.textContent = label), 2000);
+});

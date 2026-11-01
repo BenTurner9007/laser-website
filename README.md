@@ -78,6 +78,25 @@ board size, and send it as a layout for a laser-cut contour map.
   reads as one once glued. Text is already converted to outlines (Noto Sans),
   so no fonts are needed in your laser software.
 
+## Etsy mode
+
+Etsy doesn't allow a sale that starts on Etsy to be finished elsewhere, so
+for Etsy buyers the site works as a design tool and the order is placed on
+Etsy:
+
+1. In your Etsy listing, link to the site with `?etsy=1` on the end
+   (e.g. `https://your-site/?etsy=1`). Only those visitors get Etsy mode; or
+   set `etsy.enabled: true` in `js/config.js` for everyone.
+2. Put your listing's address in `etsy.listingUrl` for the "Back to Etsy to buy" button.
+3. Turn on personalisation in the Etsy listing.
+
+In Etsy mode "Send it to us" becomes **Order on Etsy**: the customer clicks
+**Save my design** and gets a short code (e.g. `CM-XMIVUY`) to paste into the
+Etsy personalisation box. With `web3formsKey` set, you're emailed the design
+under that code ("Etsy design CM-XMIVUY"), so find that email, open its link
+and download the SVG as usual. Without a form service, the customer copies the
+code plus the full design link instead. Nothing is ordered or paid on the site.
+
 ## Owner mode (downloading the SVG)
 
 The **Download SVG** button only appears in your own browser:
@@ -160,6 +179,7 @@ Edit [`js/config.js`](js/config.js):
 | --- | --- |
 | `businessName`, `tagline` | Shown in the header and page title |
 | `orderEmail` | Where requests go by email (opens the customer's email app) |
+| `etsy` | Etsy mode (design here, buy on Etsy): `enabled`, and your `listingUrl` |
 | `web3formsKey` | Free [Web3Forms](https://web3forms.com) access key: requests are sent straight from the page to `orderEmail`, no email app (250 a month free) |
 | `formEndpoint` | Alternative: a [Formspree](https://formspree.io) endpoint. If neither is set, "Send request" opens the customer's email app |
 | `sizes` | Board sizes offered |

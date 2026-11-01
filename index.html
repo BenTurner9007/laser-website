@@ -196,9 +196,10 @@
         <p id="owner-note" class="status owner-only" hidden></p>
       </div>
       <form id="order" class="order">
-        <h3>Send it to us</h3>
-        <label class="field"><span>Your name</span><input name="name" required autocomplete="name"></label>
-        <label class="field"><span>Email</span><input name="email" type="email" required autocomplete="email"></label>
+        <h3 id="order-title">Send it to us</h3>
+        <p id="etsy-intro" class="step-note" hidden>Happy with it? Save your design to get a short code, then buy on Etsy and paste the code into the personalisation box. You pay on Etsy as usual.</p>
+        <label class="field" id="name-field"><span>Your name</span><input name="name" required autocomplete="name"></label>
+        <label class="field" id="email-field"><span>Email</span><input name="email" type="email" required autocomplete="email"></label>
         <div class="row">
           <label class="field small"><span>Material</span>
             <select name="material" id="material">
@@ -215,6 +216,13 @@
         <input type="checkbox" name="botcheck" class="visually-hidden" tabindex="-1" autocomplete="off" aria-hidden="true">
         <button class="btn primary" type="submit" id="send-request">Send request</button>
         <p id="order-status" class="status" role="status"></p>
+        <div id="etsy-done" class="etsy-done" hidden>
+          <p class="etsy-label">Your design code</p>
+          <p class="etsy-code" id="etsy-code"></p>
+          <button class="btn" type="button" id="etsy-copy">Copy code</button>
+          <p class="etsy-help" id="etsy-help"></p>
+          <a class="btn primary etsy-buy" id="etsy-buy" target="_blank" rel="noopener">Back to Etsy to buy</a>
+        </div>
       </form>
     </div>
   </dialog>

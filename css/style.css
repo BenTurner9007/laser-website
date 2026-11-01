@@ -405,3 +405,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 }
 .world-switch a[aria-selected="true"] { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(46, 39, 35, .12); }
 .world-switch a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Etsy mode: design code panel */
+.etsy-done { margin-top: 14px; padding: 16px; border-radius: 14px; background: var(--ground); text-align: center; }
+.etsy-label { margin: 0; font-size: .85rem; color: var(--muted); }
+.etsy-code { margin: 4px 0 12px; font-family: var(--display); font-size: 1.8rem; font-weight: 600; letter-spacing: .04em; user-select: all; }
+.etsy-help { margin: 10px 0 12px; font-size: .88rem; color: var(--muted); }
+.etsy-buy { display: block; text-decoration: none; text-align: center; line-height: 28px; }

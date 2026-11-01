@@ -15,6 +15,17 @@ export const CONFIG = {
   // If neither is set, "Send request" opens the customer's email app instead.
   formEndpoint: "",
 
+  // Etsy mode: the site becomes a design tool and the order is placed on
+  // Etsy. "Send request" becomes "Save my design", which gives the customer
+  // a code to paste into the Etsy personalisation box (and, with a form
+  // service above, emails you the design under that code). Turn it on for
+  // everyone here, or just for Etsy visitors by linking to the site with
+  // ?etsy=1 in your listing.
+  etsy: {
+    enabled: false,
+    listingUrl: "", // your Etsy listing or shop, for the "Back to Etsy to buy" button
+  },
+
   // Board sizes offered to customers, in millimetres.
   sizes: [
     { id: "a4p", label: "A4 portrait", w: 210, h: 297 },
