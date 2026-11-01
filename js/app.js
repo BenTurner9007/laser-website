@@ -615,6 +615,9 @@ function renderStats() {
     ["Heights", `${m.minElevation}–${m.maxElevation} m`],
     [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.layers - 1],
     ["Named peaks", lastResult.peaksPlaced],
+    ...(lastResult.labelsLeftOff
+      ? [["Names left off", `${lastResult.labelsLeftOff} (no room without overlapping – try smaller text or zoom in)`]]
+      : []),
     ...(state.places.length ? [["Special places", lastResult.places.length]] : []),
     ...(state.route.lines.length ? [["Route", `${routeLengthKm(state.route.lines).toFixed(1)} km`]] : []),
     ...(state.water.size && !lastResult.waterFailed ? [["Water", waterLabel()]] : []),
@@ -625,11 +628,11 @@ function renderStats() {
     html += `<li class="status error">Couldn’t load rivers and lakes just now, so this layout has none. Close this and try again.</li>`;
   }
   if (state.route.lines.length && !lastResult.routeOnBoard) {
-    html += `<li class="status error">Your route is outside the ${m.template ? "clock face" : "frame"}, so not included. Close this and use “Fit frame to route”.</li>`;
+    html += `<li class="status error">Your route is ${m.template ? "off the board’s map area (or over a hole)" : "outside the frame"}, so not included. Close this and use “Fit frame to route”.</li>`;
   }
   const missing = state.places.length - lastResult.places.length;
   if (missing > 0) {
-    html += `<li class="status error">${missing === 1 ? "One special place is" : `${missing} special places are`} outside the ${m.template ? "clock face" : "frame"}, so not included. Close this, drag it inside the frame and create the layout again.</li>`;
+    html += `<li class="status error">${missing === 1 ? "One special place is" : `${missing} special places are`} ${m.template ? "off the board’s map area (or over a hole)" : "outside the frame"}, so not included. Close this, drag it inside the frame and create the layout again.</li>`;
   }
   if (m.style === "layered" && m.layers > CONFIG.maxLayers) {
     html += `<li class="status error">That’s a lot of layers – try a bigger contour interval for a quicker, cheaper piece.</li>`;

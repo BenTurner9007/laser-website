@@ -142,6 +142,11 @@ function smooth(values, w, h, radius, passes = 2) {
 }
 
 // --- Geometry helpers (all in output millimetres) ---
+const boxOf = (ring) => ({
+  x0: Math.min(...ring.map((p) => p[0])), y0: Math.min(...ring.map((p) => p[1])),
+  x1: Math.max(...ring.map((p) => p[0])), y1: Math.max(...ring.map((p) => p[1])),
+});
+
 function ringArea(r) {
   let a = 0;
   for (let i = 0, j = r.length - 1; i < r.length; j = i++) a += (r[j][0] + r[i][0]) * (r[j][1] - r[i][1]);
@@ -453,25 +458,85 @@ export async function buildLayout(o, onProgress) {
   // Everything engraved on the map, as shapes: peak labels, special places, route.
   const marks = [];
 
+  // Labels are placed one at a time so none overlap: special places first
+  // (the customer chose them), then peaks, highest first. Each label tries
+  // spots round its marker and takes the first that is clear and on the map;
+  // if none is, the name is left off (and counted) rather than overprinted.
+  const taken = []; // boxes {x0, y0, x1, y1} in mm: markers, text, template engraving
+  const GAP = 0.6; // mm kept between labels
+  const hits = (q) => taken.some((t) => q.x0 - GAP < t.x1 && t.x0 - GAP < q.x1 && q.y0 - GAP < t.y1 && t.y0 - GAP < q.y1);
+  const onMap = (q) => [[q.x0, q.y0], [q.x1, q.y0], [q.x0, q.y1], [q.x1, q.y1]].every((pt) => onBoard(pt));
+  if (tpl) for (const poly of tpl.engrave) taken.push(boxOf(poly[0])); // e.g. clock numbers
+  const prefer = (x) => (x < W * 0.7 ? ["E", "W", "NE", "SE", "NW", "SW", "N", "S"] : ["W", "E", "NW", "SW", "NE", "SE", "N", "S"]);
+  // Text beside a marker centred on (cx, cy) with half-size (hw, hh).
+  const placeText = (text, size, weight, cx, cy, hw, hh, order) => {
+    const w = textRings(text, 0, 0, size, { weight }).width;
+    const asc = size * 0.78, h = asc + size * 0.24, g = size * 0.35;
+    const spots = {
+      E: [cx + hw + g, cy - h / 2], W: [cx - hw - g - w, cy - h / 2],
+      NE: [cx + hw * 0.4, cy - hh - g * 0.6 - h], SE: [cx + hw * 0.4, cy + hh + g * 0.6],
+      NW: [cx - hw * 0.4 - w, cy - hh - g * 0.6 - h], SW: [cx - hw * 0.4 - w, cy + hh + g * 0.6],
+      N: [cx - w / 2, cy - hh - g * 0.6 - h], S: [cx - w / 2, cy + hh + g * 0.6],
+    };
+    for (const k of order) {
+      const [x0, y0] = spots[k];
+      const box = { x0, y0, x1: x0 + w, y1: y0 + h };
+      if (onMap(box) && !hits(box)) {
+        taken.push(box);
+        return { box, rings: textRings(text, x0, y0 + asc, size, { weight }).rings };
+      }
+    }
+    return null;
+  };
+  let labelsLeftOff = 0;
+
+  // Special places: the chosen shape with a bold label beside it.
+  const places = [];
+  for (const p of o.places || []) {
+    const [x, y] = toMm([p.lng, p.lat]);
+    if (!onBoard([x, y])) continue;
+    const shape = SHAPES[p.shape] ? p.shape : DEFAULT_SHAPE, s = o.placeMm || 8;
+    const cy = y + (0.5 - SHAPES[shape].anchor[1]) * s;
+    places.push({ ...p, shape, x, y, cy, sizeMm: s });
+    marks.push(solid(placeShape(shape, x, y, s)));
+    taken.push({ x0: x - s / 2, y0: cy - s / 2, x1: x + s / 2, y1: cy + s / 2 });
+  }
+  for (const p of places) {
+    if (!p.label) continue;
+    const r = placeText(p.label, o.fontMm * 1.2, "bold", p.x, p.cy, p.sizeMm / 2, p.sizeMm / 2, prefer(p.x));
+    if (r) marks.push(solid(r.rings));
+    else labelsLeftOff++;
+  }
+
   // Peaks: a small triangle on the summit with the name beside it.
   let peaksPlaced = 0;
   const labelBoxes = []; // { x0, y0, x1, y1 } in mm, when o.labelBoxes
   if (o.labelMode !== "none") {
-    for (const p of o.peaks) {
-      const [x, y] = toMm([p.lng, p.lat]);
-      if (!onBoard([x, y], o.fontMm)) continue;
+    const m = o.fontMm * 0.45; // marker half-size
+    const ranked = o.peaks
+      .map((p) => ({ ...p, at: toMm([p.lng, p.lat]) }))
+      .filter((p) => onBoard(p.at, o.fontMm))
+      .sort((a, b) => (b.h ?? 0) - (a.h ?? 0));
+    // Highest first, each name straight after its marker, so the big summits
+    // always get named; a lower top whose marker would land on a name, a
+    // higher summit or a special place is left off entirely.
+    for (const p of ranked) {
+      const [x, y] = p.at;
+      const box = { x0: x - m, y0: y - m, x1: x + m, y1: y + m * 0.8 };
+      if (hits(box)) continue;
+      taken.push(box);
       peaksPlaced++;
-      const m = o.fontMm * 0.45;
-      const right = x < W * 0.72;
+      marks.push([[[x - m, y + m * 0.8], [x, y - m], [x + m, y + m * 0.8]]]);
       const text = o.labelMode === "name-height" ? `${p.name} ${p.h} m` : p.name;
-      const tx = right ? x + m * 1.8 : x - m * 1.8, baseline = y + o.fontMm * 0.35;
-      const t = textRings(text, tx, baseline, o.fontMm, { align: right ? "left" : "right" });
-      marks.push([[[x - m, y + m * 0.8], [x, y - m], [x + m, y + m * 0.8]]], solid(t.rings));
-      if (o.labelBoxes) {
-        // Just round the text (caps to descenders), with a little padding.
-        const pad = 0.5, x0 = right ? tx : tx - t.width;
-        labelBoxes.push({ x0: x0 - pad, x1: x0 + t.width + pad, y0: baseline - o.fontMm * 0.78 - pad, y1: baseline + o.fontMm * 0.24 + pad });
+      const r = placeText(text, o.fontMm, "regular", x, y - m * 0.1, m, m * 0.9, prefer(x));
+      if (!r) {
+        labelsLeftOff++;
+        continue;
       }
+      marks.push(solid(r.rings));
+      // Just round the text (caps to descenders), with a little padding.
+      const pad = 0.5;
+      if (o.labelBoxes) labelBoxes.push({ x0: r.box.x0 - pad, x1: r.box.x1 + pad, y0: r.box.y0 - pad, y1: r.box.y1 + pad });
     }
   }
 
@@ -496,22 +561,6 @@ export async function buildLayout(o, onProgress) {
       layers[i].d = polygonsToPath(layers[i].polys);
     }
     while (layers.length > 1 && !layers[layers.length - 1].polys.length) layers.pop();
-  }
-
-  // Special places: the chosen shape with a bold label beside it.
-  const places = [];
-  for (const p of o.places || []) {
-    const [x, y] = toMm([p.lng, p.lat]);
-    if (!onBoard([x, y])) continue;
-    const shape = SHAPES[p.shape] ? p.shape : DEFAULT_SHAPE, s = o.placeMm || 8;
-    places.push({ ...p, shape, x, y, sizeMm: s });
-    marks.push(solid(placeShape(shape, x, y, s)));
-    if (p.label) {
-      const right = x < W * 0.68, fs = o.fontMm * 1.2;
-      const cy = y + (0.5 - SHAPES[shape].anchor[1]) * s;
-      const t = textRings(p.label, right ? x + s * 0.8 : x - s * 0.8, cy + fs * 0.35, fs, { weight: "bold", align: right ? "left" : "right" });
-      marks.push(solid(t.rings));
-    }
   }
 
   // Hiking route: a band along the line, solid or dashed.
@@ -680,5 +729,5 @@ export async function buildLayout(o, onProgress) {
   for (const w of water) preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="#1f3f5c" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
   preview += `<path d="${polygonsToPath(allMarks)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/></svg>`;
 
-  return { buildSvg, contourPath, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
+  return { buildSvg, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }
