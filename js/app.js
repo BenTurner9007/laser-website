@@ -26,7 +26,7 @@ const state = {
   // Every bundled hill list is named (and Moon/Mars features); no per-list choice.
   lists: new Set([...HILL_LISTS.map((l) => l.id), "features"]),
   sharedBounds: params.get("b") ? params.get("b").split(",").map(Number) : null,
-  thickness: +params.get("t") || CONFIG.defaultThickness || CONFIG.thicknesses[0],
+  thickness: +params.get("t") || CONFIG.defaultThickness || 3,
   material: params.get("mat") || "",
   // Customers' special places: { lng, lat, shape, label }.
   places: parsePlaces(params.get("poi")),
@@ -76,6 +76,10 @@ let lastResult = null;
 
 // ---------- World: Earth, or the Moon / Mars famous-places collection ----------
 const BODY = ["moon", "mars"].includes(params.get("body")) ? params.get("body") : "earth";
+// Plywood offered and its sheet prices (data/materials.json, built from the
+// supplier's price list by scripts/build-materials.py).
+const MATERIALS = await fetch("data/materials.json").then((r) => r.json());
+const materialByName = (name) => MATERIALS.materials.find((m) => m.name === name) || MATERIALS.materials[0];
 const planets = BODY === "earth" ? null : await fetch("data/planets/sites.json").then((r) => r.json());
 const WORLDS = {
   earth: {
@@ -659,7 +663,7 @@ function render3d() {
   if (!lastResult) return;
   try {
     viewer ??= createViewer($("#viewer"));
-    viewer.show(lastResult, { thickness: +$("#thickness").value, material: $("#material").value });
+    viewer.show(lastResult, { thickness: +$("#thickness").value, material: materialByName($("#material").value).look });
   } catch (err) {
     // No WebGL: fall back to the flat plan.
     console.error(err);
@@ -697,16 +701,28 @@ function showResult() {
   renderStats();
   $("#order-status").textContent = "";
   $("#owner-note").textContent = "";
+  $("#cost-table").innerHTML = "";
   $("#result").showModal();
   if (!$("#tab-3d").hidden) selectTab("3d");
   render3d();
 }
 
-$("#thickness").innerHTML = CONFIG.thicknesses.map((t) => `<option value="${t}">${t} mm</option>`).join("");
-if (CONFIG.thicknesses.includes(state.thickness)) $("#thickness").value = String(state.thickness);
-if ([...$("#material").options].some((o) => o.value === state.material)) $("#material").value = state.material;
+// Material and thickness: only the thicknesses the supplier sells in each material.
+$("#material").innerHTML = MATERIALS.materials.map((m) => `<option>${escapeHtml(m.name)}</option>`).join("");
+$("#material").value = materialByName(state.material).name;
+function fillThicknesses() {
+  const m = materialByName($("#material").value);
+  const keep = +$("#thickness").value || state.thickness;
+  $("#thickness").innerHTML = m.thicknesses.map((t) => `<option value="${t.mm}">${t.mm} mm</option>`).join("");
+  // Keep the chosen thickness if this material has it, else the nearest.
+  const best = m.thicknesses.reduce((a, t) => (Math.abs(t.mm - keep) < Math.abs(a.mm - keep) ? t : a));
+  $("#thickness").value = String(best.mm);
+}
+fillThicknesses();
+$("#material").addEventListener("change", fillThicknesses);
 for (const id of ["#thickness", "#material"]) {
   $(id).addEventListener("change", () => {
+    $("#cost-table").innerHTML = "";
     if (!lastResult) return;
     lastResult.link = shareLink(lastResult.bounds, lastResult.ref);
     renderStats();
@@ -1245,4 +1261,49 @@ $("#etsy-copy").addEventListener("click", async () => {
     prompt("Copy this:", etsyCopyText);
   }
   setTimeout(() => (btn.textContent = label), 2000);
+});
+
+// ---------- Owner: material cost ----------
+// Lays the pieces out on every sheet size the supplier sells in the chosen
+// material and thickness, and prices each option.
+const money = (v) => `£${v.toFixed(2)}`;
+$("#cost-btn").addEventListener("click", () => {
+  const btn = $("#cost-btn");
+  btn.disabled = true;
+  btn.textContent = "Laying out pieces…";
+  setTimeout(() => {
+    try {
+      const m = materialByName($("#material").value);
+      const t = m.thicknesses.find((x) => x.mm === +$("#thickness").value) || m.thicknesses[0];
+      const { pieces, areaMm2, options } = lastResult.buildCost(t.sheets, CONFIG.sheet);
+      const priced = options.filter((x) => x.cost != null);
+      const cheapest = priced.reduce((a, x) => (!a || x.cost < a.cost ? x : a), null);
+      // Area actually used, priced at the cheapest rate per m² on offer.
+      const perM2 = Math.min(...t.sheets.map((s) => s.price / ((s.w * s.h) / 1e6)));
+      const usedCost = (areaMm2 / 1e6) * perM2;
+      const vat = 1 + MATERIALS.vat;
+      $("#cost-table").innerHTML =
+        `<p class="cost-title">${escapeHtml(m.name)}, ${t.mm} mm · ${pieces} piece${pieces > 1 ? "s" : ""}, ${(areaMm2 / 1e6).toFixed(3)} m² of wood</p>` +
+        `<table><thead><tr><th>Sheet</th><th>Code</th><th>Each</th><th>Sheets</th><th>Cost ex VAT</th><th>inc VAT</th></tr></thead><tbody>` +
+        options
+          .map((x) =>
+            `<tr class="${x === cheapest ? "best" : ""}"><td>${x.w} × ${x.h}</td><td><a href="${x.url}" target="_blank" rel="noopener">${x.code}</a></td><td>${money(x.price)}</td>` +
+            (x.cost == null ? `<td colspan="3">a piece is bigger than this sheet</td>` : `<td>${x.sheets}</td><td>${money(x.cost)}</td><td>${money(x.cost * vat)}</td>`) +
+            `</tr>`
+          )
+          .join("") +
+        `</tbody></table>` +
+        (cheapest
+          ? `<p class="cost-note">Cheapest: <b>${cheapest.sheets} × ${cheapest.w} × ${cheapest.h}</b> for <b>${money(cheapest.cost)}</b> ex VAT (${money(cheapest.cost * vat)} inc VAT). ` +
+            `The wood the pieces actually use is worth about ${money(usedCost)} ex VAT, if you count offcuts as reusable. ` +
+            `Delivery is ${money(MATERIALS.deliveryExVat)} ex VAT per order. ${MATERIALS.supplier} prices, 1+ quantity.</p>`
+          : `<p class="cost-note">No ${MATERIALS.supplier} sheet in this material is big enough for the largest piece.</p>`);
+    } catch (err) {
+      console.error(err);
+      $("#cost-table").innerHTML = `<p class="status error">Couldn’t work out the cost – please try again.</p>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Work out material cost";
+    }
+  }, 50);
 });

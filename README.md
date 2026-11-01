@@ -78,6 +78,27 @@ board size, and send it as a layout for a laser-cut contour map.
   reads as one once glued. Text is already converted to outlines (Noto Sans),
   so no fonts are needed in your laser software.
 
+## Materials and costing
+
+The Material and Thickness dropdowns come from `data/materials.json`, built
+from Kitronik's laser plywood price list
+(`scripts/source/kitronik-laser-plywood.xlsx`): poplar (AB/AB and B/BB),
+birch-faced poplar, maple-faced poplar, BR-grade birch and ceiba, each with
+only the thicknesses Kitronik sells. To update prices, export a new
+spreadsheet in the same layout and run:
+
+```
+pip install openpyxl
+python3 scripts/build-materials.py path/to/new.xlsx
+```
+
+**Owner mode** adds **Work out material cost** under the download button. It
+lays the pieces out on every sheet size Kitronik sells in the chosen material
+and thickness (with the border and gap from `sheet` in `config.js`), and shows
+sheets needed and cost ex and inc VAT for each, with the cheapest highlighted,
+plus the value of the wood actually used (if offcuts are reused) and the
+£7.50 delivery charge. Prices are Kitronik's 1+ quantity prices.
+
 ## Etsy mode
 
 Etsy doesn't allow a sale that starts on Etsy to be finished elsewhere, so
@@ -183,7 +204,6 @@ Edit [`js/config.js`](js/config.js):
 | `web3formsKey` | Free [Web3Forms](https://web3forms.com) access key: requests are sent straight from the page to `orderEmail`, no email app (250 a month free) |
 | `formEndpoint` | Alternative: a [Formspree](https://formspree.io) endpoint. If neither is set, "Send request" opens the customer's email app |
 | `sizes` | Board sizes offered |
-| `thicknesses` | Material thicknesses, used to estimate stack height |
 | `defaultThickness` | Thickness pre-selected on the order form |
 | `ownerKeyHash` | Hash of your private owner key (see above) |
 | `sheet` | Cutting sheet size, border and gap between pieces for the laid-out sheets in the SVG |
@@ -219,6 +239,7 @@ js/route.js           route files, share-link encoding, route band
 js/water.js           loads rivers, lakes and coastline from data/water/
 data/water/           UK water tiles, 0.1° each (built by scripts/build-water.py)
 data/planets/         Moon and Mars elevation tiles, places and features (built by scripts/build-planets.py)
+data/materials.json   plywood, thicknesses and sheet prices (built by scripts/build-materials.py)
 data/templates/       board shapes: clock, bookmark, coasters (built by scripts/build-templates.py)
 data/hills.geojson    636 named hills (built by scripts/build-hills.mjs)
 fonts/                map label glyphs (Noto Sans, OFL)

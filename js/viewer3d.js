@@ -5,13 +5,14 @@
 import * as THREE from "three";
 import { OrbitControls } from "../vendor/OrbitControls.js";
 
-// Material looks, keyed by the order form's material names.
+// Wood looks, keyed by the "look" of each material in data/materials.json.
 const FINISHES = {
-  "Birch plywood": { top: "#ead7b2", edge: "#80532f", grain: "#d9c095", roughness: 0.85 },
-  "Oak veneer MDF": { top: "#c99a62", edge: "#3f2a1c", grain: "#b07f48", roughness: 0.8 },
-  "Coloured acrylic": { ramp: ["#1d4e6e", "#3f8a8c", "#9cc5a1", "#efe2c8"], roughness: 0.25 },
+  poplar: { top: "#ecdcbf", edge: "#8a6a45", grain: "#dccaa6", roughness: 0.85 },
+  birch: { top: "#ead7b2", edge: "#6e4426", grain: "#d9c095", roughness: 0.85 },
+  maple: { top: "#f1e3c8", edge: "#7d5a37", grain: "#e2d0ad", roughness: 0.8 },
+  ceiba: { top: "#e6d2b5", edge: "#8d6b4b", grain: "#d6bf9c", roughness: 0.9 },
 };
-const DEFAULT_FINISH = "Birch plywood";
+const DEFAULT_FINISH = "birch";
 const ENGRAVE = "#3a2414";
 
 function grainTexture(base, grain) {

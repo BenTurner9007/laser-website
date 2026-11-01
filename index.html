@@ -194,6 +194,10 @@
           <button id="download" class="btn owner-only" type="button" hidden>Download SVG (owner)</button>
         </div>
         <p id="owner-note" class="status owner-only" hidden></p>
+        <div class="owner-only cost" hidden>
+          <button id="cost-btn" class="btn" type="button">Work out material cost</button>
+          <div id="cost-table"></div>
+        </div>
       </div>
       <form id="order" class="order">
         <h3 id="order-title">Send it to us</h3>
@@ -202,12 +206,7 @@
         <label class="field" id="email-field"><span>Email</span><input name="email" type="email" required autocomplete="email"></label>
         <div class="row">
           <label class="field small"><span>Material</span>
-            <select name="material" id="material">
-              <option>Birch plywood</option>
-              <option>Oak veneer MDF</option>
-              <option>Coloured acrylic</option>
-              <option>Not sure – advise me</option>
-            </select>
+            <select name="material" id="material"></select>
           </label>
           <label class="field small"><span>Layer thickness</span><select name="thickness" id="thickness"></select></label>
         </div>

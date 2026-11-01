@@ -1,0 +1,416 @@
+{
+ "supplier": "Kitronik",
+ "source": "kitronik-laser-plywood.xlsx",
+ "vat": 0.2,
+ "deliveryExVat": 7.5,
+ "materials": [
+  {
+   "name": "Poplar plywood (AB/AB)",
+   "supplierMaterial": "Poplar (Panguaneta, AB/AB)",
+   "look": "poplar",
+   "thicknesses": [
+    {
+     "mm": 3.0,
+     "sheets": [
+      {
+       "code": "3272",
+       "w": 300,
+       "h": 200,
+       "price": 1.1,
+       "url": "https://kitronik.co.uk/products/3272-3mm-poplar-plywood-300mm-x-200mm-sheet"
+      },
+      {
+       "code": "32160",
+       "w": 400,
+       "h": 300,
+       "price": 2.25,
+       "url": "https://kitronik.co.uk/products/32160-3mm-poplar-laser-plywood-400mm-x-300mm-sheet"
+      },
+      {
+       "code": "32153",
+       "w": 400,
+       "h": 400,
+       "price": 3.0,
+       "url": "https://kitronik.co.uk/products/32153-3mm-poplar-plywood-400mm-x-400mm-sheet"
+      },
+      {
+       "code": "3224",
+       "w": 600,
+       "h": 300,
+       "price": 2.95,
+       "url": "https://kitronik.co.uk/products/3224-3mm-poplar-laser-plywood-600mm-x-300mm-sheet"
+      },
+      {
+       "code": "3209",
+       "w": 600,
+       "h": 400,
+       "price": 3.9,
+       "url": "https://kitronik.co.uk/products/3209-3mm-poplar-laser-plywood-600mm-x-400mm-sheet"
+      },
+      {
+       "code": "3217",
+       "w": 800,
+       "h": 600,
+       "price": 7.65,
+       "url": "https://kitronik.co.uk/products/3217-3mm-poplar-laser-plywood-800mm-x-600mm-sheet"
+      }
+     ]
+    },
+    {
+     "mm": 4.0,
+     "sheets": [
+      {
+       "code": "32141",
+       "w": 400,
+       "h": 300,
+       "price": 2.65,
+       "url": "https://kitronik.co.uk/products/32141-4mm-poplar-laser-plywood-400mm-x-300mm-sheet-ab-ab"
+      },
+      {
+       "code": "3267",
+       "w": 600,
+       "h": 300,
+       "price": 3.65,
+       "url": "https://kitronik.co.uk/products/3267-4mm-poplar-laser-plywood-600mm-x-300mm-abab"
+      },
+      {
+       "code": "3261",
+       "w": 600,
+       "h": 400,
+       "price": 4.7,
+       "url": "https://kitronik.co.uk/products/3261-4mm-poplar-laser-plywood-600mm-x-400mm-abab"
+      },
+      {
+       "code": "32148",
+       "w": 800,
+       "h": 600,
+       "price": 9.9,
+       "url": "https://kitronik.co.uk/products/32148-4mm-poplar-laser-plywood-800mm-x-600mm-sheet"
+      }
+     ]
+    },
+    {
+     "mm": 6.0,
+     "sheets": [
+      {
+       "code": "32147",
+       "w": 400,
+       "h": 300,
+       "price": 3.1,
+       "url": "https://kitronik.co.uk/products/32147-6mm-poplar-laser-plywood-400mm-x-300mm-sheet"
+      },
+      {
+       "code": "3225",
+       "w": 600,
+       "h": 300,
+       "price": 4.65,
+       "url": "https://kitronik.co.uk/products/3225-6mm-poplar-laser-plywood-600mm-x-300mm-sheet"
+      },
+      {
+       "code": "3210",
+       "w": 600,
+       "h": 400,
+       "price": 5.9,
+       "url": "https://kitronik.co.uk/products/3210-6mm-poplar-laser-plywood-600mm-x-400mm-sheet"
+      },
+      {
+       "code": "3279",
+       "w": 800,
+       "h": 600,
+       "price": 11.5,
+       "url": "https://kitronik.co.uk/products/3279-6mm-poplar-plywood-800mm-x-600mm-sheet"
+      }
+     ]
+    },
+    {
+     "mm": 9.0,
+     "sheets": [
+      {
+       "code": "32191",
+       "w": 600,
+       "h": 300,
+       "price": 6.6,
+       "url": "https://kitronik.co.uk/products/32191-9mm-panguaneta-poplar-laser-plywood-600mm-x-300mm-sheet"
+      },
+      {
+       "code": "3260",
+       "w": 600,
+       "h": 400,
+       "price": 8.8,
+       "url": "https://kitronik.co.uk/products/3260-9mm-poplar-laser-plywood-600mm-x-400mm-sheet"
+      },
+      {
+       "code": "32192",
+       "w": 800,
+       "h": 600,
+       "price": 17.6,
+       "url": "https://kitronik.co.uk/products/32192-9mm-pangueneta-poplar-laser-plywood-800mm-x-600mm-sheet"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Birch-faced poplar",
+   "supplierMaterial": "Birch-faced poplar",
+   "look": "birch",
+   "thicknesses": [
+    {
+     "mm": 3.0,
+     "sheets": [
+      {
+       "code": "32170",
+       "w": 600,
+       "h": 300,
+       "price": 4.7,
+       "url": "https://kitronik.co.uk/products/32170-3mm-birch-faced-veneered-plywood-600mm-x-300mm-sheet"
+      },
+      {
+       "code": "32171",
+       "w": 600,
+       "h": 400,
+       "price": 6.2,
+       "url": "https://kitronik.co.uk/products/32171-3mm-birch-faced-veneered-plywood-600mm-x-400mm-sheet"
+      },
+      {
+       "code": "32172",
+       "w": 800,
+       "h": 600,
+       "price": 12.0,
+       "url": "https://kitronik.co.uk/products/32172-3mm-birch-faced-veneered-plywood-800mm-x-600mm-sheet"
+      }
+     ]
+    },
+    {
+     "mm": 6.0,
+     "sheets": [
+      {
+       "code": "32198",
+       "w": 600,
+       "h": 300,
+       "price": 7.5,
+       "url": "https://kitronik.co.uk/products/32198-3mm-birch-faced-poplar-plywood-600mm-x-300mm-sheet"
+      },
+      {
+       "code": "32174",
+       "w": 600,
+       "h": 400,
+       "price": 9.5,
+       "url": "https://kitronik.co.uk/products/32174-6mm-birch-faced-veneered-plywood-600mm-x-400mm-sheets"
+      },
+      {
+       "code": "32175",
+       "w": 800,
+       "h": 600,
+       "price": 19.0,
+       "url": "https://kitronik.co.uk/products/32175-6mm-birch-faced-veneered-plywood-800mm-x-600mm-sheets"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Maple-faced poplar",
+   "supplierMaterial": "Maple-faced poplar",
+   "look": "maple",
+   "thicknesses": [
+    {
+     "mm": 3.0,
+     "sheets": [
+      {
+       "code": "32185",
+       "w": 600,
+       "h": 400,
+       "price": 4.95,
+       "url": "https://kitronik.co.uk/products/32185-3mm-maple-faced-poplar-plywood-600mm-x-400mm-sheet"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Birch plywood (BR grade)",
+   "supplierMaterial": "Birch (BR grade)",
+   "look": "birch",
+   "thicknesses": [
+    {
+     "mm": 0.8,
+     "sheets": [
+      {
+       "code": "3275",
+       "w": 400,
+       "h": 300,
+       "price": 5.15,
+       "url": "https://kitronik.co.uk/products/3275-08mm-br-grade-birch-laser-plywood-400mm-x-300mm-sheet"
+      },
+      {
+       "code": "3276",
+       "w": 600,
+       "h": 300,
+       "price": 7.9,
+       "url": "https://kitronik.co.uk/products/3276-08mm-br-grade-birch-laser-plywood-600mm-x-300mm-sheet"
+      },
+      {
+       "code": "3213",
+       "w": 600,
+       "h": 400,
+       "price": 10.5,
+       "url": "https://kitronik.co.uk/products/3213-08mm-birch-laser-plywood-600mm-x-400mm-sheet"
+      }
+     ]
+    },
+    {
+     "mm": 1.5,
+     "sheets": [
+      {
+       "code": "3277",
+       "w": 400,
+       "h": 300,
+       "price": 4.6,
+       "url": "https://kitronik.co.uk/products/3277-15mm-br-grade-birch-laser-plywood-400mm-x-300mm-sheet"
+      },
+      {
+       "code": "3278",
+       "w": 600,
+       "h": 300,
+       "price": 6.85,
+       "url": "https://kitronik.co.uk/products/3278-15mm-br-grade-birch-laser-plywood-600mm-x-300mm-sheet"
+      },
+      {
+       "code": "3214",
+       "w": 600,
+       "h": 400,
+       "price": 9.0,
+       "url": "https://kitronik.co.uk/products/3214-15mm-birch-laser-plywood-600mm-x-400mm-sheet"
+      }
+     ]
+    },
+    {
+     "mm": 2.0,
+     "sheets": [
+      {
+       "code": "32188",
+       "w": 400,
+       "h": 300,
+       "price": 6.5,
+       "url": "https://kitronik.co.uk/products/32188-2mm-br-grade-birch-laser-plywood-400mm-x-300mm-sheet"
+      },
+      {
+       "code": "32202",
+       "w": 600,
+       "h": 300,
+       "price": 9.75,
+       "url": "https://kitronik.co.uk/products/32202-2mm-br-grade-birch-laser-plywood-600mm-x-300mm-sheet"
+      },
+      {
+       "code": "3215",
+       "w": 600,
+       "h": 400,
+       "price": 12.75,
+       "url": "https://kitronik.co.uk/products/3215-20mm-birch-laser-plywood-600mm-x-400mm-sheet"
+      }
+     ]
+    },
+    {
+     "mm": 3.0,
+     "sheets": [
+      {
+       "code": "32145",
+       "w": 400,
+       "h": 300,
+       "price": 7.5,
+       "url": "https://kitronik.co.uk/products/32145-3mm-br-grade-birch-laser-plywood-400mm-x-300mm-sheet"
+      },
+      {
+       "code": "32189",
+       "w": 600,
+       "h": 300,
+       "price": 11.25,
+       "url": "https://kitronik.co.uk/products/32189-3mm-br-grade-birch-laser-plywood-600mm-x-300mm-sheet"
+      },
+      {
+       "code": "3223",
+       "w": 600,
+       "h": 400,
+       "price": 14.75,
+       "url": "https://kitronik.co.uk/products/3223-3mm-br-grade-birch-laser-plywood-600mm-x-400mm-sheet"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Poplar plywood (B/BB)",
+   "supplierMaterial": "Poplar (B/BB)",
+   "look": "poplar",
+   "thicknesses": [
+    {
+     "mm": 3.0,
+     "sheets": [
+      {
+       "code": "32215",
+       "w": 600,
+       "h": 300,
+       "price": 2.8,
+       "url": "https://kitronik.co.uk/products/32215-3mm-b-bb-poplar-laser-sheet-600mm-x-300mm"
+      },
+      {
+       "code": "32213",
+       "w": 600,
+       "h": 400,
+       "price": 3.65,
+       "url": "https://kitronik.co.uk/products/32213-3mm-b-bb-poplar-laser-sheet-600mm-x-400mm"
+      },
+      {
+       "code": "32214",
+       "w": 800,
+       "h": 600,
+       "price": 7.2,
+       "url": "https://kitronik.co.uk/products/32214-3mm-b-bb-poplar-laser-sheet-800mm-x-600mm"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Ceiba plywood",
+   "supplierMaterial": "Ceiba (B/BB)",
+   "look": "ceiba",
+   "thicknesses": [
+    {
+     "mm": 2.0,
+     "sheets": [
+      {
+       "code": "32190",
+       "w": 400,
+       "h": 300,
+       "price": 2.0,
+       "url": "https://kitronik.co.uk/products/32190-2mm-ceiba-plywood-400mm-x-300mm-sheet"
+      },
+      {
+       "code": "32134",
+       "w": 600,
+       "h": 300,
+       "price": 2.95,
+       "url": "https://kitronik.co.uk/products/32134-2mm-ceiba-plywood-600mm-x-300mm"
+      },
+      {
+       "code": "3262",
+       "w": 600,
+       "h": 400,
+       "price": 3.95,
+       "url": "https://kitronik.co.uk/products/3262-2mm-ceiba-plywood-600-x-400mm"
+      },
+      {
+       "code": "3292",
+       "w": 800,
+       "h": 600,
+       "price": 7.8,
+       "url": "https://kitronik.co.uk/products/3292-2mm-ceiba-plywood-800-x-600mm"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -656,6 +656,26 @@ export async function buildLayout(o, onProgress) {
    * @param {{w:number, h:number, marginMm:number, gapMm:number}} [sheet]
    * @returns {{text: string, sheets: number, oversize: number}}
    */
+  /**
+   * Material cost: lay the pieces out on each sheet size on offer and count
+   * the sheets. Single engraved boards are one piece (the board).
+   * @param {Array<{code:string, w:number, h:number, price:number}>} stock  sheets for one material and thickness
+   * @param {{marginMm:number, gapMm:number}} spacing
+   */
+  const buildCost = (stock, spacing) => {
+    const pieces =
+      o.style === "engraved"
+        ? boardPolys.map((poly, i) => ({ id: `board${i}`, poly, area: ringArea(poly[0]) }))
+        : getPieces().flat();
+    const areaMm2 = pieces.reduce((n, p) => n + p.area, 0);
+    const options = stock.map((s) => {
+      const { sheets } = nestPieces(pieces, { w: s.w, h: s.h, marginMm: spacing.marginMm, gapMm: spacing.gapMm });
+      const oversize = sheets.some((x) => x.oversize);
+      return { ...s, sheets: sheets.length, oversize, cost: oversize ? null : sheets.length * s.price };
+    });
+    return { pieces: pieces.length, areaMm2, options };
+  };
+
   const buildSvg = (sheet) => {
     const pieces = o.style === "engraved" ? null : getPieces();
     let assembled = "";
@@ -729,5 +749,5 @@ export async function buildLayout(o, onProgress) {
   for (const w of water) preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="#1f3f5c" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
   preview += `<path d="${polygonsToPath(allMarks)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/></svg>`;
 
-  return { buildSvg, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
+  return { buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }

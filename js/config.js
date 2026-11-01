@@ -42,9 +42,9 @@ export const CONFIG = {
     { id: "coaster-rounded", label: "Rounded square coaster", w: 100, h: 100, template: "data/templates/coaster-rounded-square.json" },
   ],
 
-  // Material thicknesses offered for layered designs, in millimetres.
-  thicknesses: [1, 2, 3, 4, 6],
-  // Thickness pre-selected on the order form.
+  // Materials, thicknesses and sheet prices come from data/materials.json
+  // (built from the Kitronik price list by scripts/build-materials.py).
+  // Thickness pre-selected on the order form (nearest available is used).
   defaultThickness: 3,
 
   // SHA-256 of your private owner key. Open the site once with ?owner=<key>
