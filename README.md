@@ -13,7 +13,7 @@ board size, and send it as a layout for a laser-cut contour map.
    real shape; they pan and zoom the map underneath it.
 3. **Style it**: layered (stacked boards) or a single engraved board, the
    contour interval, smoothing, label style (every bundled hill list is
-   named), an optional **clear space behind peak and place names** (contours,
+   named), an optional **clear space behind names and special places** (contours,
    roads and water are removed from a box that just fits the name; on layered maps
    the box is a flat recess at the lowest ground under it, so the name sits on
    one surface), and which water to

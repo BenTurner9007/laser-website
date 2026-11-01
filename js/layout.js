@@ -545,6 +545,11 @@ export async function buildLayout(o, onProgress) {
     return null;
   };
   let labelsLeftOff = 0;
+  // Clear space: boxes round names, markers and special places (mm), when o.labelBoxes.
+  const labelBoxes = [];
+  const clearBehind = (box, pad = 0.5) => {
+    if (o.labelBoxes) labelBoxes.push({ x0: box.x0 - pad, x1: box.x1 + pad, y0: box.y0 - pad, y1: box.y1 + pad });
+  };
 
   // Special places: the chosen shape with a bold label beside it.
   const places = [];
@@ -555,23 +560,23 @@ export async function buildLayout(o, onProgress) {
     const cy = y + (0.5 - SHAPES[shape].anchor[1]) * s;
     places.push({ ...p, shape, x, y, cy, sizeMm: s });
     marks.push(solid(placeShape(shape, x, y, s)));
-    taken.push({ x0: x - s / 2, y0: cy - s / 2, x1: x + s / 2, y1: cy + s / 2 });
+    const markerBox = { x0: x - s / 2, y0: cy - s / 2, x1: x + s / 2, y1: cy + s / 2 };
+    taken.push(markerBox);
+    clearBehind(markerBox);
   }
   for (const p of places) {
     if (!p.label) continue;
     const r = placeText(p.label, o.fontMm * 1.2, "bold", p.x, p.cy, p.sizeMm / 2, p.sizeMm / 2, prefer(p.x));
-    if (r) marks.push(solid(r.rings));
+    if (r) {
+      marks.push(solid(r.rings));
+      clearBehind(r.box);
+    }
     else labelsLeftOff++;
   }
 
   // Place names (no marker): centred on the place if there is room, else
   // just off it. Cities are bold and a little larger, villages smaller.
   let townsPlaced = 0;
-  // Clear space: boxes round peak and place names (mm), when o.labelBoxes.
-  const labelBoxes = [];
-  const clearBehind = (box, pad = 0.5) => {
-    if (o.labelBoxes) labelBoxes.push({ x0: box.x0 - pad, x1: box.x1 + pad, y0: box.y0 - pad, y1: box.y1 + pad });
-  };
   const TOWN_STYLE = { c: [1.15, "bold"], t: [1, "regular"], v: [0.85, "regular"] };
   const placeTowns = (kinds) => {
     for (const t of o.towns || []) {
@@ -607,8 +612,9 @@ export async function buildLayout(o, onProgress) {
       const box = { x0: x - m, y0: y - m, x1: x + m, y1: y + m * 0.8 };
       if (hits(box)) continue;
       taken.push(box);
+      clearBehind(box, 0.3);
       peaksPlaced++;
-      marks.push([[[x - m, y + m * 0.8], [x, y - m], [x + m, y + m * 0.8]]]);
+      marks.push([[[[x - m, y + m * 0.8], [x, y - m], [x + m, y + m * 0.8]]]]); // one polygon, one ring
       const text = o.labelMode === "name-height" ? `${p.name} ${p.h} m` : p.name;
       const r = placeText(text, o.fontMm, "regular", x, y - m * 0.1, m, m * 0.9, prefer(x));
       if (!r) {
