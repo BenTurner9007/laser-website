@@ -14,7 +14,9 @@ import { splitIntoPieces, numberPieces } from "./pieces.js";
 import { nestPieces } from "./nest.js";
 
 export const DEM_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
-const DEM_MAXZOOM = 15;
+// Elevation source: Earth by default; the Moon and Mars pass their own
+// (tiles in data/planets/, heights can be negative, there is no sea).
+export const EARTH_DEM = { url: DEM_URL, maxzoom: 15, sea: true };
 const TILE = 256;
 
 // Laser colour conventions (LightBurn / most laser software map colour to operation).
@@ -43,8 +45,8 @@ const latToY = (lat, z) => {
   return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * worldSize(z);
 };
 
-function pickZoom(b) {
-  for (let z = DEM_MAXZOOM; z >= 3; z--) {
+function pickZoom(b, maxzoom) {
+  for (let z = maxzoom; z >= 3; z--) {
     const w = lngToX(b.east, z) - lngToX(b.west, z);
     const h = latToY(b.south, z) - latToY(b.north, z);
     const tiles = (Math.ceil(w / TILE) + 1) * (Math.ceil(h / TILE) + 1);
@@ -64,8 +66,8 @@ function loadImage(url) {
 }
 
 /** Fetch DEM tiles covering the bounds and return an elevation grid in metres. */
-export async function fetchElevationGrid(bounds, onProgress = () => {}) {
-  const z = pickZoom(bounds);
+export async function fetchElevationGrid(bounds, onProgress = () => {}, dem = EARTH_DEM) {
+  const z = pickZoom(bounds, dem.maxzoom);
   const x0 = lngToX(bounds.west, z), x1 = lngToX(bounds.east, z);
   const y0 = latToY(bounds.north, z), y1 = latToY(bounds.south, z);
   const tx0 = Math.floor(x0 / TILE), tx1 = Math.floor((x1 - 1e-9) / TILE);
@@ -83,10 +85,10 @@ export async function fetchElevationGrid(bounds, onProgress = () => {}) {
   let done = 0;
   await Promise.all(
     jobs.map(async ({ tx, ty }) => {
-      const url = DEM_URL.replace("{z}", z).replace("{x}", tx).replace("{y}", ty);
+      const url = dem.url.replace("{z}", z).replace("{x}", tx).replace("{y}", ty);
       const img = await loadImage(url);
       if (img) ctx.drawImage(img, (tx - tx0) * TILE, (ty - ty0) * TILE);
-      else {
+      else if (dem.sea) {
         // Terrarium value for 0 m: R=128, G=0, B=0
         ctx.fillStyle = "rgb(128,0,0)";
         ctx.fillRect((tx - tx0) * TILE, (ty - ty0) * TILE, TILE, TILE);
@@ -99,10 +101,19 @@ export async function fetchElevationGrid(bounds, onProgress = () => {}) {
   const gw = Math.max(2, Math.round(x1 - x0)), gh = Math.max(2, Math.round(y1 - y0));
   const px = ctx.getImageData(ox, oy, gw, gh).data;
   const values = new Float64Array(gw * gh);
+  let sum = 0, n = 0;
   for (let i = 0; i < values.length; i++) {
     const e = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768;
-    values[i] = Math.max(0, e); // flatten the sea / bathymetry to 0 m
+    if (dem.sea) values[i] = Math.max(0, e); // flatten the sea / bathymetry to 0 m
+    else if (px[i * 4 + 3] === 0) values[i] = NaN; // no tile here
+    else {
+      values[i] = e;
+      sum += e;
+      n++;
+    }
   }
+  // Moon/Mars: anything outside the built tiles becomes a flat floor.
+  if (!dem.sea) for (let i = 0; i < values.length; i++) if (Number.isNaN(values[i])) values[i] = n ? sum / n : 0;
   return { values, width: gw, height: gh, zoom: z };
 }
 
@@ -393,15 +404,17 @@ const esc = (s) =>
  * @param {{lines:number[][][], widthMm:number, style:"solid"|"dashed"}} [o.route]  hiking route, lines of [lng, lat]
  * @param {Object<string, number[][][]>} [o.water]  lines of [lng, lat] by kind (see WATER_KINDS)
  * @param {boolean} [o.labelBoxes]  clear contours (and water) from a box behind each peak label
+ * @param {{url:string, maxzoom:number, sea:boolean}} [o.dem]  elevation tiles (Earth by default)
  */
 export async function buildLayout(o, onProgress) {
-  const [grid] = await Promise.all([fetchElevationGrid(o.bounds, onProgress), loadFonts()]);
+  const dem = o.dem || EARTH_DEM;
+  const [grid] = await Promise.all([fetchElevationGrid(o.bounds, onProgress, dem), loadFonts()]);
   const { width: gw, height: gh, zoom } = grid;
   const radius = Math.round(o.smoothing * Math.max(1, gw / 350));
   const values = smooth(grid.values, gw, gh, radius);
   // The blur's running sums leave rounding noise (±1e-13) on flat sea; snap it
   // back to 0 so no contour is traced through the noise.
-  for (let i = 0; i < values.length; i++) if (values[i] < 1e-6) values[i] = 0;
+  if (dem.sea) for (let i = 0; i < values.length; i++) if (values[i] < 1e-6) values[i] = 0;
 
   let minE = Infinity, maxE = -Infinity;
   for (const v of values) { if (v < minE) minE = v; if (v > maxE) maxE = v; }

@@ -1,0 +1,218 @@
+{
+ "bodies": {
+  "moon": {
+   "radius": 1737400,
+   "maxzoom": 11
+  },
+  "mars": {
+   "radius": 3396190,
+   "maxzoom": 11
+  }
+ },
+ "sites": [
+  {
+   "id": "tycho",
+   "body": "moon",
+   "name": "Tycho crater",
+   "box": [
+    -14.1,
+    -45.3,
+    -8.6,
+    -41.3
+   ],
+   "minzoom": 4,
+   "maxzoom": 9,
+   "elevation": [
+    -3546,
+    1847
+   ]
+  },
+  {
+   "id": "copernicus",
+   "body": "moon",
+   "name": "Copernicus crater",
+   "box": [
+    -22.3,
+    7.5,
+    -17.9,
+    11.8
+   ],
+   "minzoom": 4,
+   "maxzoom": 9,
+   "elevation": [
+    -3712,
+    848
+   ]
+  },
+  {
+   "id": "theophilus",
+   "body": "moon",
+   "name": "Theophilus & Cyrillus",
+   "box": [
+    22.6,
+    -15.3,
+    28.7,
+    -9.3
+   ],
+   "minzoom": 4,
+   "maxzoom": 9,
+   "elevation": [
+    -4940,
+    3250
+   ]
+  },
+  {
+   "id": "aristarchus",
+   "body": "moon",
+   "name": "Aristarchus & Vallis Schr\u00f6teri",
+   "box": [
+    -52.3,
+    21.5,
+    -45.8,
+    27.5
+   ],
+   "minzoom": 4,
+   "maxzoom": 9,
+   "elevation": [
+    -3451,
+    1598
+   ]
+  },
+  {
+   "id": "alphonsus",
+   "body": "moon",
+   "name": "Ptolemaeus, Alphonsus & Arzachel",
+   "box": [
+    -8.4,
+    -19.9,
+    3.8,
+    -7.5
+   ],
+   "minzoom": 3,
+   "maxzoom": 8,
+   "elevation": [
+    -3850,
+    3930
+   ]
+  },
+  {
+   "id": "apollo11",
+   "body": "moon",
+   "name": "Apollo 11 \u2013 Tranquility Base",
+   "box": [
+    22.45,
+    -0.75,
+    24.75,
+    1.55
+   ],
+   "minzoom": 5,
+   "maxzoom": 10,
+   "elevation": [
+    -2796,
+    -803
+   ]
+  },
+  {
+   "id": "apollo15",
+   "body": "moon",
+   "name": "Apollo 15 \u2013 Hadley Rille",
+   "box": [
+    2.4,
+    25.0,
+    5.0,
+    27.3
+   ],
+   "minzoom": 5,
+   "maxzoom": 10,
+   "elevation": [
+    -3074,
+    2558
+   ]
+  },
+  {
+   "id": "apollo17",
+   "body": "moon",
+   "name": "Apollo 17 \u2013 Taurus-Littrow",
+   "box": [
+    29.9,
+    19.4,
+    31.65,
+    21.0
+   ],
+   "minzoom": 6,
+   "maxzoom": 11,
+   "elevation": [
+    -3142,
+    -96
+   ]
+  },
+  {
+   "id": "jezero",
+   "body": "mars",
+   "name": "Jezero crater (Perseverance)",
+   "box": [
+    76.85,
+    17.7,
+    78.25,
+    19.1
+   ],
+   "minzoom": 6,
+   "maxzoom": 11,
+   "elevation": [
+    -3136,
+    -450
+   ]
+  },
+  {
+   "id": "gale",
+   "body": "mars",
+   "name": "Gale crater & Mount Sharp",
+   "box": [
+    136.4,
+    -6.6,
+    139.0,
+    -4.0
+   ],
+   "minzoom": 5,
+   "maxzoom": 10,
+   "elevation": [
+    -4737,
+    1476
+   ]
+  },
+  {
+   "id": "olympus",
+   "body": "mars",
+   "name": "Olympus Mons caldera",
+   "box": [
+    -134.55,
+    17.7,
+    -133.05,
+    19.15
+   ],
+   "minzoom": 6,
+   "maxzoom": 11,
+   "elevation": [
+    8321,
+    21646
+   ]
+  },
+  {
+   "id": "gusev",
+   "body": "mars",
+   "name": "Gusev crater (Spirit)",
+   "box": [
+    174.75,
+    -15.3,
+    176.2,
+    -13.85
+   ],
+   "minzoom": 6,
+   "maxzoom": 11,
+   "elevation": [
+    -2783,
+    539
+   ]
+  }
+ ]
+}

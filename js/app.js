@@ -1,6 +1,6 @@
 /* global maplibregl, mlcontour */
 import { CONFIG, REGIONS, HILL_LISTS } from "./config.js";
-import { buildLayout, DEM_URL } from "./layout.js";
+import { buildLayout, DEM_URL, EARTH_DEM } from "./layout.js";
 import { createViewer } from "./viewer3d.js";
 import { SHAPES, DEFAULT_SHAPE, PLACE_SIZES, shapeIcon } from "./shapes.js";
 import { parseRouteFile, encodeRoute, decodeRoute, routeLengthKm } from "./route.js";
@@ -23,8 +23,8 @@ const state = {
   labelMode: params.get("labels") || "name-height",
   fontMm: +params.get("font") || 3.5,
   labelBoxes: params.get("lbox") === "1",
-  // Every bundled hill list is named; no per-list choice, to save space.
-  lists: new Set(HILL_LISTS.map((l) => l.id)),
+  // Every bundled hill list is named (and Moon/Mars features); no per-list choice.
+  lists: new Set([...HILL_LISTS.map((l) => l.id), "features"]),
   sharedBounds: params.get("b") ? params.get("b").split(",").map(Number) : null,
   thickness: +params.get("t") || CONFIG.defaultThickness || CONFIG.thicknesses[0],
   material: params.get("mat") || "",
@@ -74,13 +74,53 @@ function parsePlaces(text) {
 let pinnedBounds = null;
 let lastResult = null;
 
+// ---------- World: Earth, or the Moon / Mars famous-places collection ----------
+const BODY = ["moon", "mars"].includes(params.get("body")) ? params.get("body") : "earth";
+const planets = BODY === "earth" ? null : await fetch("data/planets/sites.json").then((r) => r.json());
+const WORLDS = {
+  earth: {
+    label: "Earth", radius: 6371008, features: "data/hills.geojson",
+    paper: "#efe2c8", shadow: "#4a3d34", highlight: "#fbf7f0", contour: "#6e6457",
+    credit: '<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">Terrain: Mapzen / AWS</a>',
+  },
+  moon: {
+    label: "Moon", the: "the Moon", radius: 1737400, features: "data/planets/moon-features.geojson",
+    paper: "#e2dfd9", shadow: "#36332f", highlight: "#f8f7f4", contour: "#5f5b55",
+    credit: "Moon: SLDEM2015 (NASA LRO LOLA + JAXA SELENE), USGS, public domain",
+  },
+  mars: {
+    label: "Mars", the: "Mars", radius: 3396190, features: "data/planets/mars-features.geojson",
+    paper: "#efd6bb", shadow: "#5b3524", highlight: "#fdf1e4", contour: "#7a4b35",
+    credit: "Mars: MRO CTX DTMs (NASA/JPL/MSSS), USGS, CC0",
+  },
+};
+const WORLD = WORLDS[BODY];
+const SITES = planets ? planets.sites.filter((s) => s.body === BODY) : [];
+const DEM =
+  BODY === "earth"
+    ? EARTH_DEM
+    : { url: new URL(`data/planets/${BODY}/`, location.href).href + "{z}/{x}/{y}.png", maxzoom: planets.bodies[BODY].maxzoom, sea: false };
+// Each site is built to its own finest zoom. The live map uses the zoom every
+// site has; a layout uses the finest zoom of the site it is in (siteDem).
+const MAP_DEM_MAXZOOM = BODY === "earth" ? 13 : Math.min(...SITES.map((s) => s.maxzoom));
+const siteDem = (b) => {
+  if (BODY === "earth") return DEM;
+  const inside = SITES.filter((s) => b.east > s.box[0] && b.west < s.box[2] && b.north > s.box[1] && b.south < s.box[3]);
+  return { ...DEM, maxzoom: inside.length ? Math.min(...inside.map((s) => s.maxzoom)) : MAP_DEM_MAXZOOM };
+};
+if (BODY !== "earth") {
+  // No water, routes or UK hill search off-world.
+  state.water = new Set();
+  state.route.lines = [];
+}
+
 // ---------- Branding ----------
 document.title = `${CONFIG.businessName} – Contour Map Designer`;
 $("#brand-name").textContent = CONFIG.businessName;
 $("#brand-tagline").textContent = CONFIG.tagline;
 
 // ---------- Map ----------
-const demSource = new mlcontour.DemSource({ url: DEM_URL, encoding: "terrarium", maxzoom: 13, worker: true });
+const demSource = new mlcontour.DemSource({ url: DEM.url, encoding: "terrarium", maxzoom: MAP_DEM_MAXZOOM, worker: true });
 demSource.setupMaplibre(maplibregl);
 
 const contourTiles = (ci) =>
@@ -100,8 +140,9 @@ const listFilter = () => ["any", ...[...state.lists].map((id) => ["in", `,${id},
 
 const map = new maplibregl.Map({
   container: "map",
-  center: [-3.1, 54.48],
-  zoom: 10.6,
+  center: SITES.length ? [(SITES[0].box[0] + SITES[0].box[2]) / 2, (SITES[0].box[1] + SITES[0].box[3]) / 2] : [-3.1, 54.48],
+  zoom: SITES.length ? SITES[0].maxzoom - 2 : 10.6,
+  maxZoom: BODY === "earth" ? 22 : MAP_DEM_MAXZOOM + 3,
   maxPitch: 0,
   dragRotate: false,
   pitchWithRotate: false,
@@ -115,35 +156,35 @@ const map = new maplibregl.Map({
         encoding: "terrarium",
         tiles: [demSource.sharedDemProtocolUrl],
         tileSize: 256,
-        maxzoom: 13,
-        attribution: '<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">Terrain: Mapzen / AWS</a>',
+        maxzoom: MAP_DEM_MAXZOOM,
+        attribution: WORLD.credit,
       },
       contours: { type: "vector", tiles: [contourTiles(state.interval)], maxzoom: 15 },
       hills: {
         type: "geojson",
-        data: "data/hills.geojson",
-        attribution: '<a href="https://www.hill-bagging.co.uk/dobih">DoBIH v18.6</a> CC BY 4.0',
+        data: WORLD.features,
+        ...(BODY === "earth" ? { attribution: '<a href="https://www.hill-bagging.co.uk/dobih">DoBIH v18.6</a> CC BY 4.0' } : {}),
       },
       // Same data again without labels, so the dots still draw if label fonts fail to load.
-      "hills-pts": { type: "geojson", data: "data/hills.geojson" },
+      "hills-pts": { type: "geojson", data: WORLD.features },
       route: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       water: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       "route-draft": { type: "geojson", data: { type: "FeatureCollection", features: [] } },
     },
     layers: [
-      { id: "paper", type: "background", paint: { "background-color": "#efe2c8" } },
+      { id: "paper", type: "background", paint: { "background-color": WORLD.paper } },
       {
         id: "hillshade",
         type: "hillshade",
         source: "dem",
-        paint: { "hillshade-exaggeration": 0.35, "hillshade-shadow-color": "#4a3d34", "hillshade-highlight-color": "#fbf7f0" },
+        paint: { "hillshade-exaggeration": BODY === "earth" ? 0.35 : 0.6, "hillshade-shadow-color": WORLD.shadow, "hillshade-highlight-color": WORLD.highlight },
       },
       {
         id: "contour-lines",
         type: "line",
         source: "contours",
         "source-layer": "contours",
-        paint: { "line-color": "#6e6457", "line-opacity": ["match", ["get", "level"], 1, 0.85, 0.45], "line-width": ["match", ["get", "level"], 1, 1.3, 0.6] },
+        paint: { "line-color": WORLD.contour, "line-opacity": ["match", ["get", "level"], 1, 0.85, 0.45], "line-width": ["match", ["get", "level"], 1, 1.3, 0.6] },
       },
       {
         id: "contour-labels",
@@ -286,7 +327,7 @@ function frameBounds() {
 
 function groundWidthMetres(b) {
   const lat = ((b.north + b.south) / 2) * (Math.PI / 180);
-  return (b.east - b.west) * (Math.PI / 180) * 6371008 * Math.cos(lat);
+  return (b.east - b.west) * (Math.PI / 180) * WORLD.radius * Math.cos(lat);
 }
 
 function updateScale() {
@@ -319,12 +360,14 @@ onStyleReady(() => {
     fitFrameTo(state.sharedBounds);
     const [west, south, east, north] = state.sharedBounds;
     pinnedBounds = { west, south, east, north };
+  } else if (SITES.length) {
+    fitFrameTo(SITES[0].box); // Moon / Mars: start on the first famous place
   }
 });
 
 // ---------- Step 1: search and regions ----------
 let hillIndex = [];
-fetch("data/hills.geojson")
+fetch(WORLD.features)
   .then((r) => r.json())
   .then((gj) => {
     hillIndex = gj.features;
@@ -344,6 +387,49 @@ $("#hill-search").addEventListener("change", (e) => {
     hillIndex.find((f) => f.properties.name.toLowerCase().includes(q));
   if (hit) map.flyTo({ center: hit.geometry.coordinates, zoom: Math.max(map.getZoom(), 12) });
   else setStatus(`No hill called “${e.target.value}” in our lists – try panning the map instead.`, "error");
+});
+
+// Contour spacing: the select, the map's contour lines and the layout.
+function setInterval_(ci) {
+  state.interval = ci;
+  $("#interval").value = String(ci);
+  onStyleReady(() => map.getSource("contours").setTiles([contourTiles(ci)]));
+}
+// About 15 layers over a place's height range, rounded to an offered spacing.
+const intervalFor = (site) => {
+  const steps = [...$("#interval").options].map((o) => +o.value);
+  const want = (site.elevation[1] - site.elevation[0]) / 15;
+  return steps.find((v) => v >= want) || steps[steps.length - 1];
+};
+
+// Moon / Mars: the famous places replace the hill search and regions.
+if (BODY !== "earth") {
+  $("#step1-title").textContent = `Choose a place on ${WORLD.the}`;
+  $("#hill-search-field").hidden = true;
+  $("#regions").hidden = true;
+  $("#sites").hidden = false;
+  $("#sites").innerHTML = SITES.map((s, i) => `<button type="button" class="chip" data-i="${i}">${escapeHtml(s.name)}</button>`).join("");
+  $("#sites").addEventListener("click", (e) => {
+    const s = SITES[e.target.dataset.i];
+    if (!s) return;
+    pinnedBounds = null;
+    fitFrameTo(s.box, 800);
+    setInterval_(intervalFor(s));
+  });
+  // Off-world relief is kilometres deep: start with a spacing that suits the place.
+  if (!params.has("ci") && SITES.length) setInterval_(intervalFor(SITES[0]));
+  document.querySelector(".step:has(#route-file)").hidden = true;
+  $("#water-kinds").closest("fieldset").hidden = true;
+  $(".site-footer p").innerHTML =
+    `${WORLD.credit}. Heights are measured from ${WORLD.the}'s reference sphere, so many are negative. ` +
+    `Data courtesy of NASA, JAXA and the USGS Astrogeology Science Center.`;
+}
+document.querySelectorAll(".world-switch a").forEach((a) => {
+  a.setAttribute("aria-selected", a.dataset.body === BODY);
+  // Keep the board size and style when hopping between worlds.
+  const keep = new URLSearchParams({ ...(a.dataset.body !== "earth" ? { body: a.dataset.body } : {}), w: state.w, h: state.h, style: state.style });
+  if (state.template) keep.set("tpl", state.template);
+  a.href = "?" + keep;
 });
 
 $("#regions").innerHTML = REGIONS.map((r, i) => `<button type="button" class="chip" data-i="${i}">${r.label}</button>`).join("");
@@ -401,10 +487,7 @@ document.querySelectorAll('input[name="style"]').forEach((el) => {
   el.addEventListener("change", () => (state.style = el.value));
 });
 $("#interval").value = String(state.interval);
-$("#interval").addEventListener("change", (e) => {
-  state.interval = +e.target.value;
-  map.getSource("contours").setTiles([contourTiles(state.interval)]);
-});
+$("#interval").addEventListener("change", (e) => setInterval_(+e.target.value));
 $("#smoothing").value = String(state.smoothing);
 $("#smoothing").addEventListener("change", (e) => (state.smoothing = +e.target.value));
 $("#label-mode").value = state.labelMode;
@@ -432,6 +515,7 @@ function peaksInFrame(b) {
 function shareLink(b, ref) {
   const p = new URLSearchParams({
     ref,
+    ...(BODY !== "earth" ? { body: BODY } : {}),
     b: [b.west, b.south, b.east, b.north].map((v) => v.toFixed(5)).join(","),
     ...(state.template ? { tpl: state.template } : {}),
     w: state.w,
@@ -479,6 +563,7 @@ $("#generate").addEventListener("click", async () => {
         labelMode: state.labelMode,
         fontMm: state.fontMm,
         labelBoxes: state.labelBoxes,
+        dem: siteDem(b),
         template: state.template ? await loadTemplate(state.template) : null,
         places: state.places,
         placeMm: state.placeMm,
@@ -500,6 +585,12 @@ $("#generate").addEventListener("click", async () => {
     btn.disabled = false;
   }
 });
+
+// The famous place (Moon / Mars) the layout's centre falls in, if any.
+const siteName = (b) => {
+  const cx = (b.west + b.east) / 2, cy = (b.south + b.north) / 2;
+  return SITES.find((s) => cx >= s.box[0] && cx <= s.box[2] && cy >= s.box[1] && cy <= s.box[3])?.name || "";
+};
 
 // "Clock 305 mm (Ø305 mm)" for templates, "210 × 297 mm" otherwise.
 const sizeText = (m) =>
@@ -697,6 +788,7 @@ $("#order").addEventListener("submit", async (e) => {
     `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}`,
     `Contours every ${m.interval} m, smoothing ${m.smoothing}, heights ${m.minElevation}-${m.maxElevation} m`,
     `Material: ${fd.material}`,
+    ...(BODY !== "earth" ? [`World: ${WORLD.label}${siteName(m.bounds) ? ` – ${siteName(m.bounds)}` : ""}`] : []),
     ...lastResult.places.map(
       (p) => `Special place: ${SHAPES[p.shape].label} "${p.label || "(no label)"}" at ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)} (${p.sizeMm} mm marker)`
     ),

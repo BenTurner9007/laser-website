@@ -1,3 +1,4 @@
 node_modules/
 .DS_Store
 scripts/source/uk_water.parquet
+scripts/source/planet-cache/

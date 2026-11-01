@@ -40,8 +40,14 @@
     <aside class="panel">
       <ol class="steps">
         <li class="step">
-          <h2><span class="num">01</span> Find your hills</h2>
-          <label class="field">
+          <h2><span class="num">01</span> <span id="step1-title">Find your hills</span></h2>
+          <div class="seg world-switch" role="tablist" aria-label="World">
+            <a role="tab" data-body="earth" href="?">Earth</a>
+            <a role="tab" data-body="moon" href="?body=moon">Moon</a>
+            <a role="tab" data-body="mars" href="?body=mars">Mars</a>
+          </div>
+          <div class="chips" id="sites" hidden></div>
+          <label class="field" id="hill-search-field">
             <span>Search a fell, Munro or peak</span>
             <input id="hill-search" type="search" list="hill-names" placeholder="e.g. Helvellyn" autocomplete="off">
             <datalist id="hill-names"></datalist>
@@ -75,6 +81,10 @@
                 <option value="75">75 m</option>
                 <option value="100">100 m</option>
                 <option value="150">150 m</option>
+                <option value="200">200 m</option>
+                <option value="250">250 m</option>
+                <option value="500">500 m</option>
+                <option value="1000">1 km</option>
               </select>
             </label>
             <label class="field small">

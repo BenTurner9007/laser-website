@@ -391,3 +391,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .field-note:empty { display: none; }
 .label-box { margin-top: 2px; }
 .field-note-inline { color: var(--muted); font-size: .8rem; }
+
+/* World switch: Earth / Moon / Mars */
+.world-switch { grid-template-columns: repeat(3, 1fr); }
+.world-switch a {
+  display: block;
+  padding: 8px;
+  text-align: center;
+  font-size: .9rem;
+  color: #4f4436;
+  text-decoration: none;
+  border-radius: 9px;
+}
+.world-switch a[aria-selected="true"] { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(46, 39, 35, .12); }
+.world-switch a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

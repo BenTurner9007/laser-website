@@ -98,6 +98,29 @@ To change the key, put the new hash there:
 This keeps the button away from customers. It is not strong security: the
 layout is built in the browser, so a technical person could still extract it.
 
+## Moon & Mars
+
+Step 1 has an **Earth · Moon · Mars** switch. Off Earth, customers pick from a
+curated collection of famous places instead of searching hills:
+
+| World | Places | Data |
+| --- | --- | --- |
+| Moon | Tycho, Copernicus, Theophilus & Cyrillus, Aristarchus & Vallis Schröteri, Ptolemaeus–Alphonsus–Arzachel, Apollo 11 (Tranquility Base), Apollo 15 (Hadley Rille), Apollo 17 (Taurus-Littrow) | SLDEM2015 (NASA LRO LOLA + JAXA SELENE Kaguya), 59 m, public domain |
+| Mars | Jezero crater (Perseverance), Gale crater & Mount Sharp (Curiosity), Olympus Mons caldera, Gusev crater (Spirit) | USGS controlled MRO CTX DTMs (~20 m, mosaicked), CC0 |
+
+Everything else works the same: board shapes, layers, labels, special places,
+the 3D view, numbering and cut sheets. Choosing a place also picks a contour
+spacing that gives about 15 layers (lunar craters are kilometres deep; 200 m,
+250 m, 500 m and 1 km spacings were added for this). Heights are relative to
+each world's reference sphere, so they are often negative. Water, routes and
+the UK hill lists are Earth only.
+
+The elevation tiles are in `data/planets/` (about 2,800 tiles, ~105 MB), built
+by `scripts/build-planets.py` straight from the USGS buckets on AWS. To add a
+place, add it to `SITES` in that script (name, box, labelled features) and run
+`python3 scripts/build-planets.py <id>`. For Mars, pick places with good CTX
+coverage (the script reports the percentage it found).
+
 ## Board templates
 
 Besides A4 and A3, customers can pick shaped boards made from your DXFs in
@@ -175,6 +198,7 @@ js/text.js            label text to outlines (opentype.js)
 js/route.js           route files, share-link encoding, route band
 js/water.js           loads rivers, lakes and coastline from data/water/
 data/water/           UK water tiles, 0.1° each (built by scripts/build-water.py)
+data/planets/         Moon and Mars elevation tiles, places and features (built by scripts/build-planets.py)
 data/templates/       board shapes: clock, bookmark, coasters (built by scripts/build-templates.py)
 data/hills.geojson    636 named hills (built by scripts/build-hills.mjs)
 fonts/                map label glyphs (Noto Sans, OFL)
