@@ -6,9 +6,7 @@
   <title>Contour Map Designer</title>
   <link rel="icon" type="image/png" href="images/icon.png">
   <meta name="description" content="Choose any area of the British hills and send it to us as a layout for a laser-cut contour map.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="css/fonts.css">
   <link rel="stylesheet" href="vendor/maplibre-gl.css">
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -244,6 +242,7 @@
         <!-- Spam trap: people never see or tick this; bots that fill everything in get rejected. -->
         <input type="checkbox" name="botcheck" class="visually-hidden" tabindex="-1" autocomplete="off" aria-hidden="true">
         <button class="btn primary" type="submit" id="send-request">Send request</button>
+        <p class="field-note">We only use your details to make and send your map. <a href="privacy.html" target="_blank">Privacy notice</a></p>
         <p id="order-status" class="status" role="status"></p>
         <div id="etsy-done" class="etsy-done" hidden>
           <p class="etsy-label">Your design code</p>
@@ -259,7 +258,7 @@
   <footer class="site-footer">
     <p>Hill names and heights: <a href="https://www.hill-bagging.co.uk/dobih">The Database of British and Irish Hills</a> v18.6, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.
     Elevation: <a href="https://registry.opendata.aws/terrain-tiles/">AWS Terrain Tiles</a> (<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">sources</a>, incl. Environment Agency LIDAR © Crown copyright).
-    Water © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, via <a href="https://overturemaps.org">Overture Maps</a>.</p>
+    Water © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, via <a href="https://overturemaps.org">Overture Maps</a>. · <a href="privacy.html">Privacy</a></p>
   </footer>
 
   <script src="vendor/maplibre-gl.js"></script>

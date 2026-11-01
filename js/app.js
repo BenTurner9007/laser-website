@@ -14,27 +14,35 @@ const GLYPHS = new URL("fonts/", location.href).href + "{fontstack}/{range}.pbf"
 
 // ---------- State (also round-tripped through the share link) ----------
 const params = new URLSearchParams(location.search);
+// Links can be edited by anyone, so every value read from one is checked:
+// numbers are kept in range and choices must be ones the page offers.
+const num = (key, lo, hi, fallback) => {
+  const v = Number(params.get(key));
+  return params.has(key) && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback;
+};
+const oneOf = (key, allowed, fallback) => (allowed.includes(params.get(key)) ? params.get(key) : fallback);
+const optionValues = (id) => [...document.querySelectorAll(`#${id} option`)].map((o) => o.value);
 const state = {
-  w: +params.get("w") || CONFIG.sizes[0].w,
-  h: +params.get("h") || CONFIG.sizes[0].h,
-  interval: +params.get("ci") || 50,
-  smoothing: params.has("sm") ? +params.get("sm") : 1,
+  w: num("w", 50, 1000, CONFIG.sizes[0].w),
+  h: num("h", 50, 1000, CONFIG.sizes[0].h),
+  interval: +oneOf("ci", optionValues("interval"), "50"),
+  smoothing: +oneOf("sm", ["0", "1", "2", "3"], "1"),
   style: params.get("style") === "engraved" ? "engraved" : "layered",
-  labelMode: params.get("labels") || "name-height",
-  fontMm: +params.get("font") || 3.5,
+  labelMode: oneOf("labels", ["none", "name", "name-height"], "name-height"),
+  fontMm: +oneOf("font", optionValues("font-mm"), "3.5"),
   // Place names to label: "none", "c" cities, "ct" + towns, "ctv" + villages.
   placeNames: ["c", "ct", "ctv"].includes(params.get("pn")) ? params.get("pn") : "none",
-  placeFontMm: +params.get("pfont") || 3.5,
+  placeFontMm: +oneOf("pfont", optionValues("place-font-mm"), "3.5"),
   labelBoxes: params.get("lbox") === "1",
   contours: params.get("cl") !== "0",
   // Every bundled hill list is named (and Moon/Mars features); no per-list choice.
   lists: new Set([...HILL_LISTS.map((l) => l.id), "features"]),
-  sharedBounds: params.get("b") ? params.get("b").split(",").map(Number) : null,
-  thickness: +params.get("t") || CONFIG.defaultThickness || 3,
-  material: params.get("mat") || "",
+  sharedBounds: parseBounds(params.get("b")),
+  thickness: num("t", 0.5, 20, CONFIG.defaultThickness || 3), // snapped to what the material offers
+  material: (params.get("mat") || "").slice(0, 60),
   // Customers' special places: { lng, lat, shape, label }.
   places: parsePlaces(params.get("poi")),
-  placeMm: +params.get("psz") || PLACE_SIZES[1].mm,
+  placeMm: PLACE_SIZES.some((s) => s.mm === +params.get("psz")) ? +params.get("psz") : PLACE_SIZES[1].mm,
   // Water features to engrave (ids from WATER_KINDS).
   water: params.has("wtr")
     ? new Set(params.get("wtr").split(",").filter((id) => WATER_KINDS.some((k) => k.id === id)))
@@ -58,7 +66,18 @@ async function loadTemplate(id) {
   templates[id] ??= await fetch(s.template).then((r) => r.json());
   return templates[id];
 }
+// "west,south,east,north": real coordinates, west < east, south < north, and
+// no bigger than about 5° across (larger areas can't be built sensibly).
+function parseBounds(text) {
+  const b = (text || "").split(",").map(Number);
+  if (b.length !== 4 || !b.every(Number.isFinite)) return null;
+  const [w, s, e, n] = b;
+  const ok = w >= -180 && e <= 180 && s >= -85 && n <= 85 && w < e && s < n && e - w <= 5 && n - s <= 5;
+  return ok ? b : null;
+}
+
 function safeDecodeRoute(text) {
+  if (!text || text.length > 4000) return []; // routes are kept under ~1,000 characters
   try {
     return decodeRoute(text);
   } catch {
@@ -488,7 +507,7 @@ if (BODY !== "earth") {
   $("#place-label-row").hidden = true;
   $(".site-footer p").innerHTML =
     `${WORLD.credit}. Heights are measured from ${WORLD.the}'s reference sphere, so many are negative. ` +
-    `Data courtesy of NASA, JAXA and the USGS Astrogeology Science Center.`;
+    `Data courtesy of NASA, JAXA and the USGS Astrogeology Science Center. <a href="privacy.html">Privacy</a>`;
 }
 document.querySelectorAll(".world-switch a").forEach((a) => {
   a.setAttribute("aria-selected", a.dataset.body === BODY);
@@ -684,7 +703,7 @@ $("#generate").addEventListener("click", async () => {
     setStatus("");
   } catch (err) {
     console.error(err);
-    setStatus("Something went wrong building the layout. Please try again.", "error");
+    setStatus(err.userMessage || "Something went wrong building the layout. Please try again.", "error");
   } finally {
     btn.disabled = false;
   }

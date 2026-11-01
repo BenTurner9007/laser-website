@@ -209,6 +209,22 @@ Edit [`js/config.js`](js/config.js):
 | `sheet` | Cutting sheet size, border and gap between pieces for the laid-out sheets in the SVG |
 | `maxLayers` | Above this, customers see a hint to use a larger contour interval |
 
+## Privacy and safety
+
+- **Privacy notice**: [`privacy.html`](privacy.html) is linked from the footer and
+  the order form. It fills in your business name and email from `js/config.js`.
+  Read it through and change anything that doesn't match how you work (for
+  example how long you keep emails).
+- **No outside fonts or trackers**: the site fonts are in `fonts/site/`, so the
+  only outside service a customer's browser talks to is AWS for elevation tiles
+  (plus Web3Forms when they send a request).
+- **Share links are checked**: sizes, spacing, font sizes and the map area in a
+  link are limited to sensible values, so a doctored link can't freeze the page.
+  Layouts that would need more than 150 layers are refused with a message
+  asking for a bigger contour spacing.
+- **Always check a request before cutting**: it comes from a customer's browser,
+  so treat it like any customer-supplied file.
+
 ## Publishing on GitHub Pages
 
 The site is plain HTML, CSS and JavaScript with no build step.
@@ -227,6 +243,8 @@ because browsers block module scripts on `file://`.
 ```
 index.html            page structure
 css/style.css         styling (desktop and phone)
+css/fonts.css         site fonts (served from fonts/site/)
+privacy.html          privacy notice
 js/config.js          business settings, regions, hill lists
 js/app.js             map, frame, form and share link
 js/layout.js          elevation download, contour tracing, SVG output
@@ -244,7 +262,7 @@ data/planets/         Moon and Mars elevation tiles, places and features (built 
 data/materials.json   plywood, thicknesses and sheet prices (built by scripts/build-materials.py)
 data/templates/       board shapes: clock, bookmark, coasters (built by scripts/build-templates.py)
 data/hills.geojson    636 named hills (built by scripts/build-hills.mjs)
-fonts/                map label glyphs (Noto Sans, OFL)
+fonts/                map label glyphs (Noto Sans, OFL); fonts/site/ page fonts (Fraunces, Instrument Sans, OFL)
 vendor/               MapLibre GL JS 4.7.1, maplibre-contour 0.1.0, d3-contour 4.0.2, three.js r169, polygon-clipping 0.15.7, opentype.js 1.3.4
 ```
 
@@ -324,6 +342,7 @@ list ids to the extract, rebuild, and add the list to `HILL_LISTS` in
 - **Libraries**: MapLibre GL JS (BSD-3), maplibre-contour (BSD-3), d3-contour
   and d3-array (ISC), three.js (MIT), polygon-clipping (MIT), opentype.js (MIT). Licences are in
   `vendor/`. Engraving font: Noto Sans (SIL OFL 1.1), in `fonts/engrave/`.
+  Page fonts: Fraunces and Instrument Sans (SIL OFL 1.1), in `fonts/site/`.
 
 Elevation data is accurate enough for decorative work. It is not survey-grade,
 and summit heights in the layout come from the hill database rather than the

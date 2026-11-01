@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy notice</title>
+  <link rel="icon" type="image/png" href="images/icon.png">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { display: block; height: auto; }
+    .privacy { max-width: 760px; margin: 0 auto; padding: 24px 20px 48px; line-height: 1.6; }
+    .privacy h1 { font-family: var(--display); font-weight: 600; font-size: 2rem; margin: 0 0 4px; }
+    .privacy h2 { font-family: var(--display); font-weight: 600; font-size: 1.25rem; margin: 28px 0 6px; }
+    .privacy p, .privacy li { color: var(--ink); }
+    .privacy .updated { color: var(--muted); margin-top: 0; }
+  </style>
+</head>
+<body>
+  <main class="privacy">
+    <p><a href="./">← Back to the map designer</a></p>
+    <h1>Privacy notice</h1>
+    <p class="updated">Last updated 1 November 2026</p>
+
+    <p><b class="biz">TurnerMadeUK</b> makes laser-cut contour maps to order. This notice explains
+    what information the map designer collects, why, and what we do with it. We collect as little
+    as we can.</p>
+
+    <h2>What we collect</h2>
+    <ul>
+      <li><b>When you send a request:</b> your name, your email address, any notes you add, and your
+      design. The design includes the area of map you chose, and any special places, labels or
+      routes you added. These can reveal places that matter to you, such as a home or a holiday
+      cottage.</li>
+      <li><b>In Etsy mode,</b> only your design and, if you give it, your name. Your order and
+      payment are handled by Etsy under <a href="https://www.etsy.com/legal/privacy">Etsy's privacy policy</a>.</li>
+      <li><b>While you design,</b> nothing is sent to us. The map and preview are made in your own
+      browser. We don't use cookies, analytics or advertising trackers.</li>
+    </ul>
+
+    <h2>Why we use it</h2>
+    <p>Only to reply to your request, quote, make and send your map, and keep basic records of
+    orders. The lawful basis is taking steps at your request before entering into a contract, and
+    performing that contract. We never sell or share your information for marketing.</p>
+
+    <h2>Who else handles it</h2>
+    <ul>
+      <li><b>Web3Forms</b> passes your request to our email inbox (if the site uses it rather than
+      your own email app).</li>
+      <li><b>Our email provider</b> (Google Gmail) stores the request.</li>
+      <li><b>Etsy</b>, if you order through our Etsy shop.</li>
+      <li><b>Map data:</b> while you use the map, your browser downloads elevation tiles from Amazon
+      Web Services (AWS Open Data). Like any website request, this shares your IP address with
+      AWS. Everything else, including fonts, hill names, water, roads and place names, comes from
+      this site.</li>
+    </ul>
+
+    <h2>How long we keep it</h2>
+    <p>We keep request emails until your order is finished and delivered, then delete them. Basic
+    order records needed for accounts and tax are kept for up to six years. If you don't go ahead
+    with an order, we delete your request within six months.</p>
+
+    <h2>Your rights</h2>
+    <p>You can ask us for a copy of the information we hold about you, or ask us to correct or
+    delete it, by emailing <a class="email" href="mailto:">us</a>. If you're unhappy with how we've
+    handled your information, you can complain to the
+    <a href="https://ico.org.uk/make-a-complaint/">Information Commissioner's Office (ICO)</a>.</p>
+
+    <h2>Your own device</h2>
+    <p>The site stores nothing on your device, except a setting used only by the shop owner to
+    unlock their download tools.</p>
+  </main>
+  <script type="module">
+    import { CONFIG } from "./js/config.js";
+    document.querySelectorAll(".biz").forEach((el) => (el.textContent = CONFIG.businessName));
+    const a = document.querySelector(".email");
+    a.href = `mailto:${CONFIG.orderEmail}`;
+    a.textContent = CONFIG.orderEmail;
+    document.title = `Privacy notice – ${CONFIG.businessName}`;
+  </script>
+</body>
+</html>

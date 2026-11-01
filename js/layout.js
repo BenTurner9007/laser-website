@@ -31,6 +31,7 @@ export const COLOURS = {
   sheet: "#999999", // sheet edges, for reference only
 };
 const NUMBER_MM = 4; // assembly number size
+const MAX_LEVELS = 150; // layouts with more contour layers than this are refused
 
 const MAX_GRID_PX = 1400; // longest side of the elevation grid
 const MAX_TILES = 120;
@@ -481,6 +482,13 @@ export async function buildLayout(o, onProgress) {
   // No contours: a flat board, so no levels (and no contour lines).
   const levels = [];
   if (o.contours !== false) for (let t = Math.floor(minE / o.interval + 1) * o.interval; t <= maxE; t += o.interval) levels.push(t);
+  // Hundreds of layers would freeze the page (and can't sensibly be made).
+  if (levels.length > MAX_LEVELS) {
+    const need = (maxE - minE) / MAX_LEVELS;
+    throw Object.assign(new Error("too many layers"), {
+      userMessage: `That would be ${levels.length} layers – too many to make. Choose a contour spacing of at least ${Math.ceil(need / 10) * 10} m.`,
+    });
+  }
 
   const W = o.widthMm, H = o.heightMm, sx = W / gw, sy = H / gh;
   const contours = d3.contours().size([gw, gh]).smooth(true).thresholds(levels)(values);
