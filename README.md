@@ -54,7 +54,7 @@ board size, and send it as a layout for a laser-cut contour map.
     `unnumberedPieces`; match those by shape against their glue outline
   - colours: **red** = cut, **blue** = glue outline, **black** = engrave
     (names, markers, special places, route, clock numbers), **green** = water
-    score lines, **orange** = hidden assembly numbers, **magenta** = visible ids, **grey** = sheet edges (reference only).
+    score lines, **teal** = road and path score lines, **orange** = hidden assembly numbers, **magenta** = visible ids, **grey** = sheet edges (reference only).
     Give each its own LightBurn layer; orange and green suit a quick light pass
   - all pieces sit in register (as assembled), so the file also shows the
     whole model
@@ -237,6 +237,7 @@ js/nest.js            packs pieces onto cutting sheets
 js/text.js            label text to outlines (opentype.js)
 js/route.js           route files, share-link encoding, route band
 js/water.js           loads rivers, lakes and coastline from data/water/
+data/roads/           UK road and path tiles, 0.1° each (built by scripts/build-roads.py)
 data/water/           UK water tiles, 0.1° each (built by scripts/build-water.py)
 data/planets/         Moon and Mars elevation tiles, places and features (built by scripts/build-planets.py)
 data/materials.json   plywood, thicknesses and sheet prices (built by scripts/build-materials.py)
@@ -244,6 +245,20 @@ data/templates/       board shapes: clock, bookmark, coasters (built by scripts/
 data/hills.geojson    636 named hills (built by scripts/build-hills.mjs)
 fonts/                map label glyphs (Noto Sans, OFL)
 vendor/               MapLibre GL JS 4.7.1, maplibre-contour 0.1.0, d3-contour 4.0.2, three.js r169, polygon-clipping 0.15.7, opentype.js 1.3.4
+```
+
+### Roads and paths
+
+Step 3 also offers **roads & paths** (all off by default): motorways & A
+roads, B & minor roads, lanes & streets, tracks, and footpaths & bridleways.
+They are shown on the map and scored on the layout like water, in teal.
+`data/roads/` holds about 4,800 tiles (137 MB, mostly streets and footpaths)
+from Overture Maps (OpenStreetMap). Service roads, rail and ferries are left
+out. To refresh:
+
+```
+python3 scripts/build-roads.py download   # UK roads only, ~670 MB
+python3 scripts/build-roads.py build      # about 4 minutes
 ```
 
 ### Updating the water data

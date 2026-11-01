@@ -753,8 +753,9 @@ export async function buildLayout(o, onProgress) {
     });
   }
   for (const w of water) {
-    const colour = w.group === "roads" ? "#5a4a3a" : "#1f3f5c";
-    preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="${colour}" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const road = w.group === "roads";
+    const dash = w.kind === "paths" ? ` stroke-dasharray="1.2 0.9"` : w.kind === "tracks" ? ` stroke-dasharray="2.4 1"` : "";
+    preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="${road ? "#2a1d14" : "#1f3f5c"}" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"${dash}/>`;
   }
   preview += `<path d="${polygonsToPath(allMarks)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/></svg>`;
 
