@@ -386,6 +386,55 @@ function trimLines(lines, W, H, margin) {
   return out;
 }
 
+// One filled path per shape: shapes that overlap (a route crossing a label)
+// then both engrave, instead of cancelling out under the even-odd rule.
+const fillEach = (polys, colour) => polys.map((p) => `<path d="${polygonsToPath([p])}" fill="${colour}" fill-rule="evenodd"/>\n`).join("");
+
+// Polygons as polygon-clipping gives them (or as built here), with any
+// repeated closing point dropped and tiny bits removed.
+function closeTidy(mp) {
+  const out = [];
+  for (const polygon of mp) {
+    const rings = [];
+    for (let k = 0; k < polygon.length; k++) {
+      let ring = polygon[k];
+      const [a, z] = [ring[0], ring[ring.length - 1]];
+      if (ring.length > 1 && a[0] === z[0] && a[1] === z[1]) ring = ring.slice(0, -1);
+      if (ring.length < 3 || ringArea(ring) < ENGRAVE_MIN_MM2) {
+        if (k === 0) break;
+        continue;
+      }
+      rings.push(ring);
+    }
+    if (rings.length) out.push(rings);
+  }
+  return out;
+}
+
+// Sutherland-Hodgman: a ring cut to an axis-aligned box (fine for cutting a
+// small mark that lies inside the box against it).
+function clipRingToBox(ring, b) {
+  let pts = ring;
+  const edges = [
+    [(p) => p[0] >= b.x0, (p, q) => [b.x0, p[1] + ((q[1] - p[1]) * (b.x0 - p[0])) / (q[0] - p[0])]],
+    [(p) => p[0] <= b.x1, (p, q) => [b.x1, p[1] + ((q[1] - p[1]) * (b.x1 - p[0])) / (q[0] - p[0])]],
+    [(p) => p[1] >= b.y0, (p, q) => [p[0] + ((q[0] - p[0]) * (b.y0 - p[1])) / (q[1] - p[1]), b.y0]],
+    [(p) => p[1] <= b.y1, (p, q) => [p[0] + ((q[0] - p[0]) * (b.y1 - p[1])) / (q[1] - p[1]), b.y1]],
+  ];
+  for (const [inside, cross] of edges) {
+    if (!pts.length) break;
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length];
+      const pin = inside(p), qin = inside(q);
+      if (pin) out.push(p);
+      if (pin !== qin) out.push(cross(p, q));
+    }
+    pts = out;
+  }
+  return pts;
+}
+
 const polygonsToPath = (polys) =>
   polys.flat().map((r) => "M" + r.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join("L") + "Z").join("");
 
@@ -577,22 +626,72 @@ export async function buildLayout(o, onProgress) {
   // spot, so labels crossing several contour levels stay readable when stacked.
   // Map marks stay inside the map region; a template's own engraving (clock
   // numbers) may sit anywhere on the board.
-  const nonEmpty = marks.filter((m) => m.length);
-  const mapMarks = nonEmpty.length ? clip("intersection", polygonClipping.union(...nonEmpty), mapRegion, ENGRAVE_MIN_MM2) : [];
-  const tplMarks = tpl?.engrave.length ? clip("intersection", tpl.engrave, boardPolys, ENGRAVE_MIN_MM2) : [];
-  const allMarks = mapMarks.length && tplMarks.length ? tidy(polygonClipping.union(mapMarks, tplMarks), ENGRAVE_MIN_MM2) : mapMarks.length ? mapMarks : tplMarks;
+  // Marks are kept as separate shapes (labels no longer overlap, so merging
+  // them all, which was very slow on busy maps, isn't needed); only a mark
+  // that reaches the edge of its region is trimmed, on its own.
+  const within = (polys, region) =>
+    polys.flatMap((poly) => {
+      const b = boxOf(poly[0]);
+      const corners = [[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]];
+      return corners.every((c) => inPolys(region, c)) ? [poly] : clip("intersection", [poly], region, ENGRAVE_MIN_MM2);
+    });
+  const mapMarks = within(marks.flatMap((m) => closeTidy(m)), mapRegion);
+  const tplMarks = tpl?.engrave.length ? within(tpl.engrave, boardPolys) : [];
+  const allMarks = [...mapMarks, ...tplMarks];
   const engrave = [];
   if (allMarks.length && o.style === "engraved") engrave.push({ layer: 0, polys: allMarks });
   else if (allMarks.length) {
-    for (let i = 0; i < layers.length; i++) {
-      const onLayer = i === 0 ? allMarks : clip("intersection", allMarks, layers[i].polys, ENGRAVE_MIN_MM2);
-      if (!onLayer.length) break; // layers are nested, so nothing higher up either
-      const visible = layers[i + 1] ? clip("difference", onLayer, layers[i + 1].polys, ENGRAVE_MIN_MM2) : onLayer;
-      if (visible.length) engrave.push({ layer: i, polys: visible });
+    // Look each mark up in a picture of the layers: most sit wholly on one
+    // layer and are assigned directly. Only marks crossing a layer edge are
+    // cut, against just the nearby parts of those layers (cutting everything
+    // against whole layers took tens of seconds on big, busy maps).
+    const mask = layerMask(layers, W, H);
+    const byLayer = new Map();
+    const add = (i, polys) => {
+      if (!polys.length) return;
+      if (!byLayer.has(i)) byLayer.set(i, []);
+      byLayer.get(i).push(...polys);
+    };
+    // The parts of a layer inside box b: polygons and holes that reach it,
+    // each ring trimmed to the box, so cutting a small mark stays cheap.
+    const overlapsBox = (r, b) => {
+      const q = boxOf(r);
+      return q.x0 <= b.x1 && q.x1 >= b.x0 && q.y0 <= b.y1 && q.y1 >= b.y0;
+    };
+    const near = (polys, b) =>
+      polys
+        .filter((p) => overlapsBox(p[0], b))
+        .map((p) => p.filter((r, k) => k === 0 || overlapsBox(r, b)).map((r) => clipRingToBox(r, b)).filter((r) => r.length >= 3))
+        .filter((p) => p.length && p[0].length >= 3);
+    for (const mark of allMarks) {
+      const b0 = boxOf(mark[0]), pad = 0.4;
+      const b = { x0: b0.x0 - pad, y0: b0.y0 - pad, x1: b0.x1 + pad, y1: b0.y1 + pad };
+      let lo = Infinity, hi = -Infinity;
+      const step = 0.2;
+      for (let y = b.y0; y <= b.y1; y += step) {
+        for (let x = b.x0; x <= b.x1; x += step) {
+          const l = mask(x, y);
+          if (l < 0) continue;
+          if (l < lo) lo = l;
+          if (l > hi) hi = l;
+        }
+      }
+      if (lo === Infinity) continue;
+      if (lo === hi) {
+        add(lo, [mark]);
+        continue;
+      }
+      for (let i = lo; i <= hi; i++) {
+        const onLayer = i === 0 ? [mark] : clip("intersection", [mark], near(layers[i].polys, b), ENGRAVE_MIN_MM2);
+        if (!onLayer.length) continue;
+        const visible = layers[i + 1] ? clip("difference", onLayer, near(layers[i + 1].polys, b), ENGRAVE_MIN_MM2) : onLayer;
+        add(i, visible);
+      }
     }
+    for (const [layer, polys] of [...byLayer].sort((a, c) => a[0] - c[0])) engrave.push({ layer, polys });
   }
   const engravePath = (i) =>
-    engrave.filter((e) => e.layer === i).map((e) => `<path d="${polygonsToPath(e.polys)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>`).join("\n");
+    engrave.filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.engrave)).join("");
 
   // Water: lake shores, rivers, streams and coastline as score lines, each
   // stretch on whichever layer is on top there (looked up in a layer mask,
@@ -638,7 +737,7 @@ export async function buildLayout(o, onProgress) {
   const pieceContent = (p) =>
     line(polygonsToPath([p.poly]), COLOURS.cut) + "\n" +
     (o.guides && p.children.length ? line(polygonsToPath(p.children.map((c) => c.poly)), COLOURS.guide) + "\n" : "") +
-    (p.engrave.length ? `<path d="${polygonsToPath(p.engrave)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>\n` : "") +
+    fillEach(p.engrave, COLOURS.engrave) +
     scorePath(p.lines.water, "water") +
     scorePath(p.lines.roads, "roads") +
     fill(p.numbers, COLOURS.number) +
@@ -757,7 +856,7 @@ export async function buildLayout(o, onProgress) {
     const dash = w.kind === "paths" ? ` stroke-dasharray="1.2 0.9"` : w.kind === "tracks" ? ` stroke-dasharray="2.4 1"` : "";
     preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="${road ? "#2a1d14" : "#1f3f5c"}" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"${dash}/>`;
   }
-  preview += `<path d="${polygonsToPath(allMarks)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/></svg>`;
+  preview += fillEach(allMarks, COLOURS.engrave) + "</svg>";
 
   return { buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }
