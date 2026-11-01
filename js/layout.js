@@ -9,7 +9,7 @@
 import { SHAPES, DEFAULT_SHAPE, placeShape } from "./shapes.js";
 import { loadFonts, textRings } from "./text.js";
 import { routeBand } from "./route.js";
-import { WATER_KINDS } from "./water.js";
+import { WATER_KINDS, ROAD_KINDS } from "./water.js";
 import { splitIntoPieces, numberPieces } from "./pieces.js";
 import { nestPieces } from "./nest.js";
 
@@ -25,6 +25,7 @@ export const COLOURS = {
   guide: "#0000ff",
   engrave: "#000000",
   water: "#00e000",
+  roads: "#00a0a0", // road score lines
   number: "#ff8000", // assembly numbers, hidden under the piece above
   numberVisible: "#ff00ff", // ids of pieces with nothing on top (would show)
   sheet: "#999999", // sheet edges, for reference only
@@ -408,6 +409,7 @@ const esc = (s) =>
  * @param {number} [o.placeMm]  special place marker size
  * @param {{lines:number[][][], widthMm:number, style:"solid"|"dashed"}} [o.route]  hiking route, lines of [lng, lat]
  * @param {Object<string, number[][][]>} [o.water]  lines of [lng, lat] by kind (see WATER_KINDS)
+ * @param {Object<string, number[][][]>} [o.roads]  lines of [lng, lat] by kind (see ROAD_KINDS)
  * @param {boolean} [o.labelBoxes]  clear contours (and water) from a box behind each peak label
  * @param {{url:string, maxzoom:number, sea:boolean}} [o.dem]  elevation tiles (Earth by default)
  */
@@ -595,26 +597,29 @@ export async function buildLayout(o, onProgress) {
   // Water: lake shores, rivers, streams and coastline as score lines, each
   // stretch on whichever layer is on top there (looked up in a layer mask,
   // which stays fast with thousands of water points).
+  // Roads go the same way, in their own colour.
   const water = [];
-  const waterKinds = WATER_KINDS.filter((k) => o.water?.[k.id]?.length);
-  if (waterKinds.length) {
+  const lineKinds = [
+    ...WATER_KINDS.filter((k) => o.water?.[k.id]?.length).map((k) => ({ ...k, group: "water", lines: o.water[k.id] })),
+    ...ROAD_KINDS.filter((k) => o.roads?.[k.id]?.length).map((k) => ({ ...k, group: "roads", lines: o.roads[k.id] })),
+  ];
+  if (lineKinds.length) {
     // Water stays inside the map region (not on a coaster's plain border).
     const maskLayers = (o.style === "engraved" ? layers.slice(0, 1) : layers).map((l, i) => (i === 0 ? { d: polygonsToPath(mapRegion) } : l));
     const mask = layerMask(maskLayers, W, H);
-    for (const kind of waterKinds) {
-      const lines = trimLines(o.water[kind.id].map((l) => l.map(toMm)), W, H, 1).filter((l) => lineLength(l) >= 2);
+    for (const kind of lineKinds) {
+      const lines = trimLines(kind.lines.map((l) => l.map(toMm)), W, H, 1).filter((l) => lineLength(l) >= 2);
       const clear = labelBoxes.length ? linesOutsideBoxes(lines, labelBoxes) : lines;
-      for (const [layer, runs] of splitByLayer(clear, mask)) water.push({ layer, kind: kind.id, widthMm: kind.widthMm, lines: runs });
+      for (const [layer, runs] of splitByLayer(clear, mask)) water.push({ layer, group: kind.group, kind: kind.id, widthMm: kind.widthMm, lines: runs });
     }
   }
   // Engraved boards: contour lines as open lines, with the label boxes left clear.
   const contourLines = layers.slice(1).flatMap((l) => l.polys.flat().map((r) => [...r, r[0]]));
   const contourPath = linesToPathOf(labelBoxes.length ? linesOutsideBoxes(contourLines, labelBoxes) : contourLines);
   const linesToPath = (lines) => lines.map((l) => "M" + l.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join("L")).join("");
-  const waterPath = (i) => {
-    const lines = water.filter((w) => w.layer === i).flatMap((w) => w.lines);
-    return lines.length ? `<path d="${linesToPath(lines)}" fill="none" stroke="${COLOURS.water}" stroke-width="0.1"/>\n` : "";
-  };
+  const scorePath = (lines, group) => (lines?.length ? `<path d="${linesToPath(lines)}" fill="none" stroke="${COLOURS[group]}" stroke-width="0.1"/>\n` : "");
+  const waterPath = (i) =>
+    ["water", "roads"].map((g) => scorePath(water.filter((w) => w.layer === i && w.group === g).flatMap((w) => w.lines), g)).join("");
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
@@ -634,11 +639,12 @@ export async function buildLayout(o, onProgress) {
     line(polygonsToPath([p.poly]), COLOURS.cut) + "\n" +
     (o.guides && p.children.length ? line(polygonsToPath(p.children.map((c) => c.poly)), COLOURS.guide) + "\n" : "") +
     (p.engrave.length ? `<path d="${polygonsToPath(p.engrave)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/>\n` : "") +
-    (p.water.length ? `<path d="${linesToPath(p.water)}" fill="none" stroke="${COLOURS.water}" stroke-width="0.1"/>\n` : "") +
+    scorePath(p.lines.water, "water") +
+    scorePath(p.lines.roads, "roads") +
     fill(p.numbers, COLOURS.number) +
     fill(p.visibleNumbers, COLOURS.numberVisible);
   const legend =
-    `<!-- Red = cut, blue = glue guide, black = engrave, green = water score lines, ` +
+    `<!-- Red = cut, blue = glue guide, black = engrave, green = water score lines, teal = road score lines, ` +
     `orange = assembly numbers (hidden once glued), magenta = numbers on pieces with nothing on top, ` +
     `grey = sheet edges (don't cut). Top left: the assembled model for reference. To the right: the same pieces ` +
     `laid flat on cutting sheets, one layer per sheet; cut one sheet at a time. Elevation: AWS Terrain Tiles (Mapzen). Hills: Database of British and Irish Hills v18.6, CC BY 4.0. -->\n`;
@@ -746,7 +752,10 @@ export async function buildLayout(o, onProgress) {
       preview += `<path d="${l.d}" fill="${tone(i + 1)}" fill-rule="evenodd" stroke="rgba(60,30,10,.55)" stroke-width="${Math.max(W, H) / 900}"/>`;
     });
   }
-  for (const w of water) preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="#1f3f5c" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  for (const w of water) {
+    const colour = w.group === "roads" ? "#5a4a3a" : "#1f3f5c";
+    preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="${colour}" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
   preview += `<path d="${polygonsToPath(allMarks)}" fill="${COLOURS.engrave}" fill-rule="evenodd"/></svg>`;
 
   return { buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };

@@ -49,7 +49,7 @@ function pieceAt(pieces, pt) {
 /**
  * @param {Array<{polys:number[][][][]}>} layers  layer 0 = base board
  * @param {Array<{layer:number, polys:number[][][][]}>} engrave
- * @param {Array<{layer:number, lines:number[][][]}>} water
+ * @param {Array<{layer:number, group:string, lines:number[][][]}>} water  score lines (water, roads)
  */
 export function splitIntoPieces(layers, engrave = [], water = []) {
   const byLayer = layers.map((l, i) =>
@@ -61,7 +61,7 @@ export function splitIntoPieces(layers, engrave = [], water = []) {
       area: area(poly[0]),
       children: [],
       engrave: [],
-      water: [],
+      lines: {}, // score lines by group ("water", "roads")
       numbers: [], // hidden: own id and ids of the pieces on top
       visibleNumbers: [], // own id when nothing sits on top
     }))
@@ -85,7 +85,7 @@ export function splitIntoPieces(layers, engrave = [], water = []) {
   for (const w of water) {
     for (const line of w.lines) {
       const p = pieceAt(byLayer[w.layer] || [], line[Math.floor(line.length / 2)]);
-      if (p) p.water.push(line);
+      if (p) (p.lines[w.group || "water"] ??= []).push(line);
     }
   }
   return byLayer;

@@ -4,7 +4,7 @@ import { buildLayout, DEM_URL, EARTH_DEM } from "./layout.js";
 import { createViewer } from "./viewer3d.js";
 import { SHAPES, DEFAULT_SHAPE, PLACE_SIZES, shapeIcon } from "./shapes.js";
 import { parseRouteFile, encodeRoute, decodeRoute, routeLengthKm } from "./route.js";
-import { WATER_KINDS, fetchWater } from "./water.js";
+import { WATER_KINDS, ROAD_KINDS, fetchWater, fetchRoads } from "./water.js";
 
 const $ = (s) => document.querySelector(s);
 const FONT = ["NotoSans-Regular"];
@@ -35,6 +35,8 @@ const state = {
   water: params.has("wtr")
     ? new Set(params.get("wtr").split(",").filter((id) => WATER_KINDS.some((k) => k.id === id)))
     : new Set(WATER_KINDS.filter((k) => k.on).map((k) => k.id)),
+  // Roads and paths to score (ids from ROAD_KINDS); off unless asked for.
+  roads: new Set((params.get("rds") || "").split(",").filter((id) => ROAD_KINDS.some((k) => k.id === id))),
   // Hiking route: lines of [lng, lat], engraved as a band.
   route: {
     lines: safeDecodeRoute(params.get("rt")),
@@ -115,6 +117,7 @@ const siteDem = (b) => {
 if (BODY !== "earth") {
   // No water, routes or UK hill search off-world.
   state.water = new Set();
+  state.roads = new Set();
   state.route.lines = [];
 }
 
@@ -176,6 +179,7 @@ const map = new maplibregl.Map({
       "hills-pts": { type: "geojson", data: WORLD.features },
       route: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       water: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
+      roads: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       "route-draft": { type: "geojson", data: { type: "FeatureCollection", features: [] } },
     },
     layers: [
@@ -202,6 +206,24 @@ const map = new maplibregl.Map({
         layout: { "symbol-placement": "line", "text-size": 10, "text-field": ["concat", ["to-string", ["get", "ele"]], " m"], "text-font": FONT },
         paint: { "text-color": "#685e52", "text-halo-color": "#efe2c8", "text-halo-width": 1.2 },
       },
+      // Roads solid; tracks and paths dashed (dashes can't vary by data, so separate layers).
+      ...[
+        ["road-lines", ["in", ["get", "kind"], ["literal", ["major", "minor", "lanes"]]], null],
+        ["road-tracks", ["==", ["get", "kind"], "tracks"], [4, 1.5]],
+        ["road-paths", ["==", ["get", "kind"], "paths"], [2, 1.5]],
+      ].map(([id, filter, dash]) => ({
+        id,
+        type: "line",
+        source: "roads",
+        filter,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": ["match", ["get", "kind"], "major", "#8c4a2f", "minor", "#9a6b45", "#7d7365"],
+          "line-width": ["match", ["get", "kind"], "major", 2.4, "minor", 1.7, "lanes", 1.2, 0.9],
+          "line-opacity": 0.85,
+          ...(dash ? { "line-dasharray": dash } : {}),
+        },
+      })),
       {
         id: "water-lines",
         type: "line",
@@ -427,6 +449,7 @@ if (BODY !== "earth") {
   if (!params.has("ci") && SITES.length) setInterval_(intervalFor(SITES[0]));
   document.querySelector(".step:has(#route-file)").hidden = true;
   $("#water-kinds").closest("fieldset").hidden = true;
+  $("#road-kinds").closest("fieldset").hidden = true;
   $(".site-footer p").innerHTML =
     `${WORLD.credit}. Heights are measured from ${WORLD.the}'s reference sphere, so many are negative. ` +
     `Data courtesy of NASA, JAXA and the USGS Astrogeology Science Center.`;
@@ -537,6 +560,7 @@ function shareLink(b, ref) {
       : {}),
     ...(state.route.lines.length ? { rt: encodeRoute(state.route.lines), rs: state.route.style, rw: state.route.widthMm } : {}),
     wtr: [...state.water].join(","),
+    ...(state.roads.size ? { rds: [...state.roads].join(",") } : {}),
     font: state.fontMm,
     ...(state.labelBoxes ? { lbox: "1" } : {}),
     t: $("#thickness").value,
@@ -553,9 +577,9 @@ $("#generate").addEventListener("click", async () => {
   try {
     setStatus("Fetching elevation data…");
     // Water tiles ship with the site; if one fails to load, carry on without water.
-    let water = null, waterFailed = false;
+    let water = null, roads = null, waterFailed = false;
     try {
-      water = await waterFor(b);
+      [water, roads] = await Promise.all([waterFor(b), roadsFor(b)]);
     } catch {
       waterFailed = true;
     }
@@ -577,6 +601,7 @@ $("#generate").addEventListener("click", async () => {
         placeMm: state.placeMm,
         route: state.route.lines.length ? state.route : null,
         water,
+        roads,
         guides: true,
       },
       (f) => setStatus(`Fetching elevation data… ${Math.round(f * 100)}%`)
@@ -625,11 +650,12 @@ function renderStats() {
     ...(state.places.length ? [["Special places", lastResult.places.length]] : []),
     ...(state.route.lines.length ? [["Route", `${routeLengthKm(state.route.lines).toFixed(1)} km`]] : []),
     ...(state.water.size && !lastResult.waterFailed ? [["Water", waterLabel()]] : []),
+    ...(state.roads.size && !lastResult.waterFailed ? [["Roads", roadLabel()]] : []),
   ];
   if (m.style === "layered") items.push(["Stack height", `≈ ${stackHeight()} mm`]);
   let html = items.map(([k, v]) => `<li>${k}: <b>${escapeHtml(v)}</b></li>`).join("");
   if (lastResult.waterFailed) {
-    html += `<li class="status error">Couldn’t load rivers and lakes just now, so this layout has none. Close this and try again.</li>`;
+    html += `<li class="status error">Couldn’t load rivers, lakes or roads just now, so this layout has none. Close this and try again.</li>`;
   }
   if (state.route.lines.length && !lastResult.routeOnBoard) {
     html += `<li class="status error">Your route is ${m.template ? "off the board’s map area (or over a hole)" : "outside the frame"}, so not included. Close this and use “Fit frame to route”.</li>`;
@@ -817,6 +843,7 @@ $("#order").addEventListener("submit", async (e) => {
       (p) => `Special place: ${SHAPES[p.shape].label} "${p.label || "(no label)"}" at ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)} (${p.sizeMm} mm marker)`
     ),
     ...(state.water.size && !lastResult.waterFailed ? [`Water: ${waterLabel()}`] : []),
+    ...(state.roads.size && !lastResult.waterFailed ? [`Roads: ${roadLabel()}`] : []),
     ...(lastResult.routeOnBoard
       ? [`Route: ${routeLengthKm(state.route.lines).toFixed(1)} km, ${state.route.style} line, ${state.route.widthMm} mm (included in the design link)`]
       : []),
@@ -1192,6 +1219,62 @@ $("#water-kinds").addEventListener("change", (e) => {
 });
 map.on("moveend", showWaterSoon);
 onStyleReady(showWaterSoon);
+
+// ---------- Roads and paths ----------
+const roadLabel = () =>
+  ROAD_KINDS.filter((k) => state.roads.has(k.id))
+    .map((k) => k.label.toLowerCase())
+    .join(", ");
+
+async function roadsFor(bounds) {
+  const kinds = [...state.roads];
+  return kinds.length ? fetchRoads(bounds, kinds) : null;
+}
+
+const ROAD_MAX_METRES = 30000;
+let roadTimer;
+async function showRoads() {
+  const note = $("#road-note");
+  const empty = { type: "FeatureCollection", features: [] };
+  if (!state.roads.size) {
+    map.getSource("roads").setData(empty);
+    note.textContent = "";
+    return;
+  }
+  const c = map.getContainer();
+  const nw = map.unproject([0, 0]), se = map.unproject([c.clientWidth, c.clientHeight]);
+  const view = { west: nw.lng, north: nw.lat, east: se.lng, south: se.lat };
+  if (groundWidthMetres(view) > ROAD_MAX_METRES) {
+    map.getSource("roads").setData(empty);
+    note.textContent = "Zoom in to see roads on the map.";
+    return;
+  }
+  note.textContent = "Loading roads…";
+  try {
+    const roads = await roadsFor(view);
+    const features = Object.entries(roads).flatMap(([kind, lines]) =>
+      lines.map((l) => ({ type: "Feature", properties: { kind }, geometry: { type: "LineString", coordinates: l } }))
+    );
+    map.getSource("roads").setData({ type: "FeatureCollection", features });
+    note.textContent = "Roads © OpenStreetMap contributors.";
+  } catch {
+    note.textContent = "Couldn’t load roads just now.";
+  }
+}
+const showRoadsSoon = () => {
+  clearTimeout(roadTimer);
+  roadTimer = setTimeout(showRoads, 700);
+};
+$("#road-kinds").innerHTML = ROAD_KINDS.map(
+  (k) => `<label class="check"><input type="checkbox" value="${k.id}" ${state.roads.has(k.id) ? "checked" : ""}> ${k.label}</label>`
+).join("");
+$("#road-kinds").addEventListener("change", (e) => {
+  if (e.target.checked) state.roads.add(e.target.value);
+  else state.roads.delete(e.target.value);
+  showRoadsSoon();
+});
+map.on("moveend", showRoadsSoon);
+onStyleReady(showRoadsSoon);
 
 // ---------- Etsy mode ----------
 // The order and payment happen on Etsy; this only saves the design and gives
