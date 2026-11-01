@@ -459,6 +459,8 @@ const esc = (s) =>
  * @param {{lines:number[][][], widthMm:number, style:"solid"|"dashed"}} [o.route]  hiking route, lines of [lng, lat]
  * @param {Object<string, number[][][]>} [o.water]  lines of [lng, lat] by kind (see WATER_KINDS)
  * @param {Object<string, number[][][]>} [o.roads]  lines of [lng, lat] by kind (see ROAD_KINDS)
+ * @param {Array<{name:string, kind:"c"|"t"|"v", lng:number, lat:number}>} [o.towns]  place names to label
+ * @param {number} [o.townFontMm]  place name text size
  * @param {boolean} [o.labelBoxes]  clear contours (and water) from a box behind each peak label
  * @param {{url:string, maxzoom:number, sea:boolean}} [o.dem]  elevation tiles (Earth by default)
  */
@@ -528,6 +530,7 @@ export async function buildLayout(o, onProgress) {
       NE: [cx + hw * 0.4, cy - hh - g * 0.6 - h], SE: [cx + hw * 0.4, cy + hh + g * 0.6],
       NW: [cx - hw * 0.4 - w, cy - hh - g * 0.6 - h], SW: [cx - hw * 0.4 - w, cy + hh + g * 0.6],
       N: [cx - w / 2, cy - hh - g * 0.6 - h], S: [cx - w / 2, cy + hh + g * 0.6],
+      C: [cx - w / 2, cy - h / 2],
     };
     for (const k of order) {
       const [x0, y0] = spots[k];
@@ -558,6 +561,27 @@ export async function buildLayout(o, onProgress) {
     if (r) marks.push(solid(r.rings));
     else labelsLeftOff++;
   }
+
+  // Place names (no marker): centred on the place if there is room, else
+  // just off it. Cities are bold and a little larger, villages smaller.
+  let townsPlaced = 0;
+  const TOWN_STYLE = { c: [1.15, "bold"], t: [1, "regular"], v: [0.85, "regular"] };
+  const placeTowns = (kinds) => {
+    for (const t of o.towns || []) {
+      if (!kinds.includes(t.kind)) continue;
+      const [x, y] = toMm([t.lng, t.lat]);
+      if (!onBoard([x, y])) continue;
+      const [k, weight] = TOWN_STYLE[t.kind];
+      const r = placeText(t.name, (o.townFontMm || 3.5) * k, weight, x, y, 0, 0, ["C", "N", "S", "E", "W"]);
+      if (!r) {
+        labelsLeftOff++;
+        continue;
+      }
+      marks.push(solid(r.rings));
+      townsPlaced++;
+    }
+  };
+  placeTowns("c"); // cities before peaks, towns and villages after
 
   // Peaks: a small triangle on the summit with the name beside it.
   let peaksPlaced = 0;
@@ -590,6 +614,8 @@ export async function buildLayout(o, onProgress) {
       if (o.labelBoxes) labelBoxes.push({ x0: r.box.x0 - pad, x1: r.box.x1 + pad, y0: r.box.y0 - pad, y1: r.box.y1 + pad });
     }
   }
+
+  placeTowns("tv");
 
   // Label boxes on a layered map: each box becomes a flat recess at the
   // lowest ground under it, cut out of every layer above, so the name sits
@@ -858,5 +884,5 @@ export async function buildLayout(o, onProgress) {
   }
   preview += fillEach(allMarks, COLOURS.engrave) + "</svg>";
 
-  return { buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
+  return { townsPlaced, buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }

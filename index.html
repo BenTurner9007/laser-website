@@ -107,24 +107,46 @@
             <div id="road-kinds"></div>
             <p id="road-note" class="field-note"></p>
           </fieldset>
-          <div class="row">
-            <label class="field small">
-              <span>Labels</span>
-              <select id="label-mode">
-                <option value="name">Name</option>
-                <option value="name-height" selected>Name and height</option>
-                <option value="none">No labels</option>
-              </select>
-            </label>
-            <label class="field small">
-              <span>Text size</span>
-              <select id="font-mm">
-                <option value="2.5">Small</option>
-                <option value="3.5" selected>Medium</option>
-                <option value="5">Large</option>
-              </select>
-            </label>
-          </div>
+          <fieldset class="lists">
+            <legend>Labels</legend>
+            <div class="row">
+              <label class="field small">
+                <span>Peak names</span>
+                <select id="label-mode">
+                  <option value="none">Off</option>
+                  <option value="name">Name</option>
+                  <option value="name-height" selected>Name &amp; height</option>
+                </select>
+              </label>
+              <label class="field small">
+                <span>Peak text size</span>
+                <select id="font-mm">
+                  <option value="2.5">Small</option>
+                  <option value="3.5" selected>Medium</option>
+                  <option value="5">Large</option>
+                </select>
+              </label>
+            </div>
+            <div class="row" id="place-label-row">
+              <label class="field small">
+                <span>Place names</span>
+                <select id="place-names">
+                  <option value="none" selected>Off</option>
+                  <option value="c">Cities</option>
+                  <option value="ct">Cities &amp; towns</option>
+                  <option value="ctv">+ villages</option>
+                </select>
+              </label>
+              <label class="field small">
+                <span>Place text size</span>
+                <select id="place-font-mm">
+                  <option value="2.5">Small</option>
+                  <option value="3.5" selected>Medium</option>
+                  <option value="5">Large</option>
+                </select>
+              </label>
+            </div>
+          </fieldset>
           <label class="check label-box"><input type="checkbox" id="label-boxes"> Clear space behind peak labels <span class="field-note-inline">(no contours through the text)</span></label>
         </li>
 

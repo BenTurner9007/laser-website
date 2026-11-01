@@ -237,6 +237,7 @@ js/nest.js            packs pieces onto cutting sheets
 js/text.js            label text to outlines (opentype.js)
 js/route.js           route files, share-link encoding, route band
 js/water.js           loads rivers, lakes and coastline from data/water/
+data/places.json      UK city, town and village names (built by scripts/build-places.py)
 data/roads/           UK road and path tiles, 0.1° each (built by scripts/build-roads.py)
 data/water/           UK water tiles, 0.1° each (built by scripts/build-water.py)
 data/planets/         Moon and Mars elevation tiles, places and features (built by scripts/build-planets.py)
@@ -246,6 +247,16 @@ data/hills.geojson    636 named hills (built by scripts/build-hills.mjs)
 fonts/                map label glyphs (Noto Sans, OFL)
 vendor/               MapLibre GL JS 4.7.1, maplibre-contour 0.1.0, d3-contour 4.0.2, three.js r169, polygon-clipping 0.15.7, opentype.js 1.3.4
 ```
+
+### Place names
+
+The **Labels** box in step 3 has two rows: **peak names** (off / name / name &
+height, with its own text size) and **place names** (off / cities / cities &
+towns / + villages, with its own text size). Place names are centred on the
+place (cities bold, villages a little smaller) and take part in the no-overlap
+placement: special places first, then cities, peaks, towns and villages.
+`data/places.json` holds about 16,900 UK cities, towns and villages (0.7 MB)
+from Overture Maps (OpenStreetMap), rebuilt with `python3 scripts/build-places.py`.
 
 ### Roads and paths
 

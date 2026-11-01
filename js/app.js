@@ -22,6 +22,9 @@ const state = {
   style: params.get("style") === "engraved" ? "engraved" : "layered",
   labelMode: params.get("labels") || "name-height",
   fontMm: +params.get("font") || 3.5,
+  // Place names to label: "none", "c" cities, "ct" + towns, "ctv" + villages.
+  placeNames: ["c", "ct", "ctv"].includes(params.get("pn")) ? params.get("pn") : "none",
+  placeFontMm: +params.get("pfont") || 3.5,
   labelBoxes: params.get("lbox") === "1",
   // Every bundled hill list is named (and Moon/Mars features); no per-list choice.
   lists: new Set([...HILL_LISTS.map((l) => l.id), "features"]),
@@ -180,6 +183,7 @@ const map = new maplibregl.Map({
       route: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       water: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       roads: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
+      towns: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       "route-draft": { type: "geojson", data: { type: "FeatureCollection", features: [] } },
     },
     layers: [
@@ -284,9 +288,24 @@ const map = new maplibregl.Map({
         },
         paint: { "text-color": "#2e2723", "text-halo-color": "#fbf7f0", "text-halo-width": 1.5 },
       },
+      {
+        id: "town-labels",
+        type: "symbol",
+        source: "towns",
+        layout: {
+          "text-field": ["get", "name"],
+          "text-font": ["match", ["get", "kind"], "c", ["literal", FONT_BOLD], ["literal", FONT]],
+          "text-size": ["match", ["get", "kind"], "c", 15, "t", 13, 11],
+          "symbol-sort-key": ["match", ["get", "kind"], "c", 0, "t", 1, 2],
+          "text-allow-overlap": false,
+        },
+        paint: { "text-color": "#3d3128", "text-halo-color": "#fbf7f0", "text-halo-width": 1.6 },
+      },
     ],
   },
 });
+let styleReady = false;
+map.once("style.load", () => (styleReady = true));
 map.touchZoomRotate.disableRotation();
 map.keyboard.disableRotation();
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
@@ -382,7 +401,9 @@ map.on("movestart", (e) => {
   if (e.originalEvent) pinnedBounds = null;
 });
 // "load" waits for every tile; the style being ready is enough to position the map.
-const onStyleReady = (fn) => (map.isStyleLoaded() ? fn() : map.once("style.load", fn));
+// (isStyleLoaded() is also false while tiles load, after "style.load" has
+// already fired, so remember the event instead.)
+const onStyleReady = (fn) => (styleReady ? fn() : map.once("style.load", fn));
 onStyleReady(() => {
   layoutFrame();
   if (state.sharedBounds?.length === 4 && state.sharedBounds.every(Number.isFinite)) {
@@ -450,6 +471,7 @@ if (BODY !== "earth") {
   document.querySelector(".step:has(#route-file)").hidden = true;
   $("#water-kinds").closest("fieldset").hidden = true;
   $("#road-kinds").closest("fieldset").hidden = true;
+  $("#place-label-row").hidden = true;
   $(".site-footer p").innerHTML =
     `${WORLD.credit}. Heights are measured from ${WORLD.the}'s reference sphere, so many are negative. ` +
     `Data courtesy of NASA, JAXA and the USGS Astrogeology Science Center.`;
@@ -525,6 +547,13 @@ $("#label-mode").value = state.labelMode;
 $("#label-mode").addEventListener("change", (e) => (state.labelMode = e.target.value));
 $("#font-mm").value = String(state.fontMm);
 $("#font-mm").addEventListener("change", (e) => (state.fontMm = +e.target.value));
+$("#place-names").value = state.placeNames;
+$("#place-names").addEventListener("change", (e) => {
+  state.placeNames = e.target.value;
+  showPlaceNames();
+});
+$("#place-font-mm").value = String(state.placeFontMm);
+$("#place-font-mm").addEventListener("change", (e) => (state.placeFontMm = +e.target.value));
 $("#label-boxes").checked = state.labelBoxes;
 $("#label-boxes").addEventListener("change", (e) => (state.labelBoxes = e.target.checked));
 
@@ -562,6 +591,7 @@ function shareLink(b, ref) {
     wtr: [...state.water].join(","),
     ...(state.roads.size ? { rds: [...state.roads].join(",") } : {}),
     font: state.fontMm,
+    ...(state.placeNames !== "none" ? { pn: state.placeNames, pfont: state.placeFontMm } : {}),
     ...(state.labelBoxes ? { lbox: "1" } : {}),
     t: $("#thickness").value,
     mat: $("#material").value,
@@ -594,6 +624,8 @@ $("#generate").addEventListener("click", async () => {
         peaks: peaksInFrame(b),
         labelMode: state.labelMode,
         fontMm: state.fontMm,
+        towns: state.placeNames === "none" ? [] : placesInFrame(b),
+        townFontMm: state.placeFontMm,
         labelBoxes: state.labelBoxes,
         dem: siteDem(b),
         template: state.template ? await loadTemplate(state.template) : null,
@@ -644,6 +676,7 @@ function renderStats() {
     ["Heights", `${m.minElevation}–${m.maxElevation} m`],
     [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.layers - 1],
     ["Named peaks", lastResult.peaksPlaced],
+    ...(state.placeNames !== "none" && BODY === "earth" ? [["Place names", lastResult.townsPlaced]] : []),
     ...(lastResult.labelsLeftOff
       ? [["Names left off", `${lastResult.labelsLeftOff} (no room without overlapping – try smaller text or zoom in)`]]
       : []),
@@ -1390,3 +1423,30 @@ $("#cost-btn").addEventListener("click", () => {
     }
   }, 50);
 });
+
+// ---------- Place names: cities, towns and villages ----------
+let townIndex = [];
+const townsReady = fetch("data/places.json")
+  .then((r) => r.json())
+  .then((d) => (townIndex = d.places))
+  .catch(() => (townIndex = []));
+
+function placesInFrame(b) {
+  const kinds = state.placeNames;
+  return townIndex
+    .filter(([, k, lng, lat]) => kinds.includes(k) && lng >= b.west && lng <= b.east && lat >= b.south && lat <= b.north)
+    .map(([name, kind, lng, lat]) => ({ name, kind, lng, lat }));
+}
+
+async function showPlaceNames() {
+  await townsReady;
+  const kinds = BODY === "earth" ? state.placeNames : "none";
+  const features =
+    kinds === "none"
+      ? []
+      : townIndex
+          .filter(([, k]) => kinds.includes(k))
+          .map(([name, kind, lng, lat]) => ({ type: "Feature", properties: { name, kind }, geometry: { type: "Point", coordinates: [lng, lat] } }));
+  onStyleReady(() => map.getSource("towns").setData({ type: "FeatureCollection", features }));
+}
+showPlaceNames();
