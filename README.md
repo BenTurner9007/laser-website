@@ -96,8 +96,8 @@ python3 scripts/build-materials.py path/to/new.xlsx
 lays the pieces out on every sheet size Kitronik sells in the chosen material
 and thickness (with the border and gap from `sheet` in `config.js`), and shows
 sheets needed and cost ex and inc VAT for each, with the cheapest highlighted,
-plus the value of the wood actually used (if offcuts are reused) and the
-£7.50 delivery charge. Prices are Kitronik's 1+ quantity prices.
+plus the value of the wood actually used (if offcuts are reused). Sheets are collected, so no delivery
+is added. Prices are Kitronik's 1+ quantity prices.
 
 ## Etsy mode
 

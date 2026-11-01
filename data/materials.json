@@ -2,7 +2,6 @@
  "supplier": "Kitronik",
  "source": "kitronik-laser-plywood.xlsx",
  "vat": 0.2,
- "deliveryExVat": 7.5,
  "materials": [
   {
    "name": "Poplar plywood (AB/AB)",

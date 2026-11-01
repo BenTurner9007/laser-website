@@ -1296,7 +1296,7 @@ $("#cost-btn").addEventListener("click", () => {
         (cheapest
           ? `<p class="cost-note">Cheapest: <b>${cheapest.sheets} × ${cheapest.w} × ${cheapest.h}</b> for <b>${money(cheapest.cost)}</b> ex VAT (${money(cheapest.cost * vat)} inc VAT). ` +
             `The wood the pieces actually use is worth about ${money(usedCost)} ex VAT, if you count offcuts as reusable. ` +
-            `Delivery is ${money(MATERIALS.deliveryExVat)} ex VAT per order. ${MATERIALS.supplier} prices, 1+ quantity.</p>`
+            `${MATERIALS.supplier} prices, 1+ quantity.</p>`
           : `<p class="cost-note">No ${MATERIALS.supplier} sheet in this material is big enough for the largest piece.</p>`);
     } catch (err) {
       console.error(err);

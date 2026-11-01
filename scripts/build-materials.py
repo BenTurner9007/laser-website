@@ -57,7 +57,6 @@ data = {
     "supplier": "Kitronik",
     "source": src.name,
     "vat": 0.2,
-    "deliveryExVat": 7.5,  # flat UK delivery for sheet materials, per the price list notes
     "materials": out,
 }
 OUT.write_text(json.dumps(data, indent=1))
