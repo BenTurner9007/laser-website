@@ -248,11 +248,19 @@ fonts/                map label glyphs (Noto Sans, OFL)
 vendor/               MapLibre GL JS 4.7.1, maplibre-contour 0.1.0, d3-contour 4.0.2, three.js r169, polygon-clipping 0.15.7, opentype.js 1.3.4
 ```
 
+### No contours
+
+Unticking **Contour lines** in step 3 gives a flat engraved board with no
+contour lines: just the roads, water, place and peak names, routes and
+special places chosen (a street-map style piece). Layered boards are made from
+the contours, so that option is unavailable while contours are off. Saved in
+the share link as `cl=0`.
+
 ### Place names
 
 The **Labels** box in step 3 has two rows: **peak names** (off / name / name &
 height, with its own text size) and **place names** (off / cities / cities &
-towns / + villages, with its own text size). Place names are centred on the
+towns / + villages, with its own text size, up to Extra large). Place names are centred on the
 place (cities bold, villages a little smaller) and take part in the no-overlap
 placement: special places first, then cities, peaks, towns and villages.
 `data/places.json` holds about 16,900 UK cities, towns and villages (0.7 MB)

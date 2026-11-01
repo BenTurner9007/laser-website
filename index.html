@@ -70,7 +70,9 @@
             <label><input type="radio" name="style" value="layered" checked><span>Layered (stacked boards)</span></label>
             <label><input type="radio" name="style" value="engraved"><span>Single engraved board</span></label>
           </div>
-          <div class="row">
+          <label class="check"><input type="checkbox" id="contours-on" checked> Contour lines</label>
+          <p class="field-note contour-note">Untick for a flat board with just roads, water and names.</p>
+          <div class="row" id="contour-row">
             <label class="field small">
               <span>Contour every</span>
               <select id="interval">
@@ -143,6 +145,7 @@
                   <option value="2.5">Small</option>
                   <option value="3.5" selected>Medium</option>
                   <option value="5">Large</option>
+                  <option value="7">Extra large</option>
                 </select>
               </label>
             </div>

@@ -422,3 +422,4 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .cost tr.best td { background: #f3e2cf; font-weight: 600; }
 .cost-note { margin: 8px 0 0; font-size: .82rem; color: var(--muted); }
 .cost-note b { color: var(--ink); }
+.contour-note { margin: 0 0 10px 24px; }

@@ -461,6 +461,7 @@ const esc = (s) =>
  * @param {Object<string, number[][][]>} [o.roads]  lines of [lng, lat] by kind (see ROAD_KINDS)
  * @param {Array<{name:string, kind:"c"|"t"|"v", lng:number, lat:number}>} [o.towns]  place names to label
  * @param {number} [o.townFontMm]  place name text size
+ * @param {boolean} [o.contours]  false for a flat board with no contour lines
  * @param {boolean} [o.labelBoxes]  clear contours (and water) from a box behind each peak label
  * @param {{url:string, maxzoom:number, sea:boolean}} [o.dem]  elevation tiles (Earth by default)
  */
@@ -477,8 +478,9 @@ export async function buildLayout(o, onProgress) {
   let minE = Infinity, maxE = -Infinity;
   for (const v of values) { if (v < minE) minE = v; if (v > maxE) maxE = v; }
 
+  // No contours: a flat board, so no levels (and no contour lines).
   const levels = [];
-  for (let t = Math.floor(minE / o.interval + 1) * o.interval; t <= maxE; t += o.interval) levels.push(t);
+  if (o.contours !== false) for (let t = Math.floor(minE / o.interval + 1) * o.interval; t <= maxE; t += o.interval) levels.push(t);
 
   const W = o.widthMm, H = o.heightMm, sx = W / gw, sy = H / gh;
   const contours = d3.contours().size([gw, gh]).smooth(true).thresholds(levels)(values);
@@ -748,7 +750,7 @@ export async function buildLayout(o, onProgress) {
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
-    style: o.style, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length,
+    style: o.style, contours: o.contours !== false, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length,
     minElevation: Math.round(minE), maxElevation: Math.round(maxE), demZoom: zoom,
   };
   const line = (d, colour) => `<path d="${d}" fill="none" stroke="${colour}" stroke-width="0.1"/>`;

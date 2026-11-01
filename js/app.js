@@ -26,6 +26,7 @@ const state = {
   placeNames: ["c", "ct", "ctv"].includes(params.get("pn")) ? params.get("pn") : "none",
   placeFontMm: +params.get("pfont") || 3.5,
   labelBoxes: params.get("lbox") === "1",
+  contours: params.get("cl") !== "0",
   // Every bundled hill list is named (and Moon/Mars features); no per-list choice.
   lists: new Set([...HILL_LISTS.map((l) => l.id), "features"]),
   sharedBounds: params.get("b") ? params.get("b").split(",").map(Number) : null,
@@ -289,13 +290,26 @@ const map = new maplibregl.Map({
         paint: { "text-color": "#2e2723", "text-halo-color": "#fbf7f0", "text-halo-width": 1.5 },
       },
       {
+        id: "town-dots",
+        type: "circle",
+        source: "towns",
+        paint: {
+          "circle-radius": ["match", ["get", "kind"], "c", 6, "t", 4.5, 3.5],
+          "circle-color": "#3d3128",
+          "circle-stroke-color": "#fbf7f0",
+          "circle-stroke-width": 1.5,
+        },
+      },
+      {
         id: "town-labels",
         type: "symbol",
         source: "towns",
         layout: {
           "text-field": ["get", "name"],
           "text-font": ["match", ["get", "kind"], "c", ["literal", FONT_BOLD], ["literal", FONT]],
-          "text-size": ["match", ["get", "kind"], "c", 15, "t", 13, 11],
+          "text-size": ["match", ["get", "kind"], "c", 20, "t", 16, 13.5],
+          "text-offset": [0, 0.7],
+          "text-anchor": "top",
           "symbol-sort-key": ["match", ["get", "kind"], "c", 0, "t", 1, 2],
           "text-allow-overlap": false,
         },
@@ -539,6 +553,29 @@ document.querySelectorAll('input[name="style"]').forEach((el) => {
   el.checked = el.value === state.style;
   el.addEventListener("change", () => (state.style = el.value));
 });
+
+// Contour lines off: a flat engraved board (layers are made from contours,
+// so layered isn't possible), and no contours on the map either.
+function applyContours() {
+  const on = state.contours;
+  $("#contours-on").checked = on;
+  $("#contour-row").hidden = !on;
+  const layered = document.querySelector('input[name="style"][value="layered"]');
+  layered.disabled = !on;
+  layered.closest("label").title = on ? "" : "Layered boards are made from the contours – tick Contour lines to use them";
+  if (!on && state.style === "layered") {
+    state.style = "engraved";
+    document.querySelector('input[name="style"][value="engraved"]').checked = true;
+  }
+  onStyleReady(() => {
+    for (const id of ["contour-lines", "contour-labels"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+  });
+}
+$("#contours-on").addEventListener("change", (e) => {
+  state.contours = e.target.checked;
+  applyContours();
+});
+applyContours();
 $("#interval").value = String(state.interval);
 $("#interval").addEventListener("change", (e) => setInterval_(+e.target.value));
 $("#smoothing").value = String(state.smoothing);
@@ -593,6 +630,7 @@ function shareLink(b, ref) {
     font: state.fontMm,
     ...(state.placeNames !== "none" ? { pn: state.placeNames, pfont: state.placeFontMm } : {}),
     ...(state.labelBoxes ? { lbox: "1" } : {}),
+    ...(state.contours ? {} : { cl: "0" }),
     t: $("#thickness").value,
     mat: $("#material").value,
   });
@@ -627,6 +665,7 @@ $("#generate").addEventListener("click", async () => {
         towns: state.placeNames === "none" ? [] : placesInFrame(b),
         townFontMm: state.placeFontMm,
         labelBoxes: state.labelBoxes,
+        contours: state.contours,
         dem: siteDem(b),
         template: state.template ? await loadTemplate(state.template) : null,
         places: state.places,
@@ -674,7 +713,7 @@ function renderStats() {
     ["Reference", lastResult.ref],
     ["Size", sizeText(m)],
     ["Heights", `${m.minElevation}–${m.maxElevation} m`],
-    [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.layers - 1],
+    [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.contours ? m.layers - 1 : "off"],
     ["Named peaks", lastResult.peaksPlaced],
     ...(state.placeNames !== "none" && BODY === "earth" ? [["Place names", lastResult.townsPlaced]] : []),
     ...(lastResult.labelsLeftOff
@@ -736,7 +775,7 @@ function render3d() {
     m.style === "layered"
       ? `<b>${sizeText(m)}</b>, <b>${m.layers} layers × ${t} mm = ${m.layers * t} mm tall</b>. ` +
         `Map scale 1:${scale}. Each layer is ${m.interval} m of height, ${exaggeration(t)}. The ruler is in centimetres.`
-      : `<b>${sizeText(m)}</b> board. Map scale 1:${scale}, contours every ${m.interval} m. The ruler is in centimetres.`;
+      : `<b>${sizeText(m)}</b> board. Map scale 1:${scale}, ${m.contours ? `contours every ${m.interval} m` : "no contour lines"}. The ruler is in centimetres.`;
 }
 
 function selectTab(which) {
