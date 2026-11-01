@@ -567,6 +567,11 @@ export async function buildLayout(o, onProgress) {
   // Place names (no marker): centred on the place if there is room, else
   // just off it. Cities are bold and a little larger, villages smaller.
   let townsPlaced = 0;
+  // Clear space: boxes round peak and place names (mm), when o.labelBoxes.
+  const labelBoxes = [];
+  const clearBehind = (box, pad = 0.5) => {
+    if (o.labelBoxes) labelBoxes.push({ x0: box.x0 - pad, x1: box.x1 + pad, y0: box.y0 - pad, y1: box.y1 + pad });
+  };
   const TOWN_STYLE = { c: [1.15, "bold"], t: [1, "regular"], v: [0.85, "regular"] };
   const placeTowns = (kinds) => {
     for (const t of o.towns || []) {
@@ -580,6 +585,7 @@ export async function buildLayout(o, onProgress) {
         continue;
       }
       marks.push(solid(r.rings));
+      clearBehind(r.box);
       townsPlaced++;
     }
   };
@@ -587,7 +593,6 @@ export async function buildLayout(o, onProgress) {
 
   // Peaks: a small triangle on the summit with the name beside it.
   let peaksPlaced = 0;
-  const labelBoxes = []; // { x0, y0, x1, y1 } in mm, when o.labelBoxes
   if (o.labelMode !== "none") {
     const m = o.fontMm * 0.45; // marker half-size
     const ranked = o.peaks
@@ -611,9 +616,7 @@ export async function buildLayout(o, onProgress) {
         continue;
       }
       marks.push(solid(r.rings));
-      // Just round the text (caps to descenders), with a little padding.
-      const pad = 0.5;
-      if (o.labelBoxes) labelBoxes.push({ x0: r.box.x0 - pad, x1: r.box.x1 + pad, y0: r.box.y0 - pad, y1: r.box.y1 + pad });
+      clearBehind(r.box); // just round the text (caps to descenders), plus a little padding
     }
   }
 
