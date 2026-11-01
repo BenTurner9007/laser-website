@@ -465,6 +465,8 @@ const esc = (s) =>
  * @param {boolean} [o.contours]  false for a flat board with no contour lines
  * @param {boolean} [o.labelBoxes]  clear contours (and water) from a box behind each peak label
  * @param {{url:string, maxzoom:number, sea:boolean}} [o.dem]  elevation tiles (Earth by default)
+ * @param {object} [o.plates]  back plates for the SVG: {credits: {widthMm, fontMm, marginMm, title, maker,
+ *   elevation, names}, logo: {widthMm, heightMm, marginMm, art: {w, h, polys}}}; either may be left out
  */
 export async function buildLayout(o, onProgress) {
   const dem = o.dem || EARTH_DEM;
@@ -791,7 +793,8 @@ export async function buildLayout(o, onProgress) {
     `<!-- Red = cut, blue = glue guide, black = engrave, green = water score lines, teal = road score lines, ` +
     `orange = assembly numbers (hidden once glued), magenta = numbers on pieces with nothing on top, ` +
     `grey = sheet edges (don't cut). Top left: the assembled model for reference. To the right: the same pieces ` +
-    `laid flat on cutting sheets, one layer per sheet; cut one sheet at a time. Elevation: AWS Terrain Tiles (Mapzen). Hills: Database of British and Irish Hills v18.6, CC BY 4.0. -->\n`;
+    `laid flat on cutting sheets, one layer per sheet; cut one sheet at a time. Pieces "credits" and "logo" are the back plates ` +
+    `(data credits and shop logo) to glue on the back. -->\n`;
   const svgOpen = (w, h, metaObj) =>
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" ` +
@@ -806,6 +809,65 @@ export async function buildLayout(o, onProgress) {
    * @param {{w:number, h:number, marginMm:number, gapMm:number}} [sheet]
    * @returns {{text: string, sheets: number, oversize: number}}
    */
+  // Back plates, cut from the same board: a credits plate (the data sources
+  // actually used, engraved) and a plate with the shop logo.
+  const rect = (w, h) => [[[0, 0], [w, 0], [w, h], [0, h], [0, 0]]];
+  const plate = (id, w, h, engraveParts) => ({
+    id, poly: rect(w, h), area: w * h, children: [], engrave: engraveParts,
+    lines: { water: [], roads: [] }, numbers: [], visibleNumbers: [],
+  });
+  const creditLines = () => {
+    const c = o.plates?.credits || {};
+    const kinds = new Set(water.map((w) => w.group));
+    const osm = [kinds.has("water") && "rivers and lakes", kinds.has("roads") && "roads and paths", townsPlaced && "place names"].filter(Boolean);
+    return [
+      c.elevation,
+      peaksPlaced && c.names,
+      osm.length && `${osm.join(", ").replace(/^./, (m) => m.toUpperCase())}: ©\u00a0OpenStreetMap contributors (ODbL), via Overture\u00a0Maps.`,
+    ].filter(Boolean);
+  };
+  // Word-wrap to the plate width.
+  const wrap = (text, sizeMm, maxW, weight) => {
+    const out = [];
+    let cur = "";
+    for (const word of text.split(/ +/)) { // non-breaking spaces keep "© Crown" etc. together
+      const next = cur ? `${cur} ${word}` : word;
+      if (cur && textRings(next.replace(/\u00a0/g, " "), 0, 0, sizeMm, { weight }).width > maxW) { out.push(cur); cur = word; } else cur = next;
+    }
+    if (cur) out.push(cur);
+    return out.map((l) => l.replace(/\u00a0/g, " "));
+  };
+  const getPlates = (ref) => {
+    const cfg = o.plates;
+    if (!cfg) return [];
+    const plates = [];
+    if (cfg.credits) {
+      const { widthMm: pw = 90, fontMm: fs = 2.5, marginMm: m = 4, title = "Map data", maker } = cfg.credits;
+      const rows = [{ text: title, size: fs * 1.2, weight: "bold", gap: fs * 0.6 }];
+      for (const para of creditLines()) {
+        for (const t of wrap(para, fs, pw - 2 * m, "regular")) rows.push({ text: t, size: fs, weight: "regular", gap: 0 });
+        rows[rows.length - 1].gap = fs * 0.5;
+      }
+      if (maker) rows.push({ text: `${maker}${ref ? ` · ${ref}` : ""}`, size: fs, weight: "bold", gap: 0 });
+      let y = m, rings = [];
+      for (const r of rows) {
+        y += r.size;
+        rings.push(...textRings(r.text, m, y, r.size, { weight: r.weight }).rings);
+        y += r.size * 0.45 + r.gap;
+      }
+      const ph = Math.ceil(y - fs * 0.45 + m);
+      plates.push(plate("credits", pw, ph, [rings]));
+    }
+    if (cfg.logo?.art) {
+      const { widthMm: pw = 80, heightMm: ph = 40, marginMm: m = 4, art } = cfg.logo;
+      const k = Math.min((pw - 2 * m) / art.w, (ph - 2 * m) / art.h);
+      const dx = (pw - art.w * k) / 2, dy = (ph - art.h * k) / 2;
+      const polys = art.polys.map((poly) => poly.map((ring) => ring.map(([x, y]) => [dx + x * k, dy + y * k])));
+      plates.push(plate("logo", pw, ph, polys));
+    }
+    return plates;
+  };
+
   /**
    * Material cost: lay the pieces out on each sheet size on offer and count
    * the sheets. Single engraved boards are one piece (the board).
@@ -817,6 +879,7 @@ export async function buildLayout(o, onProgress) {
       o.style === "engraved"
         ? boardPolys.map((poly, i) => ({ id: `board${i}`, poly, area: ringArea(poly[0]) }))
         : getPieces().flat();
+    pieces.push(...getPlates());
     const areaMm2 = pieces.reduce((n, p) => n + p.area, 0);
     const options = stock.map((s) => {
       const { sheets } = nestPieces(pieces, { w: s.w, h: s.h, marginMm: spacing.marginMm, gapMm: spacing.gapMm });
@@ -826,8 +889,9 @@ export async function buildLayout(o, onProgress) {
     return { pieces: pieces.length, areaMm2, options };
   };
 
-  const buildSvg = (sheet) => {
+  const buildSvg = (sheet, { ref } = {}) => {
     const pieces = o.style === "engraved" ? null : getPieces();
+    const plates = getPlates(ref);
     let assembled = "";
     if (o.style === "engraved") {
       assembled += `<g inkscape:groupmode="layer" inkscape:label="Board">\n${line(outline, COLOURS.cut)}\n`;
@@ -843,8 +907,20 @@ export async function buildLayout(o, onProgress) {
     }
 
     // Cutting sheets, laid out in a grid to the right of the model.
-    const sheets = pieces && sheet ? nestPieces(pieces.flat(), sheet).sheets : [];
+    const sheets = pieces && sheet ? nestPieces([...pieces.flat(), ...plates], sheet).sheets : [];
     const GAP = 40, COLS = 2, x0 = W + 60;
+    // Single engraved boards have no cutting sheets: the plates sit beside the board.
+    let platesSvg = "", platesW = 0, platesH = 0;
+    if (!sheets.length && plates.length) {
+      platesSvg += `<g inkscape:groupmode="layer" inkscape:label="Back plates" id="back-plates" transform="translate(${x0} 0)">\n`;
+      for (const p of plates) {
+        platesSvg += `<g id="piece-${p.id}" inkscape:label="${p.id === "logo" ? "Logo plate" : "Credits plate"}" transform="translate(0 ${platesH})">\n${pieceContent(p)}</g>\n`;
+        platesH += p.poly[0][2][1] + 10;
+        platesW = Math.max(platesW, p.poly[0][2][0]);
+      }
+      platesSvg += "</g>\n";
+      platesH -= 10;
+    }
     const cellW = Math.max(0, ...sheets.map((s) => s.w)), cellH = Math.max(0, ...sheets.map((s) => s.h));
     let sheetsSvg = "";
     sheets.forEach((s, k) => {
@@ -859,8 +935,8 @@ export async function buildLayout(o, onProgress) {
       sheetsSvg += "</g>\n";
     });
     const rows = Math.ceil(sheets.length / COLS);
-    const totalW = sheets.length ? x0 + Math.min(COLS, sheets.length) * cellW + (Math.min(COLS, sheets.length) - 1) * GAP : W;
-    const totalH = Math.max(H, rows * cellH + Math.max(0, rows - 1) * GAP);
+    const totalW = sheets.length ? x0 + Math.min(COLS, sheets.length) * cellW + (Math.min(COLS, sheets.length) - 1) * GAP : platesW ? x0 + platesW : W;
+    const totalH = Math.max(H, rows * cellH + Math.max(0, rows - 1) * GAP, platesH);
 
     const byLayer = (a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b);
     const fileMeta = {
@@ -869,12 +945,14 @@ export async function buildLayout(o, onProgress) {
       // Pieces too small to carry their number; match these by shape.
       unnumberedPieces: pieces?.flat().filter((p) => p.noOwnLabel).map((p) => p.id),
       sheetMm: sheet && sheets.length ? [sheet.w, sheet.h] : undefined,
+      backPlates: plates.map((p) => ({ id: p.id, mm: [p.poly[0][2][0], p.poly[0][2][1]] })),
       sheets: sheets.map((s, k) => ({ sheet: k + 1, oversize: s.oversize || undefined, pieces: s.placements.map((pl) => pl.piece.id).sort(byLayer) })),
     };
     const text =
       svgOpen(totalW, totalH, fileMeta) +
       `<g inkscape:groupmode="layer" inkscape:label="Assembled model (reference)" id="assembled">\n${assembled}</g>\n` +
       sheetsSvg +
+      platesSvg +
       "</svg>\n";
     return { text, sheets: sheets.length, oversize: sheets.filter((s) => s.oversize).length };
   };

@@ -113,6 +113,10 @@ a:hover { color: var(--ink); }
 .maplibregl-ctrl-group { border-radius: 12px !important; box-shadow: 0 2px 8px rgba(46, 39, 35, .15) !important; background: var(--panel) !important; }
 .maplibregl-ctrl-group button { width: 40px !important; height: 40px !important; }
 .maplibregl-ctrl-top-right { top: 6px; right: 6px; }
+.map-lock { display: grid !important; place-items: center; color: var(--ink); }
+.map-lock[aria-pressed="true"] { background: var(--accent) !important; color: var(--accent-ink); }
+.maplibregl-ctrl-group button:disabled { opacity: .35; }
+.map-wrap.locked .map-hint { background: var(--accent); color: var(--accent-ink); }
 .maplibregl-ctrl-scale { border-color: var(--ink) !important; background: rgba(251, 247, 240, .85) !important; color: var(--ink) !important; }
 
 .panel {

@@ -22,9 +22,14 @@ const num = (key, lo, hi, fallback) => {
 };
 const oneOf = (key, allowed, fallback) => (allowed.includes(params.get(key)) ? params.get(key) : fallback);
 const optionValues = (id) => [...document.querySelectorAll(`#${id} option`)].map((o) => o.value);
+function boardSize() {
+  const tpl = CONFIG.sizes.find((s) => s.template && s.id === params.get("tpl"));
+  const s = tpl || CONFIG.sizes.find((x) => !x.template && x.w === +params.get("w") && x.h === +params.get("h")) || CONFIG.sizes[0];
+  return { w: s.w, h: s.h };
+}
 const state = {
-  w: num("w", 50, 1000, CONFIG.sizes[0].w),
-  h: num("h", 50, 1000, CONFIG.sizes[0].h),
+  // Only the board sizes on offer: a link with any other size gets the first one.
+  ...boardSize(),
   interval: +oneOf("ci", optionValues("interval"), "50"),
   smoothing: +oneOf("sm", ["0", "1", "2", "3"], "1"),
   style: params.get("style") === "engraved" ? "engraved" : "layered",
@@ -58,6 +63,17 @@ const state = {
   // Board template id (e.g. the clock); null for plain rectangles.
   template: CONFIG.sizes.find((s) => s.id === params.get("tpl") && s.template)?.id || null,
 };
+// Back plates for the owner's SVG (see backPlates in config.js).
+let logoArt = null;
+async function backPlates() {
+  const cfg = CONFIG.backPlates;
+  if (!cfg) return null;
+  if (cfg.logo?.file && !logoArt) logoArt = await fetch(cfg.logo.file).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  return {
+    credits: cfg.credits ? { ...cfg.credits, ...WORLD.plateCredits, maker: `Made by ${CONFIG.businessName}` } : null,
+    logo: cfg.logo && logoArt ? { ...cfg.logo, art: logoArt } : null,
+  };
+}
 const templates = {};
 const sizeOf = (id) => CONFIG.sizes.find((s) => s.id === id);
 async function loadTemplate(id) {
@@ -111,16 +127,29 @@ const WORLDS = {
     label: "Earth", radius: 6371008, features: "data/hills.geojson",
     paper: "#efe2c8", shadow: "#4a3d34", highlight: "#fbf7f0", contour: "#6e6457",
     credit: '<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">Terrain: Mapzen / AWS</a>',
+    // For the credits plate on the back of the board.
+    plateCredits: {
+      elevation: "Elevation: Mapzen Terrain Tiles (AWS Open Data), including SRTM (NASA), EU-DEM (Copernicus, EU) and Environment Agency LIDAR, ©\u00a0Crown copyright.",
+      names: "Hill names and heights: Database of British and Irish Hills v18.6, CC\u00a0BY\u00a04.0.",
+    },
   },
   moon: {
     label: "Moon", the: "the Moon", radius: 1737400, features: "data/planets/moon-features.geojson",
     paper: "#e2dfd9", shadow: "#36332f", highlight: "#f8f7f4", contour: "#5f5b55",
     credit: "Moon: SLDEM2015 (NASA LRO LOLA + JAXA SELENE), USGS, public domain",
+    plateCredits: {
+      elevation: "Elevation: SLDEM2015, from NASA LRO LOLA and JAXA SELENE (Kaguya) data, via USGS Astrogeology.",
+      names: "Feature names: IAU Gazetteer of Planetary Nomenclature (IAU WGPSN / USGS).",
+    },
   },
   mars: {
     label: "Mars", the: "Mars", radius: 3396190, features: "data/planets/mars-features.geojson",
     paper: "#efd6bb", shadow: "#5b3524", highlight: "#fdf1e4", contour: "#7a4b35",
     credit: "Mars: MRO CTX DTMs (NASA/JPL/MSSS), USGS, CC0",
+    plateCredits: {
+      elevation: "Elevation: MRO CTX digital terrain models, NASA/JPL/MSSS, processed by USGS Astrogeology (CC0).",
+      names: "Feature names: IAU Gazetteer of Planetary Nomenclature (IAU WGPSN / USGS).",
+    },
   },
 };
 const WORLD = WORLDS[BODY];
@@ -344,6 +373,39 @@ map.keyboard.disableRotation();
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
 
+// Padlock: freeze the map so the framed area can't be nudged by accident.
+// Buttons that move the map on purpose (regions, search, fit to route) still work.
+const MAP_HANDLERS = ["dragPan", "scrollZoom", "boxZoom", "doubleClickZoom", "touchZoomRotate", "keyboard"];
+let mapLocked = false;
+const LOCK_ICON = {
+  open: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 9.6-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+  shut: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="11" width="14" height="10" rx="2" fill="currentColor"/></svg>',
+};
+function setMapLocked(on) {
+  mapLocked = on;
+  for (const h of MAP_HANDLERS) on ? map[h].disable() : map[h].enable();
+  document.querySelectorAll(".maplibregl-ctrl-zoom-in, .maplibregl-ctrl-zoom-out").forEach((b) => (b.disabled = on));
+  const btn = $("#map-lock");
+  btn.innerHTML = on ? LOCK_ICON.shut : LOCK_ICON.open;
+  btn.setAttribute("aria-pressed", on);
+  btn.title = on ? "Map locked. Click to move it again" : "Lock the map so it can't move";
+  $(".map-wrap").classList.toggle("locked", on);
+  $(".map-hint").textContent = on
+    ? "Map locked. Click the padlock (top right) to move it again."
+    : "Drag and zoom the map. Whatever sits inside the frame becomes your design.";
+}
+map.addControl({
+  onAdd() {
+    const box = document.createElement("div");
+    box.className = "maplibregl-ctrl maplibregl-ctrl-group";
+    box.innerHTML = '<button type="button" id="map-lock" class="map-lock" aria-pressed="false"></button>';
+    box.firstChild.addEventListener("click", () => setMapLocked(!mapLocked));
+    return box;
+  },
+  onRemove() {},
+}, "top-right");
+setMapLocked(false);
+
 // Hill popups
 map.on("click", "hills-dots", (e) => {
   if (drawing) return;
@@ -532,21 +594,12 @@ function renderSizes() {
       return `<button type="button" class="chip" role="radio" aria-checked="${on}" data-id="${s.id}">${s.label}</button>`;
     })
     .join("");
-  $("#size-w").value = state.w;
-  $("#size-h").value = state.h;
 }
 $("#sizes").addEventListener("click", (e) => {
   const s = CONFIG.sizes.find((x) => x.id === e.target.dataset.id);
   if (!s) return;
   setSize(s.w, s.h, s.template ? s.id : null);
 });
-for (const id of ["#size-w", "#size-h"]) {
-  $(id).addEventListener("change", () => {
-    const w = clamp(+$("#size-w").value || state.w, 50, 1000);
-    const h = clamp(+$("#size-h").value || state.h, 50, 1000);
-    setSize(w, h);
-  });
-}
 // A shared link's area is only reused if its shape matches the board.
 function pinnedMatchesFrame() {
   if (!pinnedBounds) return false;
@@ -565,7 +618,6 @@ function setSize(w, h, template = null) {
   layoutFrame();
   renderFrameTemplate();
 }
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 // ---------- Step 3: style ----------
 document.querySelectorAll('input[name="style"]').forEach((el) => {
@@ -693,6 +745,7 @@ $("#generate").addEventListener("click", async () => {
         water,
         roads,
         guides: true,
+        plates: await backPlates(),
       },
       (f) => setStatus(`Fetching elevation data… ${Math.round(f * 100)}%`)
     );
@@ -888,7 +941,7 @@ $("#download").addEventListener("click", () => {
   setTimeout(() => {
     try {
       // Assembled model plus the pieces laid flat on cutting sheets.
-      lastResult.svg ??= lastResult.buildSvg(CONFIG.sheet);
+      lastResult.svg ??= lastResult.buildSvg(CONFIG.sheet, { ref: lastResult.ref });
       const { text, sheets, oversize } = lastResult.svg;
       const blob = new Blob([text], { type: "image/svg+xml" });
       const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `contour-layout-${lastResult.ref}.svg` });

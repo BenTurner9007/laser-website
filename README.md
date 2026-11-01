@@ -7,10 +7,12 @@ board size, and send it as a layout for a laser-cut contour map.
 
 1. **Find their hills**: search any Wainwright, Munro, Welsh 3000, Ethel or
    Dales 30 hill, or jump to a region.
-2. **Pick a board size**: A4, A3, custom millimetres, or a shaped board:
-   **clock, bookmark, round, square or rounded-square coaster** (see Board
+2. **Pick a board size**: A4, A3, or a shaped board: **A4 round, clock,
+   bookmark, round, square or rounded-square coaster** (see Board
    templates). A fixed frame shows exactly what will be cut, in the board's
    real shape; they pan and zoom the map underneath it.
+   A padlock under the zoom buttons freezes the map so the framed area can't be
+   nudged by accident (click again to unlock).
 3. **Style it**: layered (stacked boards) or a single engraved board, the
    contour interval, smoothing, label style (every bundled hill list is
    named), an optional **clear space behind names and special places** (contours,
@@ -135,6 +137,28 @@ Only a SHA-256 hash of the key is stored in `js/config.js` (`ownerKeyHash`).
 To change the key, put the new hash there:
 `printf %s 'your-new-key' | sha256sum`.
 
+### Back plates
+
+Every SVG also has two small plates to cut from the same board and glue on the back:
+
+- **Credits plate** (90 mm wide, height to fit): "Map data", then only the
+  sources that map actually uses (elevation; hill names if peaks are labelled;
+  OpenStreetMap if water, roads or place names are on it), and "Made by
+  TurnerMadeUK · reference". Moon and Mars maps get their own credits.
+- **Logo plate** (80 × 40 mm): your logo, engraved.
+
+Both are red cut rectangles with black engraving. On layered maps they are
+nested onto the cutting sheets with the other pieces (pieces `credits` and
+`logo`); on single engraved boards they sit beside the board in a "Back
+plates" layer. They are included in the material cost.
+
+Change the sizes in `backPlates` in `js/config.js`, or set either to `null` to
+leave it out. The logo outlines (`data/logo.json`) are traced from
+`images/logo.jpg` by `python3 scripts/build-logo.py`; if you have a vector copy
+of the logo, tracing that gives crisper edges.
+
+### How safe is owner mode?
+
 This keeps the button away from customers. It is not strong security: the
 layout is built in the browser, so a technical person could still extract it.
 
@@ -168,6 +192,7 @@ Besides A4 and A3, customers can pick shaped boards made from your DXFs in
 
 | Size | Shape | Notes |
 | --- | --- | --- |
+| A4 round | 210 mm circle | plain circle, the width of A4 |
 | Clock 305 mm | circle | numbers and hour marks engraved; 10 mm centre hole for the movement, cut through every layer |
 | Bookmark | 50 × 169 mm rounded rectangle | 12 mm tassel hole, cut through every layer it crosses |
 | Round coaster | 100 mm circle | |
@@ -178,6 +203,12 @@ The map frame on the site shows each shape (outside dimmed, holes and map area
 marked). Every layer is trimmed to the shape, holes are cut through every
 layer that covers them, and labels, places, routes and water stay inside the
 map area.
+
+Customers can only choose the sizes listed here; a link with any other size
+opens on the first size (A4 portrait).
+
+`data/templates/circle-a4.json` is a plain circle made by script rather than
+from a DXF.
 
 To add or change a template, put the DXF in `scripts/source/`, add an entry to
 `TEMPLATES` in `scripts/build-templates.py` (saying whether inner shapes are
@@ -206,6 +237,7 @@ Edit [`js/config.js`](js/config.js):
 | `sizes` | Board sizes offered |
 | `defaultThickness` | Thickness pre-selected on the order form |
 | `ownerKeyHash` | Hash of your private owner key (see above) |
+| `backPlates` | Size of the credits and logo plates added to every SVG (`null` to leave one out) |
 | `sheet` | Cutting sheet size, border and gap between pieces for the laid-out sheets in the SVG |
 | `maxLayers` | Above this, customers see a hint to use a larger contour interval |
 
@@ -261,6 +293,7 @@ data/water/           UK water tiles, 0.1° each (built by scripts/build-water.p
 data/planets/         Moon and Mars elevation tiles, places and features (built by scripts/build-planets.py)
 data/materials.json   plywood, thicknesses and sheet prices (built by scripts/build-materials.py)
 data/templates/       board shapes: clock, bookmark, coasters (built by scripts/build-templates.py)
+data/logo.json        shop logo outlines for the logo plate (built by scripts/build-logo.py)
 data/hills.geojson    636 named hills (built by scripts/build-hills.mjs)
 fonts/                map label glyphs (Noto Sans, OFL); fonts/site/ page fonts (Fraunces, Instrument Sans, OFL)
 vendor/               MapLibre GL JS 4.7.1, maplibre-contour 0.1.0, d3-contour 4.0.2, three.js r169, polygon-clipping 0.15.7, opentype.js 1.3.4

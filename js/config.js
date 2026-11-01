@@ -35,6 +35,7 @@ export const CONFIG = {
     // Board templates: shape, holes, map area and engraving come from the
     // JSON file (built from a DXF by scripts/build-templates.py); w and h
     // must match the template.
+    { id: "circle-a4", label: "A4 round (Ø210 mm)", w: 210, h: 210, template: "data/templates/circle-a4.json" },
     { id: "clock305", label: "Clock 305 mm", w: 305, h: 305, template: "data/templates/clock-305.json" },
     { id: "bookmark", label: "Bookmark", w: 50.3, h: 168.91, template: "data/templates/bookmark.json" },
     { id: "coaster-round", label: "Round coaster", w: 100, h: 100, template: "data/templates/coaster-round.json" },
@@ -54,6 +55,15 @@ export const CONFIG = {
 
   // Your cutting sheets, for the "laid out flat" download (millimetres).
   sheet: { w: 600, h: 400, marginMm: 5, gapMm: 2 },
+
+  // Back plates added to every SVG (cut from the same board, to glue on the
+  // back): a credits plate engraved with the data sources the map uses, and a
+  // plate engraved with your logo (data/logo.json, traced from
+  // images/logo.jpg by scripts/build-logo.py). Set either to null to leave it out.
+  backPlates: {
+    credits: { widthMm: 90, fontMm: 2.5, marginMm: 4 },
+    logo: { widthMm: 80, heightMm: 40, marginMm: 4, file: "data/logo.json" },
+  },
 
   // Largest layer count you are willing to quote automatically.
   maxLayers: 30,
