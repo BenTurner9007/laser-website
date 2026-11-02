@@ -228,7 +228,7 @@ export function createViewer(container) {
         const pos = w.lines.flatMap((l) => [l[0][0] - W / 2, y + 0.02, l[0][1] - H / 2]);
         const geo = new THREE.BufferGeometry();
         geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-        const mat = new THREE.PointsMaterial({ color: 0xb3261e, size: 3.5 * Math.min(2, window.devicePixelRatio || 1), sizeAttenuation: false, map: dotSprite, alphaTest: 0.5, transparent: true });
+        const mat = new THREE.PointsMaterial({ color: 0xb3261e, size: 2 * Math.min(2, window.devicePixelRatio || 1), sizeAttenuation: false, map: dotSprite, alphaTest: 0.5, transparent: true });
         model.add(new THREE.Points(geo, mat));
         continue;
       }
