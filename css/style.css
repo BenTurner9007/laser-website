@@ -395,7 +395,25 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   white-space: pre;
 }
 .text-marker:active { cursor: grabbing; }
-.text-marker:empty::before { content: "Your text"; color: var(--muted); }
+/* Grip below the box: a finger-sized handle for dragging on phones. */
+.text-grip {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #b9581f;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(46, 39, 35, .4);
+  cursor: grab;
+  touch-action: none;
+}
+.text-marker, .text-marker * { touch-action: none; }
+.text-body:empty::before { content: "Your text"; color: var(--muted); }
 .text-input { width: 100%; min-height: 3.2em; resize: vertical; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
 
 /* Step 5: hiking route */
@@ -442,7 +460,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .price ul { margin: 6px 0 0; padding: 0; list-style: none; font-size: .85rem; color: var(--muted); }
 .price li { display: flex; justify-content: space-between; gap: 12px; }
 .price-note { margin: 6px 0 0; font-size: .8rem; color: var(--muted); }
-.price-extras { margin: 0 0 10px; font-size: .88rem; color: var(--muted); }
+
 .cost-title { margin: 10px 0 6px; font-size: .9rem; font-weight: 600; }
 .cost table { width: 100%; border-collapse: collapse; font-size: .82rem; }
 .cost th, .cost td { padding: 4px 6px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }

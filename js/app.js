@@ -1138,16 +1138,6 @@ function extrasFor(placeCount, hasRoute, textCount = 0) {
   if (hasRoute && PRICING.route) out.push(["Hiking route", PRICING.route]);
   return out;
 }
-// Under "Create my layout": what the extras add, before there is a layout to price.
-function renderPriceExtras() {
-  const el = $("#price-extras");
-  if (!PRICING) return;
-  const extras = extrasFor(state.places.length, state.route.lines.length > 0, wantedTexts());
-  el.hidden = false;
-  el.innerHTML =
-    "Create your layout to see the price." +
-    (extras.length ? ` Extras: ${extras.map(([t, v]) => `${t} ${money(v)}`).join(", ")}.` : "");
-}
 let priceToken = 0;
 let lastPrice = null;
 function renderPrice() {
@@ -1186,7 +1176,6 @@ function renderPrice() {
 }
 
 function renderPlaces() {
-  renderPriceExtras();
   $("#places").innerHTML = state.places
     .map(
       (p, i) => `
@@ -1266,9 +1255,13 @@ function sizeTextMarkers() {
 function refreshTextMarkers() {
   textMarkers.splice(0).forEach((m) => m.remove());
   state.texts.forEach((t, i) => {
+    // The text sits in its own span so the grip below it doesn't move the centre.
     const el = document.createElement("div");
     el.className = "text-marker";
-    el.textContent = t.text;
+    el.innerHTML =
+      '<span class="text-body"></span><span class="text-grip" aria-hidden="true">' +
+      '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>';
+    el.querySelector(".text-body").textContent = t.text;
     el.title = "Drag to move";
     const marker = new maplibregl.Marker({ element: el, anchor: "center", draggable: true }).setLngLat([t.lng, t.lat]).addTo(map);
     marker.on("dragend", () => Object.assign(state.texts[i], marker.getLngLat()));
@@ -1277,7 +1270,6 @@ function refreshTextMarkers() {
   sizeTextMarkers();
 }
 function renderTexts() {
-  renderPriceExtras();
   $("#texts").innerHTML = state.texts
     .map(
       (t, i) => `
@@ -1309,8 +1301,7 @@ $("#texts").addEventListener("input", (e) => {
   const clean = cleanText(e.target.value);
   if (clean !== e.target.value) e.target.value = clean; // at most 4 lines
   state.texts[i].text = clean;
-  textMarkers[i].getElement().textContent = clean;
-  renderPriceExtras();
+  textMarkers[i].getElement().querySelector(".text-body").textContent = clean;
 });
 renderTexts();
 
@@ -1346,7 +1337,6 @@ function routeFitsFrame(lines) {
 
 function renderRoute() {
   const has = state.route.lines.length > 0;
-  if (PRICING) renderPriceExtras();
   onStyleReady(() => {
     map.getSource("route").setData(lineFeatures(state.route.lines));
     map.setPaintProperty("route-line", "line-dasharray", state.route.style === "dashed" ? [2, 1.4] : null);

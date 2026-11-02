@@ -29,7 +29,7 @@ board size, and send it as a layout for a laser-cut contour map.
 5. **Add your own text** (optional): up to 3 text boxes (up to 4 lines, 120
    characters each), engraved in the same lettering and size as the peak
    names. Each shows on the map at its real size as a dashed box the customer
-   drags into place; it is engraved exactly there (nudged inside the edge of a
+   drags into place (by the box, or the round grip below it on a phone); it is engraved exactly there (nudged inside the edge of a
    rectangular board) and other labels keep clear of it. £2.50 each.
 6. **Add a hiking route** (optional): draw it by clicking on the map, or
    upload a GPX, KML or GeoJSON file. Engraved as a solid or dashed line
@@ -116,7 +116,6 @@ updates if they change material or thickness:
 - **£2.50 per special place**, **£2.50 per text box** and **£2.50 for a hiking route**, only counting
   ones that are actually on the board.
 
-Before they create a layout, step 06 shows the extras they've added so far.
 The price is also written into the request email, with the sheets it was
 based on. Change the markup, extras or wording in `pricing` in
 `js/config.js` (set `includeVat: false` to work from ex-VAT prices, or
