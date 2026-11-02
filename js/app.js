@@ -1274,22 +1274,31 @@ function setTextSize(i, size) {
     row.querySelector(".text-size-out").textContent = `${state.texts[i].size} mm`;
   }
 }
-// Drag the corner handle away from the centre to grow the text, towards it to shrink.
-function startResize(i, e) {
+// Drag the corner handle away from the centre to grow the text, towards it
+// to shrink. The handle captures the pointer, so the drag keeps going even
+// when the finger or mouse leaves it, and the map and marker never see it.
+function startResize(i, e, handle) {
   e.stopPropagation();
   e.preventDefault();
+  try { handle.setPointerCapture(e.pointerId); } catch {}
   const body = textMarkers[i].getElement().querySelector(".text-body").getBoundingClientRect();
   const cx = body.left + body.width / 2, cy = body.top + body.height / 2;
-  const d0 = Math.max(8, Math.hypot(e.clientX - cx, e.clientY - cy)), s0 = state.texts[i].size;
-  const move = (ev) => setTextSize(i, (s0 * Math.hypot(ev.clientX - cx, ev.clientY - cy)) / d0);
-  const end = () => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", end);
-    window.removeEventListener("pointercancel", end);
+  const d0 = Math.max(12, Math.hypot(e.clientX - cx, e.clientY - cy)), s0 = state.texts[i].size;
+  handle.classList.add("active");
+  const move = (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    setTextSize(i, (s0 * Math.hypot(ev.clientX - cx, ev.clientY - cy)) / d0);
   };
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", end);
-  window.addEventListener("pointercancel", end);
+  const end = () => {
+    handle.classList.remove("active");
+    handle.removeEventListener("pointermove", move);
+    handle.removeEventListener("pointerup", end);
+    handle.removeEventListener("pointercancel", end);
+  };
+  handle.addEventListener("pointermove", move);
+  handle.addEventListener("pointerup", end);
+  handle.addEventListener("pointercancel", end);
 }
 function refreshTextMarkers() {
   textMarkers.splice(0).forEach((m) => m.remove());
@@ -1298,14 +1307,15 @@ function refreshTextMarkers() {
     const el = document.createElement("div");
     el.className = "text-marker";
     el.innerHTML =
-      '<span class="text-body"><span class="text-words"></span><span class="text-resize" title="Drag to resize"></span></span><span class="text-grip" aria-hidden="true">' +
+      '<span class="text-body"><span class="text-words"></span><span class="text-resize" title="Drag to resize" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 18L18 6M18 6h-6M18 6v6M6 18h6M6 18v-6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span></span><span class="text-grip" aria-hidden="true">' +
       '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>';
     el.querySelector(".text-words").textContent = t.text;
     el.title = "Drag to move";
     const handle = el.querySelector(".text-resize");
-    handle.addEventListener("pointerdown", (e) => startResize(i, e));
+    handle.addEventListener("pointerdown", (e) => startResize(i, e, handle));
     // Keep the marker (and the map) from starting a drag of their own.
-    for (const type of ["mousedown", "touchstart"]) handle.addEventListener(type, (e) => e.stopPropagation(), { passive: false });
+    for (const type of ["mousedown", "touchstart", "touchmove", "click", "dblclick"])
+      handle.addEventListener(type, (e) => e.stopPropagation(), { passive: false });
     const marker = new maplibregl.Marker({ element: el, anchor: "center", draggable: true }).setLngLat([t.lng, t.lat]).addTo(map);
     marker.on("dragend", () => Object.assign(state.texts[i], marker.getLngLat()));
     textMarkers[i] = marker;

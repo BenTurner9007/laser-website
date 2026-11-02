@@ -459,7 +459,7 @@ const esc = (s) =>
  * @param {number} [o.placeMm]  special place marker size
  * @param {Array<{lng:number,lat:number,text:string,sizeMm:number,clear:boolean}>} [o.texts]  customer's text
  *   blocks, centred on lng/lat, in the peak label lettering; kept exactly where the customer put them;
- *   clear: a padded box behind with no lines, recessed on layered maps
+ *   clear: a padded box behind with no lines, raised flat to the top layer on layered maps
  * @param {{lines:number[][][], widthMm:number, style:"solid"|"dashed"}} [o.route]  hiking route, lines of [lng, lat]
  * @param {Object<string, number[][][]>} [o.water]  lines of [lng, lat] by kind (see WATER_KINDS)
  * @param {Object<string, number[][][]>} [o.roads]  lines of [lng, lat] by kind (see ROAD_KINDS)
@@ -568,9 +568,9 @@ export async function buildLayout(o, onProgress) {
   // dragged them (nudged inside a rectangular board), and everything else
   // keeps clear of them. Same lettering as the peak names.
   // A text with a clear box gets a padded box with nothing behind it: no
-  // contour lines, roads or water, and on layered maps a flat recess.
+  // contour lines, roads or water, and on layered maps a flat raised patch.
   const texts = [];
-  const recessBoxes = [];
+  const raisedBoxes = [];
   const TEXT_PAD = 1.2; // mm of clear space round the text
   for (const t of o.texts || []) {
     const lines = t.text.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -592,7 +592,7 @@ export async function buildLayout(o, onProgress) {
     taken.push(box);
     if (t.clear) {
       labelBoxes.push(box);
-      recessBoxes.push(box);
+      raisedBoxes.push(box);
     } else clearBehind(text);
     texts.push({ ...t, x: cx, y: cy });
   }
@@ -677,27 +677,26 @@ export async function buildLayout(o, onProgress) {
   // Label boxes on a layered map don't cut anything out of the layers: the
   // names are engraved on whichever layer is on top under them (below), and
   // the box only keeps roads and water clear.
-  // Text boxes with a clear box do: each becomes a flat recess at the lowest
-  // ground under it, cut out of every layer above, so the text sits on one
-  // flat surface with no layer edges running through it.
-  if (recessBoxes.length && o.style !== "engraved") {
-    const lowestLayer = (b) => {
-      let min = Infinity;
+  // Text with a clear box on a layered map: the box is built up to the
+  // highest ground under it (added to every layer below that), so the text
+  // is engraved on one flat patch of the top layer. Nothing is cut away.
+  if (raisedBoxes.length && o.style !== "engraved") {
+    const highestLayer = (b) => {
+      let max = -Infinity;
       for (let gy = Math.max(0, Math.floor(b.y0 / sy)); gy <= Math.min(gh - 1, Math.ceil(b.y1 / sy)); gy++) {
-        for (let gx = Math.max(0, Math.floor(b.x0 / sx)); gx <= Math.min(gw - 1, Math.ceil(b.x1 / sx)); gx++) min = Math.min(min, values[gy * gw + gx]);
+        for (let gx = Math.max(0, Math.floor(b.x0 / sx)); gx <= Math.min(gw - 1, Math.ceil(b.x1 / sx)); gx++) max = Math.max(max, values[gy * gw + gx]);
       }
       let layer = 0;
-      while (layer < levels.length && levels[layer] <= min) layer++;
-      return layer;
+      while (layer < levels.length && levels[layer] <= max) layer++;
+      return Math.min(layer, layers.length - 1);
     };
-    const boxes = recessBoxes.map((b) => ({ poly: [[[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]]], layer: lowestLayer(b) }));
+    const boxes = raisedBoxes.map((b) => ({ poly: [[[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]]], layer: highestLayer(b) }));
     for (let i = 1; i < layers.length; i++) {
-      const cut = boxes.filter((b) => b.layer < i).map((b) => b.poly);
-      if (!cut.length) continue;
-      layers[i].polys = clip("difference", layers[i].polys, polygonClipping.union(...cut));
+      const add = boxes.filter((b) => b.layer >= i).map((b) => b.poly);
+      if (!add.length) continue;
+      layers[i].polys = tidy(polygonClipping.union(...layers[i].polys.map((p) => [p]), ...add));
       layers[i].d = polygonsToPath(layers[i].polys);
     }
-    while (layers.length > 1 && !layers[layers.length - 1].polys.length) layers.pop();
   }
 
   // Hiking route: a band along the line, solid or dashed.
