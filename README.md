@@ -224,8 +224,8 @@ Besides A4 and A3, customers can pick shaped boards made from your DXFs in
 | Clock 305 mm | circle | numbers and hour marks engraved; 10 mm centre hole for the movement, cut through every layer |
 | Bookmark | 50 × 169 mm rounded rectangle | 12 mm tassel hole, cut through every layer it crosses |
 | Round coaster | 100 mm circle | |
-| Square coaster | 98.7 mm square | map fills the inner 76.6 mm square; the rest is a plain border on the base |
-| Rounded square coaster | 100 mm, 11 mm corners | map fills the inner 76.6 mm square, plain border |
+| Square coaster | 98.7 mm square | map fills all but a 2 mm plain border on the base |
+| Rounded square coaster | 100 mm, 11 mm corners | map fills all but a 2 mm plain border (corners follow the board) |
 
 The map frame on the site shows each shape (outside dimmed, holes and map area
 marked). Every layer is trimmed to the shape, holes are cut through every

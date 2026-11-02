@@ -9,6 +9,8 @@ inner shapes are for:
                 "holes"     cut through every layer (tassel hole, clock spindle)
                 "map-area"  the contour map only fills this shape; the rest of
                             the base board is a plain border
+  border_mm   optional: the map fills the outline shrunk by this much (a plain
+              border of that width all round), instead of the DXF's inner shape
   engrave     layers whose shapes are engraved (e.g. clock numbers); a small
               circle at the board's centre on these layers is a hole instead
 
@@ -31,8 +33,8 @@ TEMPLATES = [
     {"id": "clock-305", "dxf": "clock-305.dxf", "name": "Clock 305 mm", "inner": "holes", "engrave": ["Layer_2"]},
     {"id": "bookmark", "dxf": "bookmark.dxf", "name": "Bookmark", "inner": "holes"},
     {"id": "coaster-round", "dxf": "coaster-round.dxf", "name": "Round coaster", "inner": "holes"},
-    {"id": "coaster-square", "dxf": "coaster-square.dxf", "name": "Square coaster", "inner": "map-area"},
-    {"id": "coaster-rounded-square", "dxf": "coaster-rounded-square.dxf", "name": "Rounded square coaster", "inner": "map-area"},
+    {"id": "coaster-square", "dxf": "coaster-square.dxf", "name": "Square coaster", "inner": "map-area", "border_mm": 2},
+    {"id": "coaster-rounded-square", "dxf": "coaster-rounded-square.dxf", "name": "Rounded square coaster", "inner": "map-area", "border_mm": 2},
 ]
 
 FLATTEN_MM = 0.03
@@ -97,6 +99,11 @@ def build(spec):
                 map_area = to_mm(r) if map_area is None or area(r) > area(map_area) else map_area
             else:
                 holes.append(to_mm(r))
+    if spec.get("border_mm"):
+        from shapely.geometry import Polygon  # only needed for a fixed border
+
+        inner = Polygon(to_mm(outline["ring"])).buffer(-spec["border_mm"], join_style="mitre", quad_segs=16)
+        map_area = [[round(x, 3), round(y, 3)] for x, y in list(inner.exterior.coords)[:-1]]
     data = {
         "name": spec["name"],
         "w": round(x1 - x0, 2),
