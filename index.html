@@ -144,7 +144,7 @@
               </label>
             </div>
           </fieldset>
-          <label class="check label-box"><input type="checkbox" id="label-boxes"> Clear space behind names and special places <span class="field-note-inline">(no contours, roads or water through them)</span></label>
+          <label class="check label-box"><input type="checkbox" id="label-boxes"> Clear space behind names, text and special places <span class="field-note-inline">(no contours, roads or water through them; on layered boards, no roads or water)</span></label>
         </li>
 
         <li class="step">
@@ -158,7 +158,16 @@
         </li>
 
         <li class="step">
-          <h2><span class="num">05</span> Add a hiking route <span class="optional">optional</span></h2>
+          <h2><span class="num">05</span> Add your own text <span class="optional">optional</span></h2>
+          <p class="step-note">A name, a date or a few words, engraved in the same lettering as the peak names. Type it here, then drag the box on the map to where you want it.</p>
+          <div id="texts" class="places"></div>
+          <div class="row places-actions">
+            <button id="add-text" class="btn" type="button">+ Add text</button>
+          </div>
+        </li>
+
+        <li class="step">
+          <h2><span class="num">06</span> Add a hiking route <span class="optional">optional</span></h2>
           <p class="step-note">Draw a walk on the map, or upload a GPX, KML or GeoJSON file from your GPS or walking app (OS Maps, Strava, Komoot, AllTrails…). It’s engraved as a line that follows the hills across the layers.</p>
           <div class="row route-actions">
             <button id="route-draw" class="btn" type="button">Draw on map</button>
@@ -190,7 +199,7 @@
         </li>
 
         <li class="step send">
-          <h2><span class="num">06</span> Preview and send</h2>
+          <h2><span class="num">07</span> Preview and send</h2>
           <p id="price-extras" class="price-extras" hidden></p>
           <button id="generate" class="btn primary" type="button">Create my layout</button>
           <p id="status" class="status" role="status"></p>

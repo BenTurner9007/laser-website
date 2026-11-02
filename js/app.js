@@ -22,6 +22,8 @@ const num = (key, lo, hi, fallback) => {
 };
 const oneOf = (key, allowed, fallback) => (allowed.includes(params.get(key)) ? params.get(key) : fallback);
 const optionValues = (id) => [...document.querySelectorAll(`#${id} option`)].map((o) => o.value);
+const MAX_TEXTS = 3, TEXT_MAX_CHARS = 120, TEXT_MAX_LINES = 4;
+const cleanText = (s) => String(s || "").replace(/\r/g, "").split("\n").slice(0, TEXT_MAX_LINES).join("\n").slice(0, TEXT_MAX_CHARS);
 function boardSize() {
   const tpl = CONFIG.sizes.find((s) => s.template && s.id === params.get("tpl"));
   const s = tpl || CONFIG.sizes.find((x) => !x.template && x.w === +params.get("w") && x.h === +params.get("h")) || CONFIG.sizes[0];
@@ -47,6 +49,8 @@ const state = {
   material: (params.get("mat") || "").slice(0, 60),
   // Customers' special places: { lng, lat, shape, label }.
   places: parsePlaces(params.get("poi")),
+  // Customer's own text blocks: { lng, lat, text } (centre of the text).
+  texts: parseTexts(params.get("txt")),
   placeMm: PLACE_SIZES.some((s) => s.mm === +params.get("psz")) ? +params.get("psz") : PLACE_SIZES[1].mm,
   // Water features to engrave (ids from WATER_KINDS).
   water: params.has("wtr")
@@ -101,6 +105,16 @@ function safeDecodeRoute(text) {
   }
 }
 
+function parseTexts(text) {
+  try {
+    return JSON.parse(text || "[]")
+      .slice(0, MAX_TEXTS)
+      .map(([lng, lat, t]) => ({ lng: +lng, lat: +lat, text: cleanText(t) }))
+      .filter((t) => Number.isFinite(t.lng) && Number.isFinite(t.lat));
+  } catch {
+    return [];
+  }
+}
 function parsePlaces(text) {
   try {
     return JSON.parse(text || "[]")
@@ -436,6 +450,7 @@ function frameRect() {
 function layoutFrame() {
   const r = frameRect();
   Object.assign(frameEl.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
+  if (textMarkers) sizeTextMarkers();
   $("#frame-size").textContent = state.template ? sizeOf(state.template).label : `${state.w} × ${state.h} mm`;
   updateScale();
 }
@@ -654,7 +669,10 @@ $("#smoothing").addEventListener("change", (e) => (state.smoothing = +e.target.v
 $("#label-mode").value = state.labelMode;
 $("#label-mode").addEventListener("change", (e) => (state.labelMode = e.target.value));
 $("#font-mm").value = String(state.fontMm);
-$("#font-mm").addEventListener("change", (e) => (state.fontMm = +e.target.value));
+$("#font-mm").addEventListener("change", (e) => {
+  state.fontMm = +e.target.value;
+  sizeTextMarkers();
+});
 $("#place-names").value = state.placeNames;
 $("#place-names").addEventListener("change", (e) => {
   state.placeNames = e.target.value;
@@ -694,6 +712,9 @@ function shareLink(b, ref) {
     labels: state.labelMode,
     ...(state.places.length
       ? { poi: JSON.stringify(state.places.map((p) => [+p.lng.toFixed(5), +p.lat.toFixed(5), p.shape, p.label])), psz: state.placeMm }
+      : {}),
+    ...(state.texts.some((t) => t.text.trim())
+      ? { txt: JSON.stringify(state.texts.filter((t) => t.text.trim()).map((t) => [+t.lng.toFixed(5), +t.lat.toFixed(5), t.text])) }
       : {}),
     ...(state.route.lines.length ? { rt: encodeRoute(state.route.lines), rs: state.route.style, rw: state.route.widthMm } : {}),
     wtr: [...state.water].join(","),
@@ -740,6 +761,7 @@ $("#generate").addEventListener("click", async () => {
         dem: siteDem(b),
         template: state.template ? await loadTemplate(state.template) : null,
         places: state.places,
+        texts: state.texts.filter((t) => t.text.trim()),
         placeMm: state.placeMm,
         route: state.route.lines.length ? state.route : null,
         water,
@@ -792,6 +814,7 @@ function renderStats() {
       ? [["Names left off", `${lastResult.labelsLeftOff} (no room without overlapping – try smaller text or zoom in)`]]
       : []),
     ...(state.places.length ? [["Special places", lastResult.places.length]] : []),
+    ...(wantedTexts() ? [["Your text", lastResult.texts.length]] : []),
     ...(state.route.lines.length ? [["Route", `${routeLengthKm(state.route.lines).toFixed(1)} km`]] : []),
     ...(state.water.size && !lastResult.waterFailed ? [["Water", waterLabel()]] : []),
     ...(state.roads.size && !lastResult.waterFailed ? [["Roads", roadLabel()]] : []),
@@ -807,6 +830,10 @@ function renderStats() {
   const missing = state.places.length - lastResult.places.length;
   if (missing > 0) {
     html += `<li class="status error">${missing === 1 ? "One special place is" : `${missing} special places are`} ${m.template ? "off the board’s map area (or over a hole)" : "outside the frame"}, so not included. Close this, drag it inside the frame and create the layout again.</li>`;
+  }
+  const textsMissing = wantedTexts() - lastResult.texts.length;
+  if (textsMissing > 0) {
+    html += `<li class="status error">${textsMissing === 1 ? "One text box is" : `${textsMissing} text boxes are`} ${m.template ? "off the board’s map area, over a hole or" : "outside the frame or"} on top of other text, so not included. Close this, drag it to a clear spot and create the layout again.</li>`;
   }
   if (m.style === "layered" && m.layers > CONFIG.maxLayers) {
     html += `<li class="status error">That’s a lot of layers – try a bigger contour interval for a quicker, cheaper piece.</li>`;
@@ -991,6 +1018,7 @@ $("#order").addEventListener("submit", async (e) => {
     ...lastResult.places.map(
       (p) => `Special place: ${SHAPES[p.shape].label} "${p.label || "(no label)"}" at ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)} (${p.sizeMm} mm marker)`
     ),
+    ...lastResult.texts.map((t) => `Text: "${t.text.replace(/\n/g, " / ")}" at ${t.lat.toFixed(5)}, ${t.lng.toFixed(5)}`),
     ...(state.water.size && !lastResult.waterFailed ? [`Water: ${waterLabel()}`] : []),
     ...(state.roads.size && !lastResult.waterFailed ? [`Roads: ${roadLabel()}`] : []),
     ...(lastResult.routeOnBoard
@@ -1102,8 +1130,9 @@ function refreshMarkers() {
 // Customers see: cheapest sheets for their pieces x (1 + markup), plus extras.
 const PRICING = CONFIG.pricing && (!ETSY || CONFIG.pricing.showInEtsyMode) ? CONFIG.pricing : null;
 const money = (v) => `£${v.toFixed(2)}`;
-function extrasFor(placeCount, hasRoute) {
+function extrasFor(placeCount, hasRoute, textCount = 0) {
   const out = [];
+  if (textCount && PRICING.perTextBlock) out.push([`${textCount} text box${textCount > 1 ? "es" : ""}`, textCount * PRICING.perTextBlock]);
   if (placeCount && PRICING.perSpecialPlace)
     out.push([`${placeCount} special place${placeCount > 1 ? "s" : ""}`, placeCount * PRICING.perSpecialPlace]);
   if (hasRoute && PRICING.route) out.push(["Hiking route", PRICING.route]);
@@ -1113,7 +1142,7 @@ function extrasFor(placeCount, hasRoute) {
 function renderPriceExtras() {
   const el = $("#price-extras");
   if (!PRICING) return;
-  const extras = extrasFor(state.places.length, state.route.lines.length > 0);
+  const extras = extrasFor(state.places.length, state.route.lines.length > 0, wantedTexts());
   el.hidden = false;
   el.innerHTML =
     "Create your layout to see the price." +
@@ -1140,7 +1169,7 @@ function renderPrice() {
         return;
       }
       const board = cheapest.cost * (PRICING.includeVat ? 1 + MATERIALS.vat : 1) * (1 + PRICING.markup);
-      const extras = extrasFor(lastResult.places.length, lastResult.routeOnBoard);
+      const extras = extrasFor(lastResult.places.length, lastResult.routeOnBoard, lastResult.texts.length);
       const total = Math.round((board + extras.reduce((n, [, v]) => n + v, 0)) * 100) / 100;
       lastPrice = { total, board, extras, sheets: `${cheapest.sheets} × ${cheapest.w} × ${cheapest.h} ${cheapest.code}` };
       el.innerHTML =
@@ -1223,7 +1252,69 @@ $("#place-size").addEventListener("change", (e) => (state.placeMm = +e.target.va
 
 renderPlaces();
 
-// ---------- Step 5: hiking route ----------
+// ---------- Step 5: customer's own text ----------
+// Each block is a draggable box on the map, drawn at the size it will be
+// engraved (the peak label size), centred where it will go.
+var textMarkers = []; // var: the frame is laid out before this step's code runs
+function wantedTexts() {
+  return state.texts.filter((t) => t.text.trim()).length;
+}
+function sizeTextMarkers() {
+  const pxPerMm = frameRect().w / state.w;
+  for (const m of textMarkers) m.getElement().style.fontSize = `${Math.max(6, state.fontMm * pxPerMm)}px`;
+}
+function refreshTextMarkers() {
+  textMarkers.splice(0).forEach((m) => m.remove());
+  state.texts.forEach((t, i) => {
+    const el = document.createElement("div");
+    el.className = "text-marker";
+    el.textContent = t.text;
+    el.title = "Drag to move";
+    const marker = new maplibregl.Marker({ element: el, anchor: "center", draggable: true }).setLngLat([t.lng, t.lat]).addTo(map);
+    marker.on("dragend", () => Object.assign(state.texts[i], marker.getLngLat()));
+    textMarkers[i] = marker;
+  });
+  sizeTextMarkers();
+}
+function renderTexts() {
+  renderPriceExtras();
+  $("#texts").innerHTML = state.texts
+    .map(
+      (t, i) => `
+      <div class="place text-row" data-i="${i}">
+        <div class="place-head"><span>Text ${i + 1}</span><button type="button" class="link-btn remove-text">Remove</button></div>
+        <textarea class="text-input" rows="2" maxlength="${TEXT_MAX_CHARS}" placeholder="e.g. Our first Wainwright&#10;12 June 2025" aria-label="Text ${i + 1}">${escapeHtml(t.text)}</textarea>
+      </div>`
+    )
+    .join("");
+  $("#add-text").hidden = state.texts.length >= MAX_TEXTS;
+  refreshTextMarkers();
+}
+$("#add-text").addEventListener("click", () => {
+  if (state.texts.length >= MAX_TEXTS) return;
+  const r = frameRect(), n = state.texts.length;
+  const at = map.unproject([r.x + r.w / 2, r.y + r.h * (0.2 + n * 0.3)]);
+  state.texts.push({ lng: at.lng, lat: at.lat, text: "" });
+  renderTexts();
+  $(`.text-row[data-i="${n}"] .text-input`)?.focus();
+});
+$("#texts").addEventListener("click", (e) => {
+  if (!e.target.closest(".remove-text")) return;
+  state.texts.splice(+e.target.closest(".text-row").dataset.i, 1);
+  renderTexts();
+});
+$("#texts").addEventListener("input", (e) => {
+  if (!e.target.classList.contains("text-input")) return;
+  const i = +e.target.closest(".text-row").dataset.i;
+  const clean = cleanText(e.target.value);
+  if (clean !== e.target.value) e.target.value = clean; // at most 4 lines
+  state.texts[i].text = clean;
+  textMarkers[i].getElement().textContent = clean;
+  renderPriceExtras();
+});
+renderTexts();
+
+// ---------- Step 6: hiking route ----------
 let drawing = false;
 let draft = [];
 

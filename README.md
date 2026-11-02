@@ -15,10 +15,10 @@ board size, and send it as a layout for a laser-cut contour map.
    nudged by accident (click again to unlock).
 3. **Style it**: layered (stacked boards) or a single engraved board, the
    contour interval, smoothing, label style (every bundled hill list is
-   named), an optional **clear space behind names and special places** (contours,
+   named), an optional **clear space behind names, text and special places** (contours,
    roads and water are removed from a box that just fits the name; on layered maps
-   the box is a flat recess at the lowest ground under it, so the name sits on
-   one surface), and which water to
+   nothing is cut out of the layers, so only roads and water are cleared and the
+   name is engraved on whichever layer is on top under it), and which water to
    add: lake and reservoir shores, rivers and canals, streams and
    becks, and coastline (shown on the map as they choose; the data ships with
    the site, so nothing outside is needed).
@@ -26,10 +26,15 @@ board size, and send it as a layout for a laser-cut contour map.
    a shape (heart, star, pin, circle, house, cross, diamond, triangle) and
    their own label, e.g. "Where we got engaged", at 5, 8 or 12 mm. The
    request email lists each place with its coordinates.
-5. **Add a hiking route** (optional): draw it by clicking on the map, or
+5. **Add your own text** (optional): up to 3 text boxes (up to 4 lines, 120
+   characters each), engraved in the same lettering and size as the peak
+   names. Each shows on the map at its real size as a dashed box the customer
+   drags into place; it is engraved exactly there (nudged inside the edge of a
+   rectangular board) and other labels keep clear of it. £2.50 each.
+6. **Add a hiking route** (optional): draw it by clicking on the map, or
    upload a GPX, KML or GeoJSON file. Engraved as a solid or dashed line
    (0.8, 1.2 or 2 mm). The frame moves to fit an uploaded route.
-6. **Preview and send**: an interactive **3D model** of the finished piece
+7. **Preview and send**: an interactive **3D model** of the finished piece
    (each layer at the real material thickness, in birch, oak or acrylic, with
    a centimetre ruler, overall size, stack height and map scale), a flat plan,
    a share link, and a request form. Customers cannot download the SVG; they
@@ -108,7 +113,7 @@ updates if they change material or thickness:
 
 - **Map board**: the cheapest set of supplier sheets the pieces (and the back
   plates) fit on, at sheet prices inc VAT, **plus 40%**.
-- **£2.50 per special place** and **£2.50 for a hiking route**, only counting
+- **£2.50 per special place**, **£2.50 per text box** and **£2.50 for a hiking route**, only counting
   ones that are actually on the board.
 
 Before they create a layout, step 06 shows the extras they've added so far.

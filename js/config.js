@@ -72,6 +72,7 @@ export const CONFIG = {
     markup: 0.4, // 40% on top of material
     includeVat: true, // base the material cost on sheet prices inc VAT
     perSpecialPlace: 2.5, // each special place on the board
+    perTextBlock: 2.5, // each block of the customer's own text
     route: 2.5, // a hiking route on the board
     note: "An estimate. We'll confirm the final price when we reply.",
     showInEtsyMode: false, // Etsy listings carry their own price

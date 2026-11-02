@@ -381,6 +381,23 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 }
 .place-marker span:empty { display: none; }
 
+/* Step 5: customer's own text, shown on the map at its real size on the board */
+.text-marker {
+  cursor: grab;
+  padding: 1px 3px;
+  border: 1.5px dashed #b9581f;
+  border-radius: 3px;
+  background: rgba(251, 247, 240, .82);
+  color: #2e2723;
+  font-family: "Noto Sans", "Instrument Sans", system-ui, sans-serif;
+  line-height: 1.25;
+  text-align: center;
+  white-space: pre;
+}
+.text-marker:active { cursor: grabbing; }
+.text-marker:empty::before { content: "Your text"; color: var(--muted); }
+.text-input { width: 100%; min-height: 3.2em; resize: vertical; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+
 /* Step 5: hiking route */
 .route-actions { align-items: center; }
 .route-actions .btn { flex: 1; min-height: 44px; }
