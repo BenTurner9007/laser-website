@@ -18,7 +18,7 @@ export const ROAD_KINDS = [
   { id: "lanes", label: "Lanes & streets", on: false, widthMm: 0.4 },
   // Dotted: a short score mark every dotMm along the line.
   { id: "tracks", label: "Tracks", on: false, widthMm: 0.35, dotMm: 1.2 },
-  { id: "paths", label: "Footpaths & bridleways", on: false, widthMm: 0.3, dotMm: 0.9 },
+  { id: "paths", label: "Footpaths & bridleways", on: false, widthMm: 0.3, dotMm: 1.8 },
 ];
 
 /** A loader for one tile set: fetch(bounds, kinds) -> { kind: lines }. */

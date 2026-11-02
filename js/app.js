@@ -282,7 +282,7 @@ const map = new maplibregl.Map({
       ...[
         ["road-lines", ["in", ["get", "kind"], ["literal", ["major", "minor", "lanes"]]], null],
         ["road-tracks", ["==", ["get", "kind"], "tracks"], [0, 2.2]],
-        ["road-paths", ["==", ["get", "kind"], "paths"], [0, 2]],
+        ["road-paths", ["==", ["get", "kind"], "paths"], [0, 3.2]],
       ].map(([id, filter, dash]) => ({
         id,
         type: "line",
