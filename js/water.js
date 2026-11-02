@@ -16,8 +16,9 @@ export const ROAD_KINDS = [
   { id: "major", label: "Motorways & A roads", on: false, widthMm: 1.0 },
   { id: "minor", label: "B roads & minor roads", on: false, widthMm: 0.6 },
   { id: "lanes", label: "Lanes & streets", on: false, widthMm: 0.4 },
-  { id: "tracks", label: "Tracks", on: false, widthMm: 0.35 },
-  { id: "paths", label: "Footpaths & bridleways", on: false, widthMm: 0.3 },
+  // Dotted: a short score mark every dotMm along the line.
+  { id: "tracks", label: "Tracks", on: false, widthMm: 0.35, dotMm: 1.2 },
+  { id: "paths", label: "Footpaths & bridleways", on: false, widthMm: 0.3, dotMm: 0.9 },
 ];
 
 /** A loader for one tile set: fetch(bounds, kinds) -> { kind: lines }. */

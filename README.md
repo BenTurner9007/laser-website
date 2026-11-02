@@ -351,6 +351,9 @@ from Overture Maps (OpenStreetMap), rebuilt with `python3 scripts/build-places.p
 Step 3 also offers **roads & paths** (all off by default): motorways & A
 roads, B & minor roads, lanes & streets, tracks, and footpaths & bridleways.
 They are shown on the map and scored on the layout like water, in teal.
+Tracks and footpaths are **dotted**: in the SVG they are rows of tiny 0.15 mm
+score marks (every 1.2 mm for tracks, 0.9 mm for footpaths; `dotMm` in
+`js/water.js`), which the laser burns as dots.
 `data/roads/` holds about 4,800 tiles (137 MB, mostly streets and footpaths)
 from Overture Maps (OpenStreetMap). Service roads, rail and ferries are left
 out. To refresh:

@@ -277,11 +277,12 @@ const map = new maplibregl.Map({
         layout: { "symbol-placement": "line", "text-size": 10, "text-field": ["concat", ["to-string", ["get", "ele"]], " m"], "text-font": FONT },
         paint: { "text-color": "#685e52", "text-halo-color": "#efe2c8", "text-halo-width": 1.2 },
       },
-      // Roads solid; tracks and paths dashed (dashes can't vary by data, so separate layers).
+      // Roads solid; tracks and paths dotted (dashes can't vary by data, so separate layers;
+      // a zero-length dash with round caps draws a dot).
       ...[
         ["road-lines", ["in", ["get", "kind"], ["literal", ["major", "minor", "lanes"]]], null],
-        ["road-tracks", ["==", ["get", "kind"], "tracks"], [4, 1.5]],
-        ["road-paths", ["==", ["get", "kind"], "paths"], [2, 1.5]],
+        ["road-tracks", ["==", ["get", "kind"], "tracks"], [0, 2.2]],
+        ["road-paths", ["==", ["get", "kind"], "paths"], [0, 2]],
       ].map(([id, filter, dash]) => ({
         id,
         type: "line",
@@ -290,7 +291,7 @@ const map = new maplibregl.Map({
         layout: { "line-join": "round", "line-cap": "round" },
         paint: {
           "line-color": ["match", ["get", "kind"], "major", "#8c4a2f", "minor", "#9a6b45", "paths", "#7a2e12", "tracks", "#5e4632", "#6b5a48"],
-          "line-width": ["match", ["get", "kind"], "major", 2.4, "minor", 1.7, "lanes", 1.2, 1.3],
+          "line-width": ["match", ["get", "kind"], "major", 2.4, "minor", 1.7, "lanes", 1.2, "tracks", 2.6, "paths", 2.4, 1.3],
           "line-opacity": 0.85,
           ...(dash ? { "line-dasharray": dash } : {}),
         },

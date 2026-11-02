@@ -369,6 +369,31 @@ function linesOutsideBoxes(lines, boxes) {
 }
 
 // Keep only the parts of lines (in mm) that come near the board.
+/**
+ * Dotted lines (tracks, footpaths): a short mark every `spacing` mm along
+ * each line, as tiny line segments, so the laser scores a row of dots.
+ */
+const DOT_MM = 0.15;
+function dotted(lines, spacing) {
+  const out = [];
+  for (const l of lines) {
+    let next = spacing / 2; // distance along the line to the next dot
+    let at = 0;
+    for (let i = 1; i < l.length; i++) {
+      const [x0, y0] = l[i - 1], [x1, y1] = l[i];
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      if (!len) continue;
+      while (next <= at + len) {
+        const t = (next - at) / len, u = Math.min(1, t + DOT_MM / len);
+        out.push([[x0 + (x1 - x0) * t, y0 + (y1 - y0) * t], [x0 + (x1 - x0) * u, y0 + (y1 - y0) * u]]);
+        next += spacing;
+      }
+      at += len;
+    }
+  }
+  return out;
+}
+
 function trimLines(lines, W, H, margin) {
   const near = ([x, y]) => x >= -margin && y >= -margin && x <= W + margin && y <= H + margin;
   const out = [];
@@ -826,7 +851,8 @@ export async function buildLayout(o, onProgress) {
     for (const kind of lineKinds) {
       const lines = trimLines(kind.lines.map((l) => l.map(toMm)), W, H, 1).filter((l) => lineLength(l) >= 2);
       const clear = labelBoxes.length ? linesOutsideBoxes(lines, labelBoxes) : lines;
-      for (const [layer, runs] of splitByLayer(clear, mask)) water.push({ layer, group: kind.group, kind: kind.id, widthMm: kind.widthMm, lines: runs });
+      for (const [layer, runs] of splitByLayer(clear, mask))
+        water.push({ layer, group: kind.group, kind: kind.id, widthMm: kind.widthMm, lines: kind.dotMm ? dotted(runs, kind.dotMm) : runs });
     }
   }
   // Engraved boards: contour lines as open lines, with the label boxes left clear.
@@ -1056,8 +1082,9 @@ export async function buildLayout(o, onProgress) {
   for (const l of lakes) preview += `<path d="${polygonsToPath(l.polys)}" fill="#111" fill-rule="evenodd"/>`;
   for (const w of water) {
     const road = w.group === "roads";
-    const dash = w.kind === "paths" ? ` stroke-dasharray="1.2 0.9"` : w.kind === "tracks" ? ` stroke-dasharray="2.4 1"` : "";
-    preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="${road ? "#2a1d14" : "#1f3f5c"}" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"${dash}/>`;
+    // Dotted kinds are already rows of tiny marks; round caps draw them as dots.
+    const dotW = w.kind === "tracks" || w.kind === "paths" ? w.widthMm * 1.3 : w.widthMm;
+    preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="${road ? "#2a1d14" : "#1f3f5c"}" stroke-width="${dotW}" stroke-linecap="round" stroke-linejoin="round"/>`;
   }
   preview += fillEach(allMarks, COLOURS.engrave);
   // Where a name runs over a lake, show that part light so it stays readable.
