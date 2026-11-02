@@ -1521,8 +1521,9 @@ const waterLabel = () =>
 async function waterFor(bounds) {
   const kinds = [...state.water];
   if (!kinds.length) return null;
-  const all = await fetchWater(bounds, kinds);
-  return Object.fromEntries(kinds.map((k) => [k, all[k]]));
+  // Lake areas too, so the previews can show lakes filled in.
+  const all = await fetchWater(bounds, kinds.includes("lakes") ? [...kinds, "lakefill"] : kinds);
+  return Object.fromEntries(Object.keys(all).map((k) => [k, all[k]]));
 }
 
 const WATER_MAX_METRES = 40000;
@@ -1548,7 +1549,7 @@ async function showWater() {
   note.textContent = "Loading rivers and lakes…";
   try {
     const water = await waterFor(view);
-    const features = Object.entries(water).flatMap(([kind, lines]) =>
+    const features = Object.entries(water).filter(([kind]) => kind !== "lakefill").flatMap(([kind, lines]) =>
       lines.map((l) => ({ type: "Feature", properties: { kind }, geometry: { type: "LineString", coordinates: l } }))
     );
     map.getSource("water").setData({ type: "FeatureCollection", features });

@@ -199,6 +199,16 @@ export function createViewer(container) {
       model.add(mesh);
     }
 
+    // Lakes filled in black on the layer they sit on.
+    const lakeMat = new THREE.MeshBasicMaterial({ color: 0x111111, polygonOffset: true, polygonOffsetFactor: -1 });
+    for (const l of result.lakes || []) {
+      const geo = new THREE.ShapeGeometry(shapesFor(l.polys, W, H));
+      geo.rotateX(-Math.PI / 2);
+      const mesh = new THREE.Mesh(geo, lakeMat);
+      mesh.position.y = (l.layer + 1) * boardT + 0.03;
+      model.add(mesh);
+    }
+
     // Water score lines, drawn as thin lines on the layer they sit on.
     const waterMat = new THREE.LineBasicMaterial({ color: ENGRAVE, transparent: true, opacity: 0.8 });
     for (const w of result.water || []) {

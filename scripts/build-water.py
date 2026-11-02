@@ -14,6 +14,12 @@ Google's polyline algorithm (precision 5) and joined with ",":
   rivers  river and canal centre lines, plus the banks of wide rivers
   streams streams and becks
   coast   coastline (the edge of the sea)
+and one kind of area:
+  lakefill  lake, tarn, pond and reservoir areas, cut to the tile, as rings
+            (fill even-odd; islands are holes). Only for the preview, which
+            shows lakes filled in.
+
+  python3 scripts/build-water.py lakefill   # add just lakefill to existing tiles
 """
 
 import io
@@ -174,6 +180,67 @@ def as_lines(geom):
     return geom
 
 
+def lake_polygons(subtypes, classes, geoms):
+    out = []
+    for sub, cls, g in zip(subtypes, classes, geoms):
+        if g is None or g.is_empty or classify(sub, cls, g.geom_type) != "lakes":
+            continue
+        if g.geom_type in ("Polygon", "MultiPolygon") and area_m2(g) >= MIN_LAKE_M2:
+            out.append(g)
+    return out
+
+
+def lakefill_tiles(polys):
+    """{(tx, ty): [encoded ring, ...]} of the merged lake areas in each tile."""
+    polys = shapely.make_valid(shapely.simplify(polys, SIMPLIFY_DEG, preserve_topology=True))
+    tree = shapely.STRtree(polys)
+    out = {}
+    x0, y0 = math.floor(UK[0] / TILE), math.floor(UK[1] / TILE)
+    x1, y1 = math.floor(UK[2] / TILE), math.floor(UK[3] / TILE)
+    for tx in range(x0, x1 + 1):
+        for ty in range(y0, y1 + 1):
+            box = shapely.box(tx * TILE, ty * TILE, (tx + 1) * TILE, (ty + 1) * TILE)
+            hits = tree.query(box, predicate="intersects")
+            if not len(hits):
+                continue
+            # Merge first: overlapping duplicates would cancel out when filled even-odd.
+            area = shapely.union_all(shapely.intersection(polys[hits], box))
+            rings = []
+            for part in shapely.get_parts(area):
+                if part.geom_type != "Polygon" or part.is_empty:
+                    continue
+                for ring in [part.exterior, *part.interiors]:
+                    s = encode_line(shapely.get_coordinates(ring).tolist())
+                    if s:
+                        rings.append(s)
+            if rings:
+                out[(tx, ty)] = rings
+    return out
+
+
+def read_raw():
+    t = pq.read_table(RAW)
+    subtypes, classes = t.column("subtype").to_pylist(), t.column("class").to_pylist()
+    geoms = shapely.from_wkb(t.column("geometry").to_numpy(zero_copy_only=False))
+    return subtypes, classes, geoms
+
+
+def lakefill():
+    """Add lakefill to the existing tiles without rebuilding the lines."""
+    fills = lakefill_tiles(lake_polygons(*read_raw()))
+    index = json.loads((OUT / "index.json").read_text())
+    keys = set(index["tiles"])
+    for (tx, ty), rings in fills.items():
+        f = OUT / f"{tx}_{ty}.json"
+        body = json.loads(f.read_text()) if f.exists() else {}
+        body["lakefill"] = ",".join(rings)
+        f.write_text(json.dumps(body, separators=(",", ":")))
+        keys.add(f"{tx}_{ty}")
+    index["tiles"] = sorted(keys)
+    (OUT / "index.json").write_text(json.dumps(index, separators=(",", ":")))
+    print(f"lakefill: {len(fills)} tiles", flush=True)
+
+
 def build():
     t = pq.read_table(RAW)
     subtypes, classes = t.column("subtype").to_pylist(), t.column("class").to_pylist()
@@ -224,6 +291,10 @@ def build():
                             tiles[(tx, ty)][kind].append(s)
         print(f"{kind}: done", flush=True)
 
+    for key, rings in lakefill_tiles(lake_polygons(subtypes, classes, geoms)).items():
+        tiles[key]["lakefill"] = rings
+    print("lakefill: done", flush=True)
+
     OUT.mkdir(parents=True, exist_ok=True)
     for old in OUT.glob("*.json"):
         old.unlink()
@@ -238,4 +309,4 @@ def build():
 
 
 if __name__ == "__main__":
-    {"download": download, "build": build}[sys.argv[1] if len(sys.argv) > 1 else "build"]()
+    {"download": download, "build": build, "lakefill": lakefill}[sys.argv[1] if len(sys.argv) > 1 else "build"]()

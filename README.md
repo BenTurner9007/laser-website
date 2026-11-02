@@ -362,7 +362,7 @@ python3 scripts/build-roads.py build      # about 4 minutes
 
 ### Updating the water data
 
-`data/water/` holds about 4,900 small tiles (39 MB in all) covering the UK and
+`data/water/` holds about 4,900 small tiles (54 MB in all) covering the UK and
 Ireland. They come from [Overture Maps](https://overturemaps.org), a cleaned-up
 copy of OpenStreetMap. To refresh them (OpenStreetMap is edited all the time):
 
@@ -374,6 +374,11 @@ python3 scripts/build-water.py build      # about 4 minutes
 
 To use a newer Overture release, change `RELEASE` at the top of the script.
 Tiny ponds (under 1,500 m²), ditches, drains and swimming pools are left out.
+
+Besides the lines, each tile holds the lake, tarn, pond and reservoir areas
+(`lakefill`). These are only used to show lakes filled in black on the flat plan
+and 3D preview; the SVG still has just the shoreline score lines. To add them to
+existing tiles without rebuilding the lines: `python3 scripts/build-water.py lakefill`.
 
 ### Updating the hill data
 
