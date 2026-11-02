@@ -23,6 +23,10 @@ const num = (key, lo, hi, fallback) => {
 const oneOf = (key, allowed, fallback) => (allowed.includes(params.get(key)) ? params.get(key) : fallback);
 const optionValues = (id) => [...document.querySelectorAll(`#${id} option`)].map((o) => o.value);
 const MAX_TEXTS = 3, TEXT_MAX_CHARS = 120, TEXT_MAX_LINES = 4;
+const TEXT_MIN_MM = 2, TEXT_MAX_MM = 20, TEXT_PAD_MM = 1.2; // pad matches layout.js
+// Text height in mm, in half-millimetre steps; old links without one get the peak label size.
+const textSize = (v) =>
+  Number.isFinite(+v) && +v > 0 ? Math.min(TEXT_MAX_MM, Math.max(TEXT_MIN_MM, Math.round(+v * 2) / 2)) : +params.get("font") || 3.5;
 const cleanText = (s) => String(s || "").replace(/\r/g, "").split("\n").slice(0, TEXT_MAX_LINES).join("\n").slice(0, TEXT_MAX_CHARS);
 function boardSize() {
   const tpl = CONFIG.sizes.find((s) => s.template && s.id === params.get("tpl"));
@@ -109,7 +113,7 @@ function parseTexts(text) {
   try {
     return JSON.parse(text || "[]")
       .slice(0, MAX_TEXTS)
-      .map(([lng, lat, t]) => ({ lng: +lng, lat: +lat, text: cleanText(t) }))
+      .map(([lng, lat, t, size, clear]) => ({ lng: +lng, lat: +lat, text: cleanText(t), size: textSize(size), clear: clear !== 0 }))
       .filter((t) => Number.isFinite(t.lng) && Number.isFinite(t.lat));
   } catch {
     return [];
@@ -671,7 +675,6 @@ $("#label-mode").addEventListener("change", (e) => (state.labelMode = e.target.v
 $("#font-mm").value = String(state.fontMm);
 $("#font-mm").addEventListener("change", (e) => {
   state.fontMm = +e.target.value;
-  sizeTextMarkers();
 });
 $("#place-names").value = state.placeNames;
 $("#place-names").addEventListener("change", (e) => {
@@ -714,7 +717,7 @@ function shareLink(b, ref) {
       ? { poi: JSON.stringify(state.places.map((p) => [+p.lng.toFixed(5), +p.lat.toFixed(5), p.shape, p.label])), psz: state.placeMm }
       : {}),
     ...(state.texts.some((t) => t.text.trim())
-      ? { txt: JSON.stringify(state.texts.filter((t) => t.text.trim()).map((t) => [+t.lng.toFixed(5), +t.lat.toFixed(5), t.text])) }
+      ? { txt: JSON.stringify(state.texts.filter((t) => t.text.trim()).map((t) => [+t.lng.toFixed(5), +t.lat.toFixed(5), t.text, t.size, t.clear ? 1 : 0])) }
       : {}),
     ...(state.route.lines.length ? { rt: encodeRoute(state.route.lines), rs: state.route.style, rw: state.route.widthMm } : {}),
     wtr: [...state.water].join(","),
@@ -761,7 +764,7 @@ $("#generate").addEventListener("click", async () => {
         dem: siteDem(b),
         template: state.template ? await loadTemplate(state.template) : null,
         places: state.places,
-        texts: state.texts.filter((t) => t.text.trim()),
+        texts: state.texts.filter((t) => t.text.trim()).map((t) => ({ ...t, sizeMm: t.size })),
         placeMm: state.placeMm,
         route: state.route.lines.length ? state.route : null,
         water,
@@ -1018,7 +1021,7 @@ $("#order").addEventListener("submit", async (e) => {
     ...lastResult.places.map(
       (p) => `Special place: ${SHAPES[p.shape].label} "${p.label || "(no label)"}" at ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)} (${p.sizeMm} mm marker)`
     ),
-    ...lastResult.texts.map((t) => `Text: "${t.text.replace(/\n/g, " / ")}" at ${t.lat.toFixed(5)}, ${t.lng.toFixed(5)}`),
+    ...lastResult.texts.map((t) => `Text: "${t.text.replace(/\n/g, " / ")}", ${t.sizeMm} mm${t.clear ? ", clear box" : ""}, at ${t.lat.toFixed(5)}, ${t.lng.toFixed(5)}`),
     ...(state.water.size && !lastResult.waterFailed ? [`Water: ${waterLabel()}`] : []),
     ...(state.roads.size && !lastResult.waterFailed ? [`Roads: ${roadLabel()}`] : []),
     ...(lastResult.routeOnBoard
@@ -1243,14 +1246,50 @@ renderPlaces();
 
 // ---------- Step 5: customer's own text ----------
 // Each block is a draggable box on the map, drawn at the size it will be
-// engraved (the peak label size), centred where it will go.
+// engraved, centred where it will go. The corner handle (or the slider in
+// the panel) scales the text; a clear box shows as a solid patch.
 var textMarkers = []; // var: the frame is laid out before this step's code runs
 function wantedTexts() {
   return state.texts.filter((t) => t.text.trim()).length;
 }
+const pxPerMm = () => frameRect().w / state.w;
+function sizeTextMarker(i) {
+  const t = state.texts[i], el = textMarkers[i]?.getElement();
+  if (!el) return;
+  const k = pxPerMm();
+  const body = el.querySelector(".text-body");
+  body.style.fontSize = `${Math.max(4, t.size * k)}px`;
+  body.style.padding = t.clear ? `${TEXT_PAD_MM * k}px` : "1px 3px";
+  body.classList.toggle("clear", t.clear);
+}
 function sizeTextMarkers() {
-  const pxPerMm = frameRect().w / state.w;
-  for (const m of textMarkers) m.getElement().style.fontSize = `${Math.max(6, state.fontMm * pxPerMm)}px`;
+  state.texts.forEach((_, i) => sizeTextMarker(i));
+}
+function setTextSize(i, size) {
+  state.texts[i].size = textSize(size);
+  sizeTextMarker(i);
+  const row = document.querySelector(`.text-row[data-i="${i}"]`);
+  if (row) {
+    row.querySelector(".text-size").value = state.texts[i].size;
+    row.querySelector(".text-size-out").textContent = `${state.texts[i].size} mm`;
+  }
+}
+// Drag the corner handle away from the centre to grow the text, towards it to shrink.
+function startResize(i, e) {
+  e.stopPropagation();
+  e.preventDefault();
+  const body = textMarkers[i].getElement().querySelector(".text-body").getBoundingClientRect();
+  const cx = body.left + body.width / 2, cy = body.top + body.height / 2;
+  const d0 = Math.max(8, Math.hypot(e.clientX - cx, e.clientY - cy)), s0 = state.texts[i].size;
+  const move = (ev) => setTextSize(i, (s0 * Math.hypot(ev.clientX - cx, ev.clientY - cy)) / d0);
+  const end = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", end);
+    window.removeEventListener("pointercancel", end);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", end);
+  window.addEventListener("pointercancel", end);
 }
 function refreshTextMarkers() {
   textMarkers.splice(0).forEach((m) => m.remove());
@@ -1259,10 +1298,14 @@ function refreshTextMarkers() {
     const el = document.createElement("div");
     el.className = "text-marker";
     el.innerHTML =
-      '<span class="text-body"></span><span class="text-grip" aria-hidden="true">' +
+      '<span class="text-body"><span class="text-words"></span><span class="text-resize" title="Drag to resize"></span></span><span class="text-grip" aria-hidden="true">' +
       '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>';
-    el.querySelector(".text-body").textContent = t.text;
+    el.querySelector(".text-words").textContent = t.text;
     el.title = "Drag to move";
+    const handle = el.querySelector(".text-resize");
+    handle.addEventListener("pointerdown", (e) => startResize(i, e));
+    // Keep the marker (and the map) from starting a drag of their own.
+    for (const type of ["mousedown", "touchstart"]) handle.addEventListener(type, (e) => e.stopPropagation(), { passive: false });
     const marker = new maplibregl.Marker({ element: el, anchor: "center", draggable: true }).setLngLat([t.lng, t.lat]).addTo(map);
     marker.on("dragend", () => Object.assign(state.texts[i], marker.getLngLat()));
     textMarkers[i] = marker;
@@ -1276,6 +1319,11 @@ function renderTexts() {
       <div class="place text-row" data-i="${i}">
         <div class="place-head"><span>Text ${i + 1}</span><button type="button" class="link-btn remove-text">Remove</button></div>
         <textarea class="text-input" rows="2" maxlength="${TEXT_MAX_CHARS}" placeholder="e.g. Our first Wainwright&#10;12 June 2025" aria-label="Text ${i + 1}">${escapeHtml(t.text)}</textarea>
+        <label class="text-size-row"><span>Size</span>
+          <input class="text-size" type="range" min="${TEXT_MIN_MM}" max="${TEXT_MAX_MM}" step="0.5" value="${t.size}" aria-label="Text ${i + 1} size">
+          <output class="text-size-out">${t.size} mm</output></label>
+        <label class="check"><input type="checkbox" class="text-clear" ${t.clear ? "checked" : ""}> Clear box behind the text</label>
+        <p class="field-note text-clear-note">Nothing shows behind the words. On layered boards the layers are cut away so the text sits flat.</p>
       </div>`
     )
     .join("");
@@ -1286,7 +1334,7 @@ $("#add-text").addEventListener("click", () => {
   if (state.texts.length >= MAX_TEXTS) return;
   const r = frameRect(), n = state.texts.length;
   const at = map.unproject([r.x + r.w / 2, r.y + r.h * (0.2 + n * 0.3)]);
-  state.texts.push({ lng: at.lng, lat: at.lat, text: "" });
+  state.texts.push({ lng: at.lng, lat: at.lat, text: "", size: state.fontMm, clear: true });
   renderTexts();
   $(`.text-row[data-i="${n}"] .text-input`)?.focus();
 });
@@ -1296,12 +1344,17 @@ $("#texts").addEventListener("click", (e) => {
   renderTexts();
 });
 $("#texts").addEventListener("input", (e) => {
+  const i = +e.target.closest(".text-row")?.dataset.i;
+  if (e.target.classList.contains("text-size")) return setTextSize(i, +e.target.value);
+  if (e.target.classList.contains("text-clear")) {
+    state.texts[i].clear = e.target.checked;
+    return sizeTextMarker(i);
+  }
   if (!e.target.classList.contains("text-input")) return;
-  const i = +e.target.closest(".text-row").dataset.i;
   const clean = cleanText(e.target.value);
   if (clean !== e.target.value) e.target.value = clean; // at most 4 lines
   state.texts[i].text = clean;
-  textMarkers[i].getElement().querySelector(".text-body").textContent = clean;
+  textMarkers[i].getElement().querySelector(".text-words").textContent = clean;
 });
 renderTexts();
 

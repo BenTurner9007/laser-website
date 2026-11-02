@@ -382,12 +382,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .place-marker span:empty { display: none; }
 
 /* Step 5: customer's own text, shown on the map at its real size on the board */
-.text-marker {
-  cursor: grab;
-  padding: 1px 3px;
+.text-marker { cursor: grab; }
+.text-body {
+  position: relative;
+  display: block;
   border: 1.5px dashed #b9581f;
   border-radius: 3px;
-  background: rgba(251, 247, 240, .82);
+  background: rgba(251, 247, 240, .55);
   color: #2e2723;
   font-family: "Noto Sans", "Instrument Sans", system-ui, sans-serif;
   line-height: 1.25;
@@ -413,7 +414,28 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   touch-action: none;
 }
 .text-marker, .text-marker * { touch-action: none; }
-.text-body:empty::before { content: "Your text"; color: var(--muted); }
+.text-words:empty::before { content: "Your text"; color: var(--muted); }
+.text-body.clear { background: #fbf7f0; border-style: solid; }
+/* Corner handle: drag to scale the text. */
+.text-resize {
+  position: absolute;
+  right: -11px;
+  bottom: -11px;
+  width: 22px;
+  height: 22px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #b9581f;
+  box-shadow: 0 1px 3px rgba(46, 39, 35, .45);
+  cursor: nwse-resize;
+  touch-action: none;
+}
+.text-resize::after { content: ""; position: absolute; inset: -10px; } /* bigger touch target */
+.text-size-row { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; font-size: .88rem; }
+.text-size-row input { flex: 1; accent-color: var(--accent); }
+.text-size-row output { min-width: 4.2em; text-align: right; color: var(--muted); }
+.text-row .check { margin: 4px 0 0; font-size: .88rem; }
+.text-clear-note { margin: 2px 0 0; }
 .text-input { width: 100%; min-height: 3.2em; resize: vertical; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
 
 /* Step 5: hiking route */

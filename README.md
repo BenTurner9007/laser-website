@@ -27,10 +27,15 @@ board size, and send it as a layout for a laser-cut contour map.
    their own label, e.g. "Where we got engaged", at 5, 8 or 12 mm. The
    request email lists each place with its coordinates.
 5. **Add your own text** (optional): up to 3 text boxes (up to 4 lines, 120
-   characters each), engraved in the same lettering and size as the peak
-   names. Each shows on the map at its real size as a dashed box the customer
-   drags into place (by the box, or the round grip below it on a phone); it is engraved exactly there (nudged inside the edge of a
-   rectangular board) and other labels keep clear of it. £2.50 each.
+   characters each) in the peak name lettering. Each shows on the map at its
+   real size; customers drag it into place (by the box, or the round grip
+   below it on a phone) and scale it with the corner handle or the Size
+   slider (2–20 mm, starting at the peak name size). By default each has a
+   **clear box** (1.2 mm round the words): nothing is engraved behind it,
+   and on layered boards it is a flat recess at the lowest ground under it,
+   cut out of every layer above. Untick it to engrave the words straight on
+   the layers. Text is engraved exactly where placed (nudged inside the edge
+   of a rectangular board) and other labels keep clear of it. £2.50 each.
 6. **Add a hiking route** (optional): draw it by clicking on the map, or
    upload a GPX, KML or GeoJSON file. Engraved as a solid or dashed line
    (0.8, 1.2 or 2 mm). The frame moves to fit an uploaded route.
