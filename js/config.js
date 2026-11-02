@@ -65,6 +65,18 @@ export const CONFIG = {
     logo: { widthMm: 80, heightMm: 40, marginMm: 4, file: "data/logo.json" },
   },
 
+  // Price customers see once they create a layout: the cost of the cheapest
+  // supplier sheets that fit the pieces (inc VAT if includeVat), plus markup,
+  // plus extras. Set to null to show no price.
+  pricing: {
+    markup: 0.4, // 40% on top of material
+    includeVat: true, // base the material cost on sheet prices inc VAT
+    perSpecialPlace: 2.5, // each special place on the board
+    route: 2.5, // a hiking route on the board
+    note: "An estimate. We'll confirm the final price when we reply.",
+    showInEtsyMode: false, // Etsy listings carry their own price
+  },
+
   // Largest layer count you are willing to quote automatically.
   maxLayers: 30,
 };

@@ -873,6 +873,7 @@ function showResult() {
   $("#owner-note").textContent = "";
   $("#cost-table").innerHTML = "";
   $("#result").showModal();
+  renderPrice();
   if (!$("#tab-3d").hidden) selectTab("3d");
   render3d();
 }
@@ -894,6 +895,7 @@ for (const id of ["#thickness", "#material"]) {
   $(id).addEventListener("change", () => {
     $("#cost-table").innerHTML = "";
     if (!lastResult) return;
+    renderPrice();
     lastResult.link = shareLink(lastResult.bounds, lastResult.ref);
     renderStats();
     render3d();
@@ -982,6 +984,9 @@ $("#order").addEventListener("submit", async (e) => {
     `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}`,
     `Contours every ${m.interval} m, smoothing ${m.smoothing}, heights ${m.minElevation}-${m.maxElevation} m`,
     `Material: ${fd.material}`,
+    ...(lastPrice
+      ? [`Price shown: ${money(lastPrice.total)} (board ${money(lastPrice.board)}${lastPrice.extras.map(([t, v]) => ` + ${t.toLowerCase()} ${money(v)}`).join("")}; sheets: ${lastPrice.sheets})`]
+      : []),
     ...(BODY !== "earth" ? [`World: ${WORLD.label}${siteName(m.bounds) ? ` – ${siteName(m.bounds)}` : ""}`] : []),
     ...lastResult.places.map(
       (p) => `Special place: ${SHAPES[p.shape].label} "${p.label || "(no label)"}" at ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)} (${p.sizeMm} mm marker)`
@@ -1093,7 +1098,66 @@ function refreshMarkers() {
   state.places.forEach(addMarker);
 }
 
+// ---------- Price ----------
+// Customers see: cheapest sheets for their pieces x (1 + markup), plus extras.
+const PRICING = CONFIG.pricing && (!ETSY || CONFIG.pricing.showInEtsyMode) ? CONFIG.pricing : null;
+const money = (v) => `£${v.toFixed(2)}`;
+function extrasFor(placeCount, hasRoute) {
+  const out = [];
+  if (placeCount && PRICING.perSpecialPlace)
+    out.push([`${placeCount} special place${placeCount > 1 ? "s" : ""}`, placeCount * PRICING.perSpecialPlace]);
+  if (hasRoute && PRICING.route) out.push(["Hiking route", PRICING.route]);
+  return out;
+}
+// Under "Create my layout": what the extras add, before there is a layout to price.
+function renderPriceExtras() {
+  const el = $("#price-extras");
+  if (!PRICING) return;
+  const extras = extrasFor(state.places.length, state.route.lines.length > 0);
+  el.hidden = false;
+  el.innerHTML =
+    "Create your layout to see the price." +
+    (extras.length ? ` Extras: ${extras.map(([t, v]) => `${t} ${money(v)}`).join(", ")}.` : "");
+}
+let priceToken = 0;
+let lastPrice = null;
+function renderPrice() {
+  const el = $("#price");
+  lastPrice = null;
+  if (!PRICING || !lastResult) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = `<p class="price-note">Working out your price…</p>`;
+  const token = ++priceToken;
+  setTimeout(() => {
+    if (token !== priceToken) return;
+    try {
+      const m = materialByName($("#material").value);
+      const t = m.thicknesses.find((x) => x.mm === +$("#thickness").value) || m.thicknesses[0];
+      const { options } = lastResult.buildCost(t.sheets, CONFIG.sheet);
+      const cheapest = options.filter((x) => x.cost != null).reduce((a, x) => (!a || x.cost < a.cost ? x : a), null);
+      if (!cheapest) {
+        el.innerHTML = `<p class="price-note">This one is bigger than our standard sheets, so we'll send you a price by email.</p>`;
+        return;
+      }
+      const board = cheapest.cost * (PRICING.includeVat ? 1 + MATERIALS.vat : 1) * (1 + PRICING.markup);
+      const extras = extrasFor(lastResult.places.length, lastResult.routeOnBoard);
+      const total = Math.round((board + extras.reduce((n, [, v]) => n + v, 0)) * 100) / 100;
+      lastPrice = { total, board, extras, sheets: `${cheapest.sheets} × ${cheapest.w} × ${cheapest.h} ${cheapest.code}` };
+      el.innerHTML =
+        `<p class="price-total">${money(total)} <small>for ${escapeHtml(m.name.replace(/ \(.*\)$/, ""))}, ${t.mm} mm</small></p>` +
+        (extras.length
+          ? `<ul><li><span>Map board</span><span>${money(board)}</span></li>${extras.map(([txt, v]) => `<li><span>${txt}</span><span>${money(v)}</span></li>`).join("")}</ul>`
+          : "") +
+        (PRICING.note ? `<p class="price-note">${escapeHtml(PRICING.note)}</p>` : "");
+    } catch (err) {
+      console.error(err);
+      el.innerHTML = `<p class="price-note">We couldn't work out a price just now. We'll include it when we reply.</p>`;
+    }
+  }, 30);
+}
+
 function renderPlaces() {
+  renderPriceExtras();
   $("#places").innerHTML = state.places
     .map(
       (p, i) => `
@@ -1191,6 +1255,7 @@ function routeFitsFrame(lines) {
 
 function renderRoute() {
   const has = state.route.lines.length > 0;
+  if (PRICING) renderPriceExtras();
   onStyleReady(() => {
     map.getSource("route").setData(lineFeatures(state.route.lines));
     map.setPaintProperty("route-line", "line-dasharray", state.route.style === "dashed" ? [2, 1.4] : null);
@@ -1493,7 +1558,6 @@ $("#etsy-copy").addEventListener("click", async () => {
 // ---------- Owner: material cost ----------
 // Lays the pieces out on every sheet size the supplier sells in the chosen
 // material and thickness, and prices each option.
-const money = (v) => `£${v.toFixed(2)}`;
 $("#cost-btn").addEventListener("click", () => {
   const btn = $("#cost-btn");
   btn.disabled = true;

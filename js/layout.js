@@ -874,17 +874,26 @@ export async function buildLayout(o, onProgress) {
    * @param {Array<{code:string, w:number, h:number, price:number}>} stock  sheets for one material and thickness
    * @param {{marginMm:number, gapMm:number}} spacing
    */
+  // Sheet counts only depend on the sheet size, so they are kept for when the
+  // customer switches material or thickness.
+  const nestCache = new Map();
+  let costPieces = null;
   const buildCost = (stock, spacing) => {
-    const pieces =
-      o.style === "engraved"
+    const pieces = (costPieces ??= [
+      ...(o.style === "engraved"
         ? boardPolys.map((poly, i) => ({ id: `board${i}`, poly, area: ringArea(poly[0]) }))
-        : getPieces().flat();
-    pieces.push(...getPlates());
+        : getPieces().flat()),
+      ...getPlates(),
+    ]);
     const areaMm2 = pieces.reduce((n, p) => n + p.area, 0);
     const options = stock.map((s) => {
-      const { sheets } = nestPieces(pieces, { w: s.w, h: s.h, marginMm: spacing.marginMm, gapMm: spacing.gapMm });
-      const oversize = sheets.some((x) => x.oversize);
-      return { ...s, sheets: sheets.length, oversize, cost: oversize ? null : sheets.length * s.price };
+      const key = `${s.w}x${s.h}x${spacing.marginMm}x${spacing.gapMm}`;
+      if (!nestCache.has(key)) {
+        const { sheets } = nestPieces(pieces, { w: s.w, h: s.h, marginMm: spacing.marginMm, gapMm: spacing.gapMm });
+        nestCache.set(key, { count: sheets.length, oversize: sheets.some((x) => x.oversize) });
+      }
+      const { count, oversize } = nestCache.get(key);
+      return { ...s, sheets: count, oversize, cost: oversize ? null : count * s.price };
     });
     return { pieces: pieces.length, areaMm2, options };
   };

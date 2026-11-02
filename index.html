@@ -191,6 +191,7 @@
 
         <li class="step send">
           <h2><span class="num">06</span> Preview and send</h2>
+          <p id="price-extras" class="price-extras" hidden></p>
           <button id="generate" class="btn primary" type="button">Create my layout</button>
           <p id="status" class="status" role="status"></p>
         </li>
@@ -235,6 +236,7 @@
           <label class="field small"><span>Layer thickness</span><select name="thickness" id="thickness"></select></label>
         </div>
         <label class="field"><span>Anything else? (title, engraving, frame, gift message)</span><textarea name="notes" rows="3"></textarea></label>
+        <div id="price" class="price" hidden aria-live="polite"></div>
         <!-- Spam trap: people never see or tick this; bots that fill everything in get rejected. -->
         <input type="checkbox" name="botcheck" class="visually-hidden" tabindex="-1" autocomplete="off" aria-hidden="true">
         <button class="btn primary" type="submit" id="send-request">Send request</button>

@@ -101,6 +101,24 @@ sheets needed and cost ex and inc VAT for each, with the cheapest highlighted,
 plus the value of the wood actually used (if offcuts are reused). Sheets are collected, so no delivery
 is added. Prices are Kitronik's 1+ quantity prices.
 
+## Customer price
+
+When a customer creates a layout, the order form shows their price, and it
+updates if they change material or thickness:
+
+- **Map board**: the cheapest set of supplier sheets the pieces (and the back
+  plates) fit on, at sheet prices inc VAT, **plus 40%**.
+- **£2.50 per special place** and **£2.50 for a hiking route**, only counting
+  ones that are actually on the board.
+
+Before they create a layout, step 06 shows the extras they've added so far.
+The price is also written into the request email, with the sheets it was
+based on. Change the markup, extras or wording in `pricing` in
+`js/config.js` (set `includeVat: false` to work from ex-VAT prices, or
+`pricing: null` to hide prices). Prices are hidden in Etsy mode, as the
+listing has its own price. If no supplier sheet is big enough for a piece,
+customers are told you'll send a price by email.
+
 ## Etsy mode
 
 Etsy doesn't allow a sale that starts on Etsy to be finished elsewhere, so
@@ -237,6 +255,7 @@ Edit [`js/config.js`](js/config.js):
 | `sizes` | Board sizes offered |
 | `defaultThickness` | Thickness pre-selected on the order form |
 | `ownerKeyHash` | Hash of your private owner key (see above) |
+| `pricing` | Customer price: markup on material, extras for special places and routes, note shown under the price |
 | `backPlates` | Size of the credits and logo plates added to every SVG (`null` to leave one out) |
 | `sheet` | Cutting sheet size, border and gap between pieces for the laid-out sheets in the SVG |
 | `maxLayers` | Above this, customers see a hint to use a larger contour interval |
