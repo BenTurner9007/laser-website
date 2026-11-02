@@ -852,7 +852,11 @@ export async function buildLayout(o, onProgress) {
       const lines = trimLines(kind.lines.map((l) => l.map(toMm)), W, H, 1).filter((l) => lineLength(l) >= 2);
       const clear = labelBoxes.length ? linesOutsideBoxes(lines, labelBoxes) : lines;
       for (const [layer, runs] of splitByLayer(clear, mask))
-        water.push({ layer, group: kind.group, kind: kind.id, widthMm: kind.widthMm, lines: kind.dotMm ? dotted(runs, kind.dotMm) : runs });
+        water.push({
+          layer, group: kind.group, kind: kind.id, widthMm: kind.widthMm,
+          lines: kind.dotMm ? dotted(runs, kind.dotMm) : runs,
+          ...(kind.dotMm ? { dotted: true, previewDotMm: kind.previewDotMm } : {}),
+        });
     }
   }
   // Engraved boards: contour lines as open lines, with the label boxes left clear.
@@ -1082,9 +1086,13 @@ export async function buildLayout(o, onProgress) {
   for (const l of lakes) preview += `<path d="${polygonsToPath(l.polys)}" fill="#111" fill-rule="evenodd"/>`;
   for (const w of water) {
     const road = w.group === "roads";
-    // Dotted kinds are already rows of tiny marks; round caps draw them as dots.
-    const dotW = w.kind === "tracks" || w.kind === "paths" ? w.widthMm * 1.3 : w.widthMm;
-    preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="${road ? "#2a1d14" : "#1f3f5c"}" stroke-width="${dotW}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    // Dotted kinds (tracks, footpaths) are rows of tiny marks: drawn as clear
+    // red dots, a little larger than they will burn, so they never read as contours.
+    if (w.dotted) {
+      preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="#b3261e" stroke-width="${w.previewDotMm}" stroke-linecap="round"/>`;
+      continue;
+    }
+    preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="${road ? "#2a1d14" : "#1f3f5c"}" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
   }
   preview += fillEach(allMarks, COLOURS.engrave);
   // Where a name runs over a lake, show that part light so it stays readable.

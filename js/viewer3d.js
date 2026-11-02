@@ -211,8 +211,27 @@ export function createViewer(container) {
 
     // Water score lines, drawn as thin lines on the layer they sit on.
     const waterMat = new THREE.LineBasicMaterial({ color: ENGRAVE, transparent: true, opacity: 0.8 });
+    // Dotted lines (tracks, footpaths): a round dot at each mark.
+    const dotSprite = (() => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 32;
+      const g = c.getContext("2d");
+      g.fillStyle = "#fff";
+      g.beginPath();
+      g.arc(16, 16, 15, 0, Math.PI * 2);
+      g.fill();
+      return new THREE.CanvasTexture(c);
+    })();
     for (const w of result.water || []) {
       const y = (style === "engraved" ? 1 : w.layer + 1) * boardT + 0.05;
+      if (w.dotted) {
+        const pos = w.lines.flatMap((l) => [l[0][0] - W / 2, y + 0.02, l[0][1] - H / 2]);
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+        const mat = new THREE.PointsMaterial({ color: 0xb3261e, size: 3.5 * Math.min(2, window.devicePixelRatio || 1), sizeAttenuation: false, map: dotSprite, alphaTest: 0.5, transparent: true });
+        model.add(new THREE.Points(geo, mat));
+        continue;
+      }
       const pos = [];
       for (const l of w.lines) {
         for (let i = 1; i < l.length; i++) pos.push(l[i - 1][0] - W / 2, y, l[i - 1][1] - H / 2, l[i][0] - W / 2, y, l[i][1] - H / 2);

@@ -281,7 +281,7 @@ const map = new maplibregl.Map({
       // a zero-length dash with round caps draws a dot).
       ...[
         ["road-lines", ["in", ["get", "kind"], ["literal", ["major", "minor", "lanes"]]], null],
-        ["road-tracks", ["==", ["get", "kind"], "tracks"], [0, 2.2]],
+        ["road-tracks", ["==", ["get", "kind"], "tracks"], [0, 2.4]],
         ["road-paths", ["==", ["get", "kind"], "paths"], [0, 3.2]],
       ].map(([id, filter, dash]) => ({
         id,
