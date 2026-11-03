@@ -215,6 +215,16 @@ export function createViewer(container) {
       model.add(mesh);
     }
 
+    // The back of the base: logo, credits and reference, on the underside.
+    if (result.back?.length) {
+      const geo = new THREE.ShapeGeometry(shapesFor(result.back, W, H));
+      geo.rotateX(-Math.PI / 2);
+      const mat = new THREE.MeshBasicMaterial({ color: ENGRAVE, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.y = -0.04;
+      model.add(mesh);
+    }
+
     // Lakes filled in black on the layer they sit on.
     const lakeMat = new THREE.MeshBasicMaterial({ color: 0x111111, polygonOffset: true, polygonOffsetFactor: -1 });
     for (const l of result.lakes || []) {
@@ -314,8 +324,11 @@ export function createViewer(container) {
     show,
     /** Flip the camera to look at the back of the piece (or the top again). Returns true when showing the back. */
     flip() {
+      // Like turning the piece over left to right: below it and round to the
+      // far side, so the back (and its engraving) reads the right way up.
       const t = controls.target, off = camera.position.clone().sub(t);
       off.y = -off.y;
+      off.z = -off.z;
       camera.position.copy(t).add(off);
       controls.update();
       return off.y < 0;

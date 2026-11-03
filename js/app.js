@@ -75,10 +75,20 @@ const state = {
 };
 // Back plates for the owner's SVG (see backPlates in config.js).
 let logoArt = null;
+async function loadLogo() {
+  const file = CONFIG.backPlates?.logo?.file || "data/logo.json";
+  if (!logoArt) logoArt = await fetch(file).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  return logoArt;
+}
+// The back of the base board: logo, data credits and the customer reference.
+async function backDetails() {
+  if (!CONFIG.backEngraving) return null;
+  return { ...CONFIG.backEngraving, logo: await loadLogo(), credits: WORLD.plateCredits, maker: `Made by ${CONFIG.businessName}` };
+}
 async function backPlates() {
   const cfg = CONFIG.backPlates;
   if (!cfg) return null;
-  if (cfg.logo?.file && !logoArt) logoArt = await fetch(cfg.logo.file).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  if (cfg.logo?.file) await loadLogo();
   return {
     credits: cfg.credits ? { ...cfg.credits, ...WORLD.plateCredits, maker: `Made by ${CONFIG.businessName}` } : null,
     logo: cfg.logo && logoArt ? { ...cfg.logo, art: logoArt } : null,
@@ -797,6 +807,9 @@ $("#generate").addEventListener("click", async () => {
     } catch {
       waterFailed = true;
     }
+    // Rebuilding a customer's link keeps their reference, so files match emails
+    // (it is also engraved on the back).
+    const ref = (fromLink && sharedRef) || makeRef();
     const result = await buildLayout(
       {
         bounds: b,
@@ -826,11 +839,11 @@ $("#generate").addEventListener("click", async () => {
         roads,
         guides: true,
         plates: await backPlates(),
+        back: await backDetails(),
+        ref,
       },
       (f) => setStatus(`Fetching elevation data… ${Math.round(f * 100)}%`)
     );
-    // Rebuilding a customer's link keeps their reference, so files match emails.
-    const ref = (fromLink && sharedRef) || makeRef();
     lastResult = { ...result, bounds: b, link: shareLink(b, ref), ref, waterFailed };
     showResult();
     setStatus("");
@@ -864,6 +877,7 @@ function renderStats() {
   const items = [
     ["Reference", lastResult.ref],
     ["Size", sizeText(m)],
+    ...(lastResult.back ? [["Back", "logo, map credits and reference engraved"]] : []),
     ...(m.frameMm ? [["Frame", m.frameLayer ? `3D, ${m.frameMm} mm, built up to layer ${m.frameLayer}` : `${m.frameMm} mm, glued on top`]] : []),
     ...(m.labels3d ? [["Labels", "3D (raised on flat patches)"]] : []),
     ...(m.raisedTemplateLayer ? [["Clock numbers", `3D, raised to layer ${m.raisedTemplateLayer}`]] : []),
@@ -1086,6 +1100,7 @@ $("#order").addEventListener("submit", async (e) => {
     `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}${m.frameMm ? (m.frameLayer ? `, with a ${m.frameMm} mm 3D frame built up to layer ${m.frameLayer}` : `, with a ${m.frameMm} mm frame on top`) : ""}`,
     `Contours every ${m.interval} m, smoothing ${m.smoothing}, heights ${m.minElevation}-${m.maxElevation} m`,
     `Material: ${fd.material}`,
+    ...(lastResult.back ? ["Back of base: logo, map credits and reference engraved (turn the base over left to right)"] : []),
     ...(m.labels3d ? ["Labels: 3D (each on a raised flat patch)"] : []),
     ...(m.raisedTemplateLayer ? [`Clock numbers and marks: 3D, raised to layer ${m.raisedTemplateLayer}`] : []),
     ...(m.recess ? [`Movement pocket: ${m.recess.widthMm} x ${m.recess.heightMm} mm at the back, layers 0-${m.recess.layers - 1} cut (${m.recess.depthMm} mm deep)`] : []),

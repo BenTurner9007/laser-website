@@ -88,6 +88,11 @@ export const CONFIG = {
     showInEtsyMode: false, // Etsy listings carry their own price
   },
 
+  // Engraved on the back of the base board (turn it over left to right after
+  // cutting): your logo, the data credits and the customer reference. Set to
+  // null to leave the back plain.
+  backEngraving: { fontMm: 2.5 },
+
   // Largest layer count you are willing to quote automatically.
   maxLayers: 30,
 };

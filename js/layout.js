@@ -496,6 +496,8 @@ const esc = (s) =>
  * @param {boolean} [o.labels3d]  layered: raise each label on a flat patch supported by the layers below
  * @param {{widthMm:number, heightMm:number, depthMm:number, wallMm?:number}} [o.recess]  layered clocks: pocket at the back for the movement
  * @param {number} [o.thicknessMm]  layer thickness, to turn the pocket depth into layers
+ * @param {{logo?:object, maker?:string, fontMm?:number}} [o.back]  engrave logo, credits and reference on the back of the base
+ * @param {string} [o.ref]  customer reference, for the back
  * @param {number} [o.frameMm]  single engraved boards: width of a frame glued on top round the edge (0 = none)
  * @param {object} [o.plates]  back plates for the SVG: {credits: {widthMm, fontMm, marginMm, title, maker,
  *   elevation, names}, logo: {widthMm, heightMm, marginMm, art: {w, h, polys}}}; either may be left out
@@ -1014,7 +1016,7 @@ export async function buildLayout(o, onProgress) {
     lines: { water: [], roads: [] }, numbers: [], visibleNumbers: [],
   });
   const creditLines = () => {
-    const c = o.plates?.credits || {};
+    const c = o.back?.credits || o.plates?.credits || {};
     const kinds = new Set(water.map((w) => w.group));
     const osm = [kinds.has("water") && "rivers and lakes", kinds.has("roads") && "roads and paths", townsPlaced && "place names"].filter(Boolean);
     return [
@@ -1066,6 +1068,73 @@ export async function buildLayout(o, onProgress) {
     }
     return plates;
   };
+
+  // Back of the base board: the shop logo, the data credits and the customer
+  // reference, engraved after the base is cut and turned over (left to right).
+  // The block is fitted on the board clear of holes, the edge and a clock's
+  // movement pocket, shrinking (and re-wrapping) until it fits.
+  const backEngraving = (() => {
+    const cfg = o.back;
+    if (!cfg) return null;
+    const fs0 = cfg.fontMm || 2.5;
+    const blockAt = (wrapW, fs, withLogo) => {
+      const parts = []; // { rings | polys, y } in block coords, width wrapW
+      let y = 0;
+      if (withLogo && cfg.logo) {
+        const art = cfg.logo, lw = Math.min(wrapW, fs * 26), k = lw / art.w;
+        const dx = (wrapW - lw) / 2;
+        parts.push({ polys: art.polys.map((poly) => poly.map((ring) => ring.map(([x, yy]) => [dx + x * k, y + yy * k]))) });
+        y += art.h * k + fs * 1.2;
+      }
+      const lines = [];
+      for (const para of [...creditLines(), ...(cfg.extra || [])]) {
+        wrap(para, fs, wrapW, "regular").forEach((t) => lines.push({ t, size: fs, weight: "regular" }));
+        lines.push(null); // paragraph gap
+      }
+      if (cfg.maker || o.ref) lines.push({ t: [cfg.maker, o.ref && `Ref ${o.ref}`].filter(Boolean).join(" · "), size: fs * 1.15, weight: "bold" });
+      for (const l of lines) {
+        if (!l) { y += fs * 0.5; continue; }
+        const w = textRings(l.t, 0, 0, l.size, { weight: l.weight }).width;
+        y += l.size;
+        parts.push({ rings: textRings(l.t, (wrapW - w) / 2, y, l.size, { weight: l.weight }).rings });
+        y += l.size * 0.45;
+      }
+      return { parts, w: wrapW, h: y };
+    };
+    // Keep-outs: the clock's movement pocket (with its wall) and the edge margin.
+    const avoid = recess ? [{ x0: W / 2 - recess.widthMm / 2 - 8, x1: W / 2 + recess.widthMm / 2 + 8, y0: H / 2 - recess.heightMm / 2 - 8, y1: H / 2 + recess.heightMm / 2 + 8 }] : [];
+    const M = 5;
+    const fits = (x0, y0, w, h) => {
+      for (let i = 0; i <= 6; i++) for (let j = 0; j <= 6; j++) {
+        const pt = [x0 + (w * i) / 6, y0 + (h * j) / 6];
+        if (!AROUND.every(([dx, dy]) => inPolys(boardPolys, [pt[0] + dx * M, pt[1] + dy * M]))) return false;
+      }
+      return !avoid.some((a) => x0 < a.x1 && x0 + w > a.x0 && y0 < a.y1 && y0 + h > a.y0);
+    };
+    for (const withLogo of [true, false]) {
+      for (const fs of [fs0, fs0 * 0.85, fs0 * 0.7, Math.max(1.4, fs0 * 0.6)]) {
+        for (const wrapW of [110, 90, 75, 60, 48, 38, 30]) {
+          if (wrapW > W - 2 * M) continue;
+          const b = blockAt(wrapW, fs, withLogo);
+          // Prefer the middle of the back, else lower down (below a clock's pocket).
+          const starts = [H / 2 - b.h / 2, ...Array.from({ length: 24 }, (_, i) => H / 2 + (i + 1) * (H / 50) - b.h / 2)];
+          for (const y0 of starts) {
+            const x0 = W / 2 - b.w / 2;
+            if (!fits(x0, y0, b.w, b.h)) continue;
+            const move = (ring) => ring.map(([x, y]) => [x0 + x, y0 + y]);
+            const readable = [
+              ...b.parts.filter((p) => p.polys).flatMap((p) => p.polys.map((poly) => poly.map(move))),
+              ...b.parts.filter((p) => p.rings).flatMap((p) => solid(p.rings.map(move))),
+            ];
+            // As seen from the front, the back's engraving is mirrored left to right.
+            const front = readable.map((poly) => poly.map((ring) => ring.map(([x, y]) => [W - x, y])));
+            return { readable, front, fontMm: fs, logo: withLogo && !!cfg.logo };
+          }
+        }
+      }
+    }
+    return null;
+  })();
 
   /**
    * Material cost: lay the pieces out on each sheet size on offer and count
@@ -1147,9 +1216,20 @@ export async function buildLayout(o, onProgress) {
       }
       sheetsSvg += "</g>\n";
     });
+    // The back of the base: its outline as it lies once turned over (left to
+    // right), with the engraving the right way round inside it.
+    let backSvg = "";
+    const backY = H + 40;
+    if (backEngraving) {
+      const mirrored = layers[0].polys.map((poly) => poly.map((ring) => ring.map(([x, y]) => [W - x, y])));
+      backSvg =
+        `<g inkscape:groupmode="layer" inkscape:label="Back of base: turn the base over left to right, line it up, engrave" id="back-of-base" transform="translate(0 ${backY})">\n` +
+        `<g inkscape:label="Base outline, turned over (guide, don't cut)">${line(polygonsToPath(mirrored), COLOURS.guide)}</g>\n` +
+        fillEach(backEngraving.readable, COLOURS.engrave) + "</g>\n";
+    }
     const rows = Math.ceil(sheets.length / COLS);
     const totalW = sheets.length ? x0 + Math.min(COLS, sheets.length) * cellW + (Math.min(COLS, sheets.length) - 1) * GAP : platesW ? x0 + platesW : W;
-    const totalH = Math.max(H, rows * cellH + Math.max(0, rows - 1) * GAP, platesH);
+    const totalH = Math.max(H, rows * cellH + Math.max(0, rows - 1) * GAP, platesH, backEngraving ? backY + H : 0);
 
     const byLayer = (a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b);
     const fileMeta = {
@@ -1166,6 +1246,7 @@ export async function buildLayout(o, onProgress) {
       `<g inkscape:groupmode="layer" inkscape:label="Assembled model (reference)" id="assembled">\n${assembled}</g>\n` +
       sheetsSvg +
       platesSvg +
+      backSvg +
       "</svg>\n";
     return { text, sheets: sheets.length, oversize: sheets.filter((s) => s.oversize).length };
   };
@@ -1210,5 +1291,5 @@ export async function buildLayout(o, onProgress) {
   }
   preview += "</svg>";
 
-  return { frame: framePoly && !layeredFrame ? [framePoly] : null, lakes, texts, townsPlaced, buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
+  return { back: backEngraving ? backEngraving.front : null, frame: framePoly && !layeredFrame ? [framePoly] : null, lakes, texts, townsPlaced, buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }

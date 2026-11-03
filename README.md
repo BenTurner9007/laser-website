@@ -177,6 +177,18 @@ Only a SHA-256 hash of the key is stored in `js/config.js` (`ownerKeyHash`).
 To change the key, put the new hash there:
 `printf %s 'your-new-key' | sha256sum`.
 
+### Back of the base
+
+Every layout also engraves the **back of the base board** with your logo, the
+data credits the map uses and "Made by TurnerMadeUK · Ref CM-…". It is fitted
+clear of the edge, holes and a clock's movement pocket, shrinking the text
+and dropping the logo on very small boards if it must. In the SVG it is a
+layer below the assembled model, "Back of base": the base outline as it lies
+once turned over **left to right** (blue guide, not cut) with the engraving
+inside. Cut the base, turn it over left to right, line it up with the guide
+and engrave. Customers can see it with **See the back** in the 3D view.
+Text size is `backEngraving` in `js/config.js` (`null` for a plain back).
+
 ### Back plates
 
 Every SVG also has two small plates to cut from the same board and glue on the back:
@@ -279,6 +291,7 @@ Edit [`js/config.js`](js/config.js):
 | `ownerKeyHash` | Hash of your private owner key (see above) |
 | `frameMm` | Width of the optional frame on single engraved boards (sizes marked `frame: true`) |
 | `clockRecess` | Size, depth and wall of the movement pocket at the back of layered clocks |
+| `backEngraving` | Logo, credits and reference engraved on the back of the base (`null` for none) |
 | `pricing` | Customer price: markup on material, extras for special places and routes, note shown under the price |
 | `backPlates` | Size of the credits and logo plates added to every SVG (`null` to leave one out) |
 | `sheet` | Cutting sheet size, border and gap between pieces for the laid-out sheets in the SVG |
