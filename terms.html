@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terms</title>
+  <link rel="icon" type="image/png" href="images/icon.png">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { display: block; height: auto; }
+    .privacy { max-width: 760px; margin: 0 auto; padding: 24px 20px 48px; line-height: 1.6; }
+    .privacy h1 { font-family: var(--display); font-weight: 600; font-size: 2rem; margin: 0 0 4px; }
+    .privacy h2 { font-family: var(--display); font-weight: 600; font-size: 1.25rem; margin: 28px 0 6px; }
+    .privacy p, .privacy li { color: var(--ink); }
+    .privacy .updated { color: var(--muted); margin-top: 0; }
+  </style>
+</head>
+<body>
+  <main class="privacy">
+    <p><a href="./">← Back to the map designer</a></p>
+    <h1>Terms</h1>
+    <p class="updated">Last updated 3 November 2026</p>
+
+    <h2>Your design and what you add to it</h2>
+    <p>When you send us a design, you confirm that you have the right to use everything you add to
+    it: your own text, special places and any route you upload. Routes you recorded yourself are
+    fine. If you copy a route, words or an image from somewhere else (a guidebook, a website or
+    another app), it is up to you to make sure you are allowed to.</p>
+    <p>We may refuse or ask you to change any design that includes words or content that are
+    offensive, unlawful, or that infringe someone else's rights, such as a trade mark or someone
+    else's copyright. We will tell you if we do, and you won't pay for anything we don't make.</p>
+
+    <h2>The map</h2>
+    <p>Maps are made from open data (see <a href="licences.html">data licences</a>) and are
+    decorative: they are not for navigation. The price shown when you create your layout is an
+    estimate; we confirm the final price when we reply to your request.</p>
+
+    <p>Questions? Email <a class="email" href="mailto:">us</a>.</p>
+  </main>
+  <script type="module">
+    import { CONFIG } from "./js/config.js";
+    document.querySelectorAll(".biz").forEach((el) => (el.textContent = CONFIG.businessName));
+    document.querySelectorAll(".email").forEach((a) => {
+      a.href = `mailto:${CONFIG.orderEmail}`;
+      a.textContent = CONFIG.orderEmail;
+    });
+    document.title = `Terms – ${CONFIG.businessName}`;
+  </script>
+</body>
+</html>

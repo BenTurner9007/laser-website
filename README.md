@@ -282,6 +282,14 @@ Edit [`js/config.js`](js/config.js):
 
 ## Privacy and safety
 
+- **Data licences**: [`licences.html`](licences.html) (linked from the footer)
+  and [`data/LICENSE.md`](data/LICENSE.md) say which licence covers each part of
+  the data. The water, road and place-name files are a derived OpenStreetMap
+  database, so they are offered under the ODbL, as that licence requires.
+- **Terms**: [`terms.html`](terms.html), linked from the footer and the order
+  form ("By sending a request you agree to our terms"). Customers confirm they
+  have the right to use the text, places and routes they add, and you can
+  refuse offensive or infringing content.
 - **Privacy notice**: [`privacy.html`](privacy.html) is linked from the footer and
   the order form. It fills in your business name and email from `js/config.js`.
   Read it through and change anything that doesn't match how you work (for
@@ -316,6 +324,8 @@ index.html            page structure
 css/style.css         styling (desktop and phone)
 css/fonts.css         site fonts (served from fonts/site/)
 privacy.html          privacy notice
+terms.html            terms (customer content)
+licences.html         data licences
 js/config.js          business settings, regions, hill lists
 js/app.js             map, frame, form and share link
 js/layout.js          elevation download, contour tracing, SVG output
@@ -415,7 +425,7 @@ list ids to the extract, rebuild, and add the list to `HILL_LISTS` in
   from [Bailsby/hill-bagger](https://github.com/Bailsby/hill-bagger).
 - **Elevation**: [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/)
   (Mapzen Terrarium), which combine several sources including Environment
-  Agency LIDAR (© Crown copyright). See the
+  Agency LIDAR (contains Environment Agency information © Environment Agency and/or database right). See the
   [attribution list](https://github.com/tilezen/joerd/blob/master/docs/attribution.md).
 - **Water**: © [OpenStreetMap](https://www.openstreetmap.org/copyright)
   contributors (ODbL), via [Overture Maps](https://overturemaps.org). Built into

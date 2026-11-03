@@ -73,9 +73,10 @@
   <script type="module">
     import { CONFIG } from "./js/config.js";
     document.querySelectorAll(".biz").forEach((el) => (el.textContent = CONFIG.businessName));
-    const a = document.querySelector(".email");
-    a.href = `mailto:${CONFIG.orderEmail}`;
-    a.textContent = CONFIG.orderEmail;
+    document.querySelectorAll(".email").forEach((a) => {
+      a.href = `mailto:${CONFIG.orderEmail}`;
+      a.textContent = CONFIG.orderEmail;
+    });
     document.title = `Privacy notice – ${CONFIG.businessName}`;
   </script>
 </body>

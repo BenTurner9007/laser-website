@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Data licences</title>
+  <link rel="icon" type="image/png" href="images/icon.png">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { display: block; height: auto; }
+    .privacy { max-width: 760px; margin: 0 auto; padding: 24px 20px 48px; line-height: 1.6; }
+    .privacy h1 { font-family: var(--display); font-weight: 600; font-size: 2rem; margin: 0 0 4px; }
+    .privacy h2 { font-family: var(--display); font-weight: 600; font-size: 1.25rem; margin: 28px 0 6px; }
+    .privacy p, .privacy li { color: var(--ink); }
+    .privacy .updated { color: var(--muted); margin-top: 0; }
+  </style>
+</head>
+<body>
+  <main class="privacy">
+    <p><a href="./">← Back to the map designer</a></p>
+    <h1>Data licences</h1>
+    <p class="updated">Last updated 3 November 2026</p>
+
+    <p>The maps are made from open data. <b class="biz">TurnerMadeUK</b> credits every source on
+    the site and on the credits plate glued to the back of each piece.</p>
+
+    <h2>OpenStreetMap: rivers, lakes, roads, paths and place names</h2>
+    <p>© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>, via
+    <a href="https://overturemaps.org">Overture Maps</a>. This site's water, road and place-name
+    data is a derived database of OpenStreetMap data and is available under the
+    <a href="https://opendatacommons.org/licenses/odbl/1-0/">Open Database Licence (ODbL) 1.0</a>.
+    You can download it from this site's <code>data/water/</code>, <code>data/roads/</code> and
+    <code>data/places.json</code>. <a href="data/LICENSE.md">Full licence notice</a>.</p>
+
+    <h2>Hill names and heights</h2>
+    <p><a href="https://www.hill-bagging.co.uk/dobih">The Database of British and Irish Hills</a>
+    v18.6, licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</p>
+
+    <h2>Elevation</h2>
+    <p><a href="https://registry.opendata.aws/terrain-tiles/">Mapzen Terrain Tiles</a> on AWS Open
+    Data, which combine several sources (<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">full list</a>),
+    including SRTM (NASA) and EU-DEM (produced using Copernicus data and information funded by the
+    European Union). Contains Environment Agency information © Environment Agency and/or database
+    right.</p>
+
+    <h2>Moon and Mars</h2>
+    <p>Moon: SLDEM2015, from NASA LRO LOLA and JAXA SELENE (Kaguya) data. Mars: MRO CTX digital
+    terrain models (NASA/JPL/MSSS), processed by the USGS Astrogeology Science Center. Feature
+    names: IAU Gazetteer of Planetary Nomenclature.</p>
+
+    <h2>Fonts and software</h2>
+    <p>Fonts: Noto Sans, Fraunces and Instrument Sans (SIL Open Font License). Software: MapLibre GL
+    JS, maplibre-contour, d3, three.js, polygon-clipping and opentype.js (open-source licences).</p>
+  </main>
+  <script type="module">
+    import { CONFIG } from "./js/config.js";
+    document.querySelectorAll(".biz").forEach((el) => (el.textContent = CONFIG.businessName));
+    document.querySelectorAll(".email").forEach((a) => {
+      a.href = `mailto:${CONFIG.orderEmail}`;
+      a.textContent = CONFIG.orderEmail;
+    });
+    document.title = `Data licences – ${CONFIG.businessName}`;
+  </script>
+</body>
+</html>

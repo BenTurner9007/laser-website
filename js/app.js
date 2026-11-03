@@ -149,7 +149,7 @@ const WORLDS = {
     credit: '<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">Terrain: Mapzen / AWS</a>',
     // For the credits plate on the back of the board.
     plateCredits: {
-      elevation: "Elevation: Mapzen Terrain Tiles (AWS Open Data), including SRTM (NASA), EU-DEM (Copernicus, EU) and Environment Agency LIDAR, ©\u00a0Crown copyright.",
+      elevation: "Elevation: Mapzen Terrain Tiles (AWS Open Data), including SRTM (NASA) and EU-DEM (Copernicus, EU). Contains Environment Agency information ©\u00a0Environment Agency and/or database right.",
       names: "Hill names and heights: Database of British and Irish Hills v18.6, CC\u00a0BY\u00a04.0.",
     },
   },
@@ -592,7 +592,7 @@ if (BODY !== "earth") {
   $("#place-label-row").hidden = true;
   $(".site-footer p").innerHTML =
     `${WORLD.credit}. Heights are measured from ${WORLD.the}'s reference sphere, so many are negative. ` +
-    `Data courtesy of NASA, JAXA and the USGS Astrogeology Science Center. <a href="privacy.html">Privacy</a>`;
+    `Data courtesy of NASA, JAXA and the USGS Astrogeology Science Center. <a href="licences.html">Data licences</a> · <a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a>`;
 }
 document.querySelectorAll(".world-switch a").forEach((a) => {
   a.setAttribute("aria-selected", a.dataset.body === BODY);
