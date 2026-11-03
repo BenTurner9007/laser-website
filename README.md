@@ -14,7 +14,7 @@ board size, and send it as a layout for a laser-cut contour map.
    A padlock under the zoom buttons freezes the map so the framed area can't be
    nudged by accident (click again to unlock).
 3. **Style it**: layered (stacked boards) or a single engraved board. A4, A3,
-   A4 round and the clock can have an optional **5 mm frame**, shown to scale
+   A4 round and the clock can have an optional **5 mm frame** (called **3D frame** on layered maps), shown to scale
    on the map and in the previews; names, text, special places and score lines
    keep clear of it. On a single engraved board it is a ring of the same wood
    glued on top (its own piece in the SVG, with a blue guide line on the board

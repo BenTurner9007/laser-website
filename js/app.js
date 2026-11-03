@@ -645,6 +645,7 @@ function frameActive() {
 }
 // Show the checkbox only where a frame is offered, and the frame to scale on the map.
 function renderFrameOption() {
+  renderFrameText();
   $("#labels-3d-row").hidden = state.style === "engraved"; // only layered boards have layers to raise
   $("#frame-row").hidden = !frameOffered();
   $("#frame-on").checked = state.frame;
@@ -654,7 +655,15 @@ function renderFrameOption() {
   el.classList.toggle("round", !!state.template);
   el.style.borderWidth = `${((CONFIG.frameMm || 5) * frameRect().w) / state.w}px`;
 }
-$("#frame-mm").textContent = CONFIG.frameMm || 5;
+// Layered boards call it a 3D frame (built up from the layers, like 3D labels).
+function renderFrameText() {
+  const mm = CONFIG.frameMm || 5;
+  const layered = state.style !== "engraved";
+  $("#frame-label").textContent = layered ? `3D frame (${mm} mm)` : `Add a ${mm} mm frame`;
+  $("#frame-note").textContent = layered
+    ? "A level rim round the edge, built up from the layers below to the highest ground along the edge. Names stay clear of it."
+    : "Cut from the same wood and glued on top round the edge. Names stay clear of it.";
+}
 $("#frame-on").addEventListener("change", (e) => {
   state.frame = e.target.checked;
   renderFrameOption();
@@ -853,7 +862,7 @@ function renderStats() {
   const items = [
     ["Reference", lastResult.ref],
     ["Size", sizeText(m)],
-    ...(m.frameMm ? [["Frame", m.frameLayer ? `${m.frameMm} mm, built up to layer ${m.frameLayer}` : `${m.frameMm} mm, glued on top`]] : []),
+    ...(m.frameMm ? [["Frame", m.frameLayer ? `3D, ${m.frameMm} mm, built up to layer ${m.frameLayer}` : `${m.frameMm} mm, glued on top`]] : []),
     ...(m.labels3d ? [["Labels", "3D (raised on flat patches)"]] : []),
     ["Heights", `${m.minElevation}–${m.maxElevation} m`],
     [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.contours ? m.layers - 1 : "off"],
@@ -1057,7 +1066,7 @@ $("#order").addEventListener("submit", async (e) => {
   const m = lastResult.meta;
   const summary = [
     `Reference: ${lastResult.ref}`,
-    `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}${m.frameMm ? (m.frameLayer ? `, with a ${m.frameMm} mm frame built up to layer ${m.frameLayer}` : `, with a ${m.frameMm} mm frame on top`) : ""}`,
+    `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}${m.frameMm ? (m.frameLayer ? `, with a ${m.frameMm} mm 3D frame built up to layer ${m.frameLayer}` : `, with a ${m.frameMm} mm frame on top`) : ""}`,
     `Contours every ${m.interval} m, smoothing ${m.smoothing}, heights ${m.minElevation}-${m.maxElevation} m`,
     `Material: ${fd.material}`,
     ...(m.labels3d ? ["Labels: 3D (each on a raised flat patch)"] : []),
