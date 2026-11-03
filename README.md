@@ -26,9 +26,11 @@ board size, and send it as a layout for a laser-cut contour map.
    add: lake and reservoir shores, rivers and canals, streams and
    becks, and coastline (shown on the map as they choose; the data ships with
    the site, so nothing outside is needed).
-   On **layered maps every label sits on top**: each name, special place and
+   **3D labels** (layered maps, off by default): each name, special place and
    text box is engraved on a flat patch built up from the layers below to the
-   highest ground under it, so it is never split across layers or recessed.
+   highest ground under it, so it sits on top instead of being split across
+   the layers it crosses. Without it, each part of a name is engraved on
+   whichever layer is on top there. Nothing is ever recessed.
 4. **Mark a special place** (optional): up to 3 draggable markers, each with
    a shape (heart, star, pin, circle, house, cross, diamond, triangle) and
    their own label, e.g. "Where we got engaged", at 5, 8 or 12 mm. The

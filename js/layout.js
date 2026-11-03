@@ -493,6 +493,7 @@ const esc = (s) =>
  * @param {boolean} [o.contours]  false for a flat board with no contour lines
  * @param {boolean} [o.labelBoxes]  keep a box behind each label clear: of contour lines (engraved boards) and roads/water
  * @param {{url:string, maxzoom:number, sea:boolean}} [o.dem]  elevation tiles (Earth by default)
+ * @param {boolean} [o.labels3d]  layered: raise each label on a flat patch supported by the layers below
  * @param {number} [o.frameMm]  single engraved boards: width of a frame glued on top round the edge (0 = none)
  * @param {object} [o.plates]  back plates for the SVG: {credits: {widthMm, fontMm, marginMm, title, maker,
  *   elevation, names}, logo: {widthMm, heightMm, marginMm, art: {w, h, polys}}}; either may be left out
@@ -603,13 +604,15 @@ export async function buildLayout(o, onProgress) {
   let labelsLeftOff = 0;
   // Clear space: boxes round names, markers and special places (mm), when o.labelBoxes.
   const labelBoxes = [];
-  // Layered maps: every label (name, special place, text) sits on a flat patch
-  // built up from the layers below it, so it is on top, never split or recessed.
+  // 3D labels (layered maps, o.labels3d): every label sits on a flat patch
+  // built up from the layers below it, so it is on top, never split. Without
+  // it, each part of a label is engraved on whichever layer is on top there.
+  // Customer text with a clear box is always raised.
   const raisedBoxes = [];
   const clearBehind = (box, pad = 0.5) => {
     const b = { x0: box.x0 - pad, x1: box.x1 + pad, y0: box.y0 - pad, y1: box.y1 + pad };
     if (o.labelBoxes) labelBoxes.push(b);
-    if (o.style !== "engraved") raisedBoxes.push(b);
+    if (o.labels3d && o.style !== "engraved") raisedBoxes.push(b);
   };
 
   // Customer's text blocks first: they sit exactly where the customer
@@ -894,7 +897,7 @@ export async function buildLayout(o, onProgress) {
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
-    style: o.style, frameMm: frameMm || undefined, contours: o.contours !== false, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length,
+    style: o.style, labels3d: (o.labels3d && o.style !== "engraved") || undefined, frameMm: frameMm || undefined, contours: o.contours !== false, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length,
     minElevation: Math.round(minE), maxElevation: Math.round(maxE), demZoom: zoom,
   };
   const line = (d, colour) => `<path d="${d}" fill="none" stroke="${colour}" stroke-width="0.1"/>`;

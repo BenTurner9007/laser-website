@@ -45,6 +45,7 @@ const state = {
   placeNames: ["c", "ct", "ctv"].includes(params.get("pn")) ? params.get("pn") : "none",
   placeFontMm: +oneOf("pfont", optionValues("place-font-mm"), "3.5"),
   labelBoxes: params.get("lbox") === "1",
+  labels3d: params.get("l3d") === "1", // layered: labels on raised flat patches
   contours: params.get("cl") !== "0",
   frame: params.get("fr") === "1", // optional frame (single engraved boards on sizes that offer it)
   // Every bundled hill list is named (and Moon/Mars features); no per-list choice.
@@ -644,6 +645,7 @@ function frameActive() {
 }
 // Show the checkbox only where a frame is offered, and the frame to scale on the map.
 function renderFrameOption() {
+  $("#labels-3d-row").hidden = state.style === "engraved"; // only layered boards have layers to raise
   $("#frame-row").hidden = !frameOffered();
   $("#frame-on").checked = state.frame;
   const el = $("#frame-border");
@@ -719,6 +721,8 @@ $("#place-names").addEventListener("change", (e) => {
 });
 $("#place-font-mm").value = String(state.placeFontMm);
 $("#place-font-mm").addEventListener("change", (e) => (state.placeFontMm = +e.target.value));
+$("#labels-3d").checked = state.labels3d;
+$("#labels-3d").addEventListener("change", (e) => (state.labels3d = e.target.checked));
 $("#label-boxes").checked = state.labelBoxes;
 $("#label-boxes").addEventListener("change", (e) => (state.labelBoxes = e.target.checked));
 
@@ -761,6 +765,7 @@ function shareLink(b, ref) {
     font: state.fontMm,
     ...(state.placeNames !== "none" ? { pn: state.placeNames, pfont: state.placeFontMm } : {}),
     ...(state.labelBoxes ? { lbox: "1" } : {}),
+    ...(state.labels3d ? { l3d: "1" } : {}),
     ...(state.contours ? {} : { cl: "0" }),
     ...(frameActive() ? { fr: "1" } : {}),
     t: $("#thickness").value,
@@ -797,6 +802,7 @@ $("#generate").addEventListener("click", async () => {
         towns: state.placeNames === "none" ? [] : placesInFrame(b),
         townFontMm: state.placeFontMm,
         labelBoxes: state.labelBoxes,
+        labels3d: state.labels3d,
         frameMm: frameActive() ? CONFIG.frameMm || 5 : 0,
         contours: state.contours,
         dem: siteDem(b),
@@ -848,6 +854,7 @@ function renderStats() {
     ["Reference", lastResult.ref],
     ["Size", sizeText(m)],
     ...(m.frameMm ? [["Frame", `${m.frameMm} mm, glued on top`]] : []),
+    ...(m.labels3d ? [["Labels", "3D (raised on flat patches)"]] : []),
     ["Heights", `${m.minElevation}–${m.maxElevation} m`],
     [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.contours ? m.layers - 1 : "off"],
     ["Named peaks", lastResult.peaksPlaced],
@@ -1053,6 +1060,7 @@ $("#order").addEventListener("submit", async (e) => {
     `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}${m.frameMm ? `, with a ${m.frameMm} mm frame on top` : ""}`,
     `Contours every ${m.interval} m, smoothing ${m.smoothing}, heights ${m.minElevation}-${m.maxElevation} m`,
     `Material: ${fd.material}`,
+    ...(m.labels3d ? ["Labels: 3D (each on a raised flat patch)"] : []),
     ...(lastPrice
       ? [`Price shown: ${money(lastPrice.total)} (board ${money(lastPrice.board)}${lastPrice.extras.map(([t, v]) => ` + ${t.toLowerCase()} ${money(v)}`).join("")}; sheets: ${lastPrice.sheets})`]
       : []),
