@@ -233,7 +233,7 @@ Besides A4 and A3, customers can pick shaped boards made from your DXFs in
 | Size | Shape | Notes |
 | --- | --- | --- |
 | A4 round | 210 mm circle | plain circle, the width of A4 |
-| Clock 305 mm | circle | numbers and hour marks engraved; 10 mm centre hole for the movement, cut through every layer |
+| Clock 305 mm | circle | numbers and hour marks engraved; on layered clocks they are built up in 3D from the layers instead, level with the 3D frame if chosen, otherwise with the top contour layer; 10 mm centre hole for the movement, cut through every layer |
 | Bookmark | 50 × 169 mm rounded rectangle | 12 mm tassel hole, cut through every layer it crosses |
 | Round coaster | 100 mm circle | |
 | Square coaster | 98.7 mm square | map fills all but a 2 mm plain border on the base |

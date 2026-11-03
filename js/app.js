@@ -864,6 +864,7 @@ function renderStats() {
     ["Size", sizeText(m)],
     ...(m.frameMm ? [["Frame", m.frameLayer ? `3D, ${m.frameMm} mm, built up to layer ${m.frameLayer}` : `${m.frameMm} mm, glued on top`]] : []),
     ...(m.labels3d ? [["Labels", "3D (raised on flat patches)"]] : []),
+    ...(m.raisedTemplateLayer ? [["Clock numbers", `3D, raised to layer ${m.raisedTemplateLayer}`]] : []),
     ["Heights", `${m.minElevation}–${m.maxElevation} m`],
     [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.contours ? m.layers - 1 : "off"],
     ["Named peaks", lastResult.peaksPlaced],
@@ -1070,6 +1071,7 @@ $("#order").addEventListener("submit", async (e) => {
     `Contours every ${m.interval} m, smoothing ${m.smoothing}, heights ${m.minElevation}-${m.maxElevation} m`,
     `Material: ${fd.material}`,
     ...(m.labels3d ? ["Labels: 3D (each on a raised flat patch)"] : []),
+    ...(m.raisedTemplateLayer ? [`Clock numbers and marks: 3D, raised to layer ${m.raisedTemplateLayer}`] : []),
     ...(lastPrice
       ? [`Price shown: ${money(lastPrice.total)} (board ${money(lastPrice.board)}${lastPrice.extras.map(([t, v]) => ` + ${t.toLowerCase()} ${money(v)}`).join("")}; sheets: ${lastPrice.sheets})`]
       : []),

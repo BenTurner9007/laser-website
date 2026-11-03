@@ -775,6 +775,21 @@ export async function buildLayout(o, onProgress) {
     }
   }
 
+  // Layered boards with template engraving (the clock's numbers and hour
+  // marks): the shapes are built up from the layers, level with the 3D frame
+  // if there is one, else with the top contour layer, so they stand up in 3D
+  // instead of being engraved.
+  const raisedTpl = !!(tpl?.engrave.length && o.style !== "engraved" && layers.length > 1);
+  let tplLayer = 0;
+  if (raisedTpl) {
+    tplLayer = layeredFrame ? frameLayer : layers.length - 1;
+    const shapes = clip("intersection", tpl.engrave, boardPolys);
+    for (let i = 1; i <= tplLayer; i++) {
+      layers[i].polys = tidy(polygonClipping.union(...layers[i].polys.map((p) => [p]), ...shapes.map((p) => [p])));
+      layers[i].d = polygonsToPath(layers[i].polys);
+    }
+  }
+
   // Hiking route: a band along the line, solid or dashed.
   let routeOnBoard = false;
   if (o.route?.lines?.length) {
@@ -799,7 +814,7 @@ export async function buildLayout(o, onProgress) {
   // Nothing of the customer's (route, labels) is engraved under the frame.
   const markRegion = frameInner ? clip("intersection", mapRegion, frameInner) : mapRegion;
   const mapMarks = within(marks.flatMap((m) => closeTidy(m)), markRegion);
-  const tplMarks = tpl?.engrave.length ? within(tpl.engrave, boardPolys) : [];
+  const tplMarks = tpl?.engrave.length && !raisedTpl ? within(tpl.engrave, boardPolys) : [];
   const allMarks = [...mapMarks, ...tplMarks];
   const engrave = [];
   if (allMarks.length && o.style === "engraved") engrave.push({ layer: 0, polys: allMarks });
@@ -928,7 +943,7 @@ export async function buildLayout(o, onProgress) {
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
-    style: o.style, labels3d: (o.labels3d && o.style !== "engraved") || undefined, frameMm: frameMm || undefined, frameLayer: layeredFrame ? frameLayer : undefined, contours: o.contours !== false, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length,
+    style: o.style, labels3d: (o.labels3d && o.style !== "engraved") || undefined, frameMm: frameMm || undefined, frameLayer: layeredFrame ? frameLayer : undefined, raisedTemplateLayer: raisedTpl ? tplLayer : undefined, contours: o.contours !== false, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length,
     minElevation: Math.round(minE), maxElevation: Math.round(maxE), demZoom: zoom,
   };
   const line = (d, colour) => `<path d="${d}" fill="none" stroke="${colour}" stroke-width="0.1"/>`;
