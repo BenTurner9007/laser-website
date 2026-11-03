@@ -104,7 +104,7 @@ export function createViewer(container) {
   const camera = new THREE.PerspectiveCamera(32, 1, 1, 10000);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.maxPolarAngle = Math.PI * 0.47; // never look from under the table
+  controls.maxPolarAngle = Math.PI; // turn all the way round, to see the back (e.g. a clock's movement pocket)
   controls.screenSpacePanning = true;
 
   scene.add(new THREE.HemisphereLight("#fffaf0", "#8a7a66", 1.4));
@@ -113,6 +113,9 @@ export function createViewer(container) {
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.0005;
   scene.add(sun, sun.target);
+  // Soft light from below, so the back (a clock's movement pocket) is readable.
+  const under = new THREE.DirectionalLight("#fff4e0", 1.6);
+  scene.add(under);
 
   const model = new THREE.Group();
   scene.add(model);
@@ -262,6 +265,7 @@ export function createViewer(container) {
     const span = Math.max(W, H);
     const stackH = n * boardT;
     sun.position.set(-span * 0.6, span * 1.2, span * 0.8);
+    under.position.set(span * 0.5, -span * 1.2, span * 0.7);
     sun.target.position.set(0, 0, 0);
     Object.assign(sun.shadow.camera, { left: -span, right: span, top: span, bottom: -span, near: 1, far: span * 4 });
     sun.shadow.camera.updateProjectionMatrix();
@@ -308,6 +312,14 @@ export function createViewer(container) {
 
   return {
     show,
+    /** Flip the camera to look at the back of the piece (or the top again). Returns true when showing the back. */
+    flip() {
+      const t = controls.target, off = camera.position.clone().sub(t);
+      off.y = -off.y;
+      camera.position.copy(t).add(off);
+      controls.update();
+      return off.y < 0;
+    },
     // Pause drawing while the 3D view is hidden, so it doesn't compete with the page.
     start() {
       if (running || !model.children.length) return;

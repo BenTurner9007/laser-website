@@ -53,7 +53,7 @@ board size, and send it as a layout for a laser-cut contour map.
    upload a GPX, KML or GeoJSON file. Engraved as a solid or dashed line
    (0.8, 1.2 or 2 mm). The frame moves to fit an uploaded route.
 7. **Preview and send**: an interactive **3D model** of the finished piece
-   (each layer at the real material thickness, in birch, oak or acrylic, with
+   (turns all the way round; a **See the back** button flips it to check the underside, e.g. a clock's movement pocket; each layer at the real material thickness, in birch, oak or acrylic, with
    a centimetre ruler, overall size, stack height and map scale), a flat plan,
    a share link, and a request form. Customers cannot download the SVG; they
    send you the layout and you download it.

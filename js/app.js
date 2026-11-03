@@ -918,8 +918,14 @@ function exaggeration(t) {
   return `so the hills look about ${x < 3 ? x.toFixed(1) : Math.round(x)}× steeper than real life`;
 }
 
+$("#viewer-flip").addEventListener("click", () => {
+  if (!viewer) return;
+  $("#viewer-flip").textContent = viewer.flip() ? "See the top" : "See the back";
+});
+
 function render3d() {
   if (!lastResult) return;
+  $("#viewer-flip").textContent = "See the back"; // each new view starts from the top
   try {
     viewer ??= createViewer($("#viewer"));
     viewer.show(lastResult, { thickness: +$("#thickness").value, material: materialByName($("#material").value).look });
