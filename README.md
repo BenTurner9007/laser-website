@@ -316,6 +316,12 @@ The site is plain HTML, CSS and JavaScript with no build step.
    a branch*, then pick the branch and the `/ (root)` folder.
 3. The site appears at `https://<user>.github.io/<repo>/`.
 
+**Updates and browser caches**: `index.html` loads the site's scripts and
+styles with `?v=<publish date of the page>`, taken from the server's
+Last-Modified date, so after you publish an update browsers fetch the new
+files instead of mixing them with old cached ones. If you add a new file in
+`js/`, add its name to the list in that script at the bottom of `index.html`.
+
 To try it locally, run `python3 -m http.server` in this folder and open
 <http://localhost:8000>. Opening `index.html` directly from disk won't work
 because browsers block module scripts on `file://`.
