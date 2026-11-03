@@ -215,13 +215,27 @@ export function createViewer(container) {
       model.add(mesh);
     }
 
+    // Engraved boards: the contour picture is on both faces of the extrusion,
+    // so cover the underside with plain wood (the back carries only the logo
+    // and credits below).
+    if (style === "engraved") {
+      const geo = new THREE.ShapeGeometry(shapesFor(layers[0].polys, W, H));
+      geo.rotateX(-Math.PI / 2); // same placement as the board; drawn from below (BackSide)
+      const plain = grain
+        ? new THREE.MeshStandardMaterial({ map: grain, roughness: finish.roughness, side: THREE.BackSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })
+        : new THREE.MeshStandardMaterial({ color: rampColour(finish.ramp, 0), roughness: finish.roughness, side: THREE.BackSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+      const mesh = new THREE.Mesh(geo, plain);
+      mesh.position.y = -0.15; // clear of the board's own (pictured) bottom face
+      model.add(mesh);
+    }
+
     // The back of the base: logo, credits and reference, on the underside.
     if (result.back?.length) {
       const geo = new THREE.ShapeGeometry(shapesFor(result.back, W, H));
       geo.rotateX(-Math.PI / 2);
-      const mat = new THREE.MeshBasicMaterial({ color: ENGRAVE, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
+      const mat = new THREE.MeshBasicMaterial({ color: ENGRAVE, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.y = -0.04;
+      mesh.position.y = -0.3;
       model.add(mesh);
     }
 

@@ -581,6 +581,24 @@ export async function buildLayout(o, onProgress) {
   // (the customer chose them), then peaks, highest first. Each label tries
   // spots round its marker and takes the first that is clear and on the map;
   // if none is, the name is left off (and counted) rather than overprinted.
+  // Lake areas (lakes, tarns, ponds, reservoirs) in mm. They are filled in
+  // by the laser, so names keep off them.
+  let lakeShapes = [];
+  if (o.water?.lakes?.length && o.water?.lakefill?.length) {
+    const frameBox = { x0: 0, y0: 0, x1: W, y1: H };
+    const rings = o.water.lakefill.map((r) => clipRingToBox(r.map(toMm), frameBox)).filter((r) => r.length >= 3);
+    lakeShapes = rings.length ? tidy(polygonClipping.xor(...rings.map((r) => [[r]])), 0.5) : [];
+    if (tpl && lakeShapes.length) lakeShapes = clip("intersection", lakeShapes, tpl.mapRegion, 0.5);
+  }
+  const lakeBoxes = lakeShapes.map((p) => boxOf(p[0]));
+  const onWater = (q) =>
+    lakeShapes.some((poly, i) => {
+      const b = lakeBoxes[i];
+      if (q.x0 > b.x1 || q.x1 < b.x0 || q.y0 > b.y1 || q.y1 < b.y0) return false;
+      for (let a = 0; a <= 4; a++) for (let c = 0; c <= 2; c++) if (inPolys([poly], [q.x0 + ((q.x1 - q.x0) * a) / 4, q.y0 + ((q.y1 - q.y0) * c) / 2])) return true;
+      return poly[0].some(([x, y]) => x > q.x0 && x < q.x1 && y > q.y0 && y < q.y1);
+    });
+
   const taken = []; // boxes {x0, y0, x1, y1} in mm: markers, text, template engraving
   const GAP = 0.6; // mm kept between labels
   const hits = (q) => taken.some((t) => q.x0 - GAP < t.x1 && t.x0 - GAP < q.x1 && q.y0 - GAP < t.y1 && t.y0 - GAP < q.y1);
@@ -601,7 +619,7 @@ export async function buildLayout(o, onProgress) {
     for (const k of order) {
       const [x0, y0] = spots[k];
       const box = { x0, y0, x1: x0 + w, y1: y0 + h };
-      if (onMap(box) && !hits(box)) {
+      if (onMap(box) && !hits(box) && !onWater(box)) {
         taken.push(box);
         return { box, rings: textRings(text, x0, y0 + asc, size, { weight }).rings };
       }
@@ -894,21 +912,18 @@ export async function buildLayout(o, onProgress) {
     for (const [layer, polys] of [...byLayer].sort((a, c) => a[0] - c[0])) engrave.push({ layer, polys });
   }
   const engravePath = (i) =>
-    engrave.filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.engrave)).join("");
+    [...engrave, ...lakeEngrave].filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.engrave)).join("");
 
   // Water: lake shores, rivers, streams and coastline as score lines, each
   // stretch on whichever layer is on top there (looked up in a layer mask,
   // which stays fast with thousands of water points).
   // Roads go the same way, in their own colour.
-  // Lake areas, filled in black on the previews only (the cut file keeps
-  // just the shoreline score lines). Each lake is shown on the layer most of
-  // it sits on; lakes are flat, so that is nearly all of it.
+  // Lake areas, filled in black: engraved in the cut file and shown in the
+  // previews. Each lake goes on the layer most of it sits on (lakes are flat,
+  // so that is nearly all of it), trimmed to where that layer is on top.
   const lakes = [];
-  if (o.water?.lakes?.length && o.water?.lakefill?.length) {
-    const frameBox = { x0: 0, y0: 0, x1: W, y1: H };
-    const rings = o.water.lakefill.map((r) => clipRingToBox(r.map(toMm), frameBox)).filter((r) => r.length >= 3);
-    let polys = rings.length ? tidy(polygonClipping.xor(...rings.map((r) => [[r]])), 0.5) : [];
-    if (tpl && polys.length) polys = clip("intersection", polys, tpl.mapRegion, 0.5);
+  {
+    const polys = lakeShapes;
     if (polys.length && o.style === "engraved") lakes.push({ layer: 0, polys });
     else if (polys.length) {
       const mask = layerMask(layers, W, H);
@@ -937,6 +952,19 @@ export async function buildLayout(o, onProgress) {
     ...WATER_KINDS.filter((k) => o.water?.[k.id]?.length).map((k) => ({ ...k, group: "water", lines: o.water[k.id] })),
     ...ROAD_KINDS.filter((k) => o.roads?.[k.id]?.length).map((k) => ({ ...k, group: "roads", lines: o.roads[k.id] })),
   ];
+  // Lake fill for the laser, on the lake's layer, trimmed to where that layer
+  // is on top (not under the layer above, not past its edge).
+  const lakeEngrave = lakes
+    .map((l) => {
+      if (o.style === "engraved") return { layer: 0, polys: l.polys };
+      let polys = l.layer > 0 ? clip("intersection", l.polys, layers[l.layer].polys, ENGRAVE_MIN_MM2) : l.polys;
+      if (layers[l.layer + 1] && polys.length) polys = clip("difference", polys, layers[l.layer + 1].polys, ENGRAVE_MIN_MM2);
+      return { layer: l.layer, polys };
+    })
+    .filter((l) => l.polys.length);
+
+  // Roads, paths and water stay off clear boxes and off raised (3D) labels.
+  const clearBoxes = [...labelBoxes, ...raisedBoxes];
   if (lineKinds.length) {
     // Water stays inside the map region (not on a coaster's plain border).
     // (and inside the frame, if there is one)
@@ -949,7 +977,7 @@ export async function buildLayout(o, onProgress) {
     const mask = (x, y) => (insideFrame(x, y) ? layerAt(x, y) : -1);
     for (const kind of lineKinds) {
       const lines = trimLines(kind.lines.map((l) => l.map(toMm)), W, H, 1).filter((l) => lineLength(l) >= 2);
-      const clear = labelBoxes.length ? linesOutsideBoxes(lines, labelBoxes) : lines;
+      const clear = clearBoxes.length ? linesOutsideBoxes(lines, clearBoxes) : lines;
       for (const [layer, runs] of splitByLayer(clear, mask))
         water.push({
           layer, group: kind.group, kind: kind.id, widthMm: kind.widthMm,
@@ -979,7 +1007,7 @@ export async function buildLayout(o, onProgress) {
   // Layered: each layer is a group of its separate pieces, so they can be
   // nested on sheets; each piece carries its glue guides, engraving and numbers.
   let piecesCache = null;
-  const getPieces = () => (piecesCache ??= numberPieces(splitIntoPieces(layers, engrave, water), NUMBER_MM));
+  const getPieces = () => (piecesCache ??= numberPieces(splitIntoPieces(layers, [...engrave, ...lakeEngrave], water), NUMBER_MM));
   const pieceContent = (p) =>
     line(polygonsToPath([p.poly]), COLOURS.cut) + "\n" +
     (o.guides && p.children.length ? line(polygonsToPath(p.children.map((c) => c.poly)), COLOURS.guide) + "\n" : "") +
@@ -1268,7 +1296,7 @@ export async function buildLayout(o, onProgress) {
       preview += `<path d="${l.d}" fill="${tone(i + 1)}" fill-rule="evenodd" stroke="rgba(60,30,10,.55)" stroke-width="${Math.max(W, H) / 900}"/>`;
     });
   }
-  for (const l of lakes) preview += `<path d="${polygonsToPath(l.polys)}" fill="#111" fill-rule="evenodd"/>`;
+  for (const l of lakeEngrave) preview += `<path d="${polygonsToPath(l.polys)}" fill="#111" fill-rule="evenodd"/>`;
   for (const w of water) {
     const road = w.group === "roads";
     // Dotted kinds (tracks, footpaths) are rows of tiny marks: drawn as clear
@@ -1291,5 +1319,5 @@ export async function buildLayout(o, onProgress) {
   }
   preview += "</svg>";
 
-  return { back: backEngraving ? backEngraving.front : null, frame: framePoly && !layeredFrame ? [framePoly] : null, lakes, texts, townsPlaced, buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
+  return { back: backEngraving ? backEngraving.front : null, frame: framePoly && !layeredFrame ? [framePoly] : null, lakes: lakeEngrave, texts, townsPlaced, buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }
