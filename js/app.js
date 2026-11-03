@@ -638,7 +638,7 @@ function currentSize() {
   return state.template ? CONFIG.sizes.find((s) => s.id === state.template) : CONFIG.sizes.find((s) => !s.template && s.w === state.w && s.h === state.h);
 }
 function frameOffered() {
-  return state.style === "engraved" && !!currentSize()?.frame;
+  return !!currentSize()?.frame;
 }
 function frameActive() {
   return state.frame && frameOffered();
@@ -853,7 +853,7 @@ function renderStats() {
   const items = [
     ["Reference", lastResult.ref],
     ["Size", sizeText(m)],
-    ...(m.frameMm ? [["Frame", `${m.frameMm} mm, glued on top`]] : []),
+    ...(m.frameMm ? [["Frame", m.frameLayer ? `${m.frameMm} mm, built up to layer ${m.frameLayer}` : `${m.frameMm} mm, glued on top`]] : []),
     ...(m.labels3d ? [["Labels", "3D (raised on flat patches)"]] : []),
     ["Heights", `${m.minElevation}–${m.maxElevation} m`],
     [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.contours ? m.layers - 1 : "off"],
@@ -1057,7 +1057,7 @@ $("#order").addEventListener("submit", async (e) => {
   const m = lastResult.meta;
   const summary = [
     `Reference: ${lastResult.ref}`,
-    `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}${m.frameMm ? `, with a ${m.frameMm} mm frame on top` : ""}`,
+    `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}${m.frameMm ? (m.frameLayer ? `, with a ${m.frameMm} mm frame built up to layer ${m.frameLayer}` : `, with a ${m.frameMm} mm frame on top`) : ""}`,
     `Contours every ${m.interval} m, smoothing ${m.smoothing}, heights ${m.minElevation}-${m.maxElevation} m`,
     `Material: ${fd.material}`,
     ...(m.labels3d ? ["Labels: 3D (each on a raised flat patch)"] : []),

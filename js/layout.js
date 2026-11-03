@@ -544,10 +544,13 @@ export async function buildLayout(o, onProgress) {
   const toMm = ([lng, lat]) => [((lngToX(lng, z) - fx0) / (fx1 - fx0)) * W, ((latToY(lat, z) - fy0) / (fy1 - fy0)) * H];
   // On the map: inside the frame, or the template's map region with a margin.
   const AROUND = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]];
-  // Optional frame (single engraved boards only): a ring frameMm wide, cut
-  // from the same material and glued on top round the edge. Rectangles are
+  // Optional frame: a ring frameMm wide round the edge. Single engraved
+  // boards: a separate piece of the same wood glued on top. Layered boards:
+  // built up from the layers below (like 3D labels), level at the highest
+  // ground along the edge, so it is part of the layer pieces. Rectangles are
   // inset; round boards (clock, A4 round) are shrunk towards the centre.
-  const frameMm = o.style === "engraved" && o.frameMm > 0 ? o.frameMm : 0;
+  const frameMm = o.frameMm > 0 ? o.frameMm : 0;
+  const layeredFrame = frameMm && o.style !== "engraved";
   const FRAME_GAP = 0.8; // mm kept between labels and the frame
   const insetOutline = (d) => {
     if (!tpl) return [[d, d], [W - d, d], [W - d, H - d], [d, H - d], [d, d]];
@@ -750,6 +753,28 @@ export async function buildLayout(o, onProgress) {
     }
   }
 
+  // Layered frame: the edge ring added to every layer up to the highest
+  // ground under it, so the frame is one level rim supported by the layers.
+  let frameLayer = 0;
+  if (layeredFrame) {
+    let max = -Infinity;
+    const R = Math.min(W, H) / 2;
+    for (let gy = 0; gy < gh; gy++) {
+      for (let gx = 0; gx < gw; gx++) {
+        const x = (gx + 0.5) * sx, y = (gy + 0.5) * sy;
+        const inRing = tpl ? Math.hypot(x - W / 2, y - H / 2) >= R - frameMm - sx : x < frameMm + sx || y < frameMm + sy || x > W - frameMm - sx || y > H - frameMm - sy;
+        if (inRing && values[gy * gw + gx] > max) max = values[gy * gw + gx];
+      }
+    }
+    while (frameLayer < levels.length && levels[frameLayer] <= max) frameLayer++;
+    frameLayer = Math.max(Math.min(1, layers.length - 1), Math.min(frameLayer, layers.length - 1)); // at least one layer up
+    const ring = clip("intersection", [framePoly], mapRegion);
+    for (let i = 1; i <= frameLayer; i++) {
+      layers[i].polys = tidy(polygonClipping.union(...layers[i].polys.map((p) => [p]), ...ring.map((p) => [p])));
+      layers[i].d = polygonsToPath(layers[i].polys);
+    }
+  }
+
   // Hiking route: a band along the line, solid or dashed.
   let routeOnBoard = false;
   if (o.route?.lines?.length) {
@@ -874,8 +899,14 @@ export async function buildLayout(o, onProgress) {
   ];
   if (lineKinds.length) {
     // Water stays inside the map region (not on a coaster's plain border).
-    const maskLayers = (o.style === "engraved" ? layers.slice(0, 1) : layers).map((l, i) => (i === 0 ? { d: polygonsToPath(mapRegion) } : l));
-    const mask = layerMask(maskLayers, W, H);
+    // (and inside the frame, if there is one)
+    const maskLayers = (o.style === "engraved" ? layers.slice(0, 1) : layers).map((l, i) => (i === 0 ? { d: polygonsToPath(markRegion) } : l));
+    const layerAt = layerMask(maskLayers, W, H);
+    // With a frame, nothing is scored on it: points outside its inner edge count as off the map.
+    const R = Math.min(W, H) / 2, edge = frameMm + 0.3;
+    const insideFrame = (x, y) =>
+      !frameMm || (tpl ? Math.hypot(x - W / 2, y - H / 2) < R - edge : x > edge && y > edge && x < W - edge && y < H - edge);
+    const mask = (x, y) => (insideFrame(x, y) ? layerAt(x, y) : -1);
     for (const kind of lineKinds) {
       const lines = trimLines(kind.lines.map((l) => l.map(toMm)), W, H, 1).filter((l) => lineLength(l) >= 2);
       const clear = labelBoxes.length ? linesOutsideBoxes(lines, labelBoxes) : lines;
@@ -897,7 +928,7 @@ export async function buildLayout(o, onProgress) {
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
-    style: o.style, labels3d: (o.labels3d && o.style !== "engraved") || undefined, frameMm: frameMm || undefined, contours: o.contours !== false, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length,
+    style: o.style, labels3d: (o.labels3d && o.style !== "engraved") || undefined, frameMm: frameMm || undefined, frameLayer: layeredFrame ? frameLayer : undefined, contours: o.contours !== false, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length,
     minElevation: Math.round(minE), maxElevation: Math.round(maxE), demZoom: zoom,
   };
   const line = (d, colour) => `<path d="${d}" fill="none" stroke="${colour}" stroke-width="0.1"/>`;
@@ -969,7 +1000,7 @@ export async function buildLayout(o, onProgress) {
     const cfg = o.plates;
     const plates = [];
     // The frame travels with the plates: cut alongside the board, glued on top.
-    if (framePoly) plates.push({ ...plate("frame", W, H, []), poly: framePoly, area: ringArea(framePoly[0]) - ringArea(framePoly[1]), label: `Frame ${frameMm} mm (glue on top)` });
+    if (framePoly && !layeredFrame) plates.push({ ...plate("frame", W, H, []), poly: framePoly, area: ringArea(framePoly[0]) - ringArea(framePoly[1]), label: `Frame ${frameMm} mm (glue on top)` });
     if (!cfg) return plates;
     if (cfg.credits) {
       const { widthMm: pw = 90, fontMm: fs = 2.5, marginMm: m = 4, title = "Map data", maker } = cfg.credits;
@@ -1037,7 +1068,7 @@ export async function buildLayout(o, onProgress) {
       if (contourPath) assembled += line(contourPath, COLOURS.guide) + "\n";
       assembled += engravePath(0) + "\n" + waterPath(0);
       // Where the frame's inner edge sits, for lining it up when gluing (not cut).
-      if (frameInner) assembled += `<g inkscape:label="Frame position (guide)">${line(polygonsToPath(frameInner), COLOURS.guide)}</g>\n`;
+      if (frameInner && !layeredFrame) assembled += `<g inkscape:label="Frame position (guide)">${line(polygonsToPath(frameInner), COLOURS.guide)}</g>\n`;
       assembled += "</g>\n";
     } else {
       layers.forEach((l, i) => {
@@ -1131,7 +1162,7 @@ export async function buildLayout(o, onProgress) {
   }
   preview += fillEach(allMarks, COLOURS.engrave);
   // The frame lies on top of everything round the edge.
-  if (framePoly)
+  if (framePoly && !layeredFrame)
     preview += `<path d="${polygonsToPath([framePoly])}" fill="rgb(206,170,120)" fill-rule="evenodd" stroke="rgba(60,30,10,.6)" stroke-width="${Math.max(W, H) / 600}"/>`;
   // Where a name runs over a lake, show that part light so it stays readable.
   if (lakes.length && allMarks.length) {
@@ -1141,5 +1172,5 @@ export async function buildLayout(o, onProgress) {
   }
   preview += "</svg>";
 
-  return { frame: framePoly ? [framePoly] : null, lakes, texts, townsPlaced, buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
+  return { frame: framePoly && !layeredFrame ? [framePoly] : null, lakes, texts, townsPlaced, buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }
