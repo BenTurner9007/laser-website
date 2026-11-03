@@ -189,6 +189,19 @@ export function createViewer(container) {
       model.add(mesh);
     });
 
+    // Frame (single engraved boards): a ring of the same wood on top round the edge.
+    if (result.frame) {
+      const geo = new THREE.ExtrudeGeometry(shapesFor(result.frame, W, H), { depth: t, bevelEnabled: false });
+      geo.rotateX(-Math.PI / 2);
+      const top = grain ? new THREE.MeshStandardMaterial({ map: grain, color: new THREE.Color(0.9, 0.9, 0.9), roughness: finish.roughness })
+        : new THREE.MeshStandardMaterial({ color: rampColour(finish.ramp, 1), roughness: finish.roughness });
+      const edge = new THREE.MeshStandardMaterial({ color: finish.edge || 0x8a6a48, roughness: 0.95 });
+      const mesh = new THREE.Mesh(geo, [top, edge]);
+      mesh.position.y = boardT;
+      mesh.castShadow = mesh.receiveShadow = true;
+      model.add(mesh);
+    }
+
     // Engraving (labels, special places, route, clock numbers) on the layer it sits on.
     const engraveMat = new THREE.MeshBasicMaterial({ color: ENGRAVE, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     for (const e of result.engrave || []) {

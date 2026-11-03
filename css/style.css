@@ -76,6 +76,9 @@ a:hover { color: var(--ink); }
   z-index: 2;
 }
 .frame.templated { border-color: rgba(185, 88, 31, .45); border-style: dashed; }
+/* The optional frame, drawn to scale inside the map frame. */
+.frame-border { position: absolute; inset: 0; box-sizing: border-box; border: 0 solid rgba(206, 170, 120, .92); box-shadow: inset 0 0 0 1px rgba(60, 30, 10, .5); }
+.frame-border.round { border-radius: 50%; }
 .frame-overlay svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .frame-overlay .tpl-outside { fill: rgba(46, 39, 35, .34); }
 .frame-overlay .tpl-edge { fill: none; stroke: var(--accent); stroke-width: 2.5; }

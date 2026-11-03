@@ -13,7 +13,12 @@ board size, and send it as a layout for a laser-cut contour map.
    real shape; they pan and zoom the map underneath it.
    A padlock under the zoom buttons freezes the map so the framed area can't be
    nudged by accident (click again to unlock).
-3. **Style it**: layered (stacked boards) or a single engraved board, the
+3. **Style it**: layered (stacked boards) or a single engraved board (on A4,
+   A3, A4 round and the clock it can have an optional **5 mm frame**: a ring cut
+   from the same wood and glued on top round the edge; names, text and special
+   places keep 0.8 mm clear of it, and the frame is shown to scale on the map,
+   in the previews and as its own piece in the SVG with a blue guide line on
+   the board where it sits; not offered on layered maps), the
    contour interval, smoothing, label style (every bundled hill list is
    named), an optional **clear space behind names, text and special places** (contours,
    roads and water are removed from a box that just fits the name; on layered maps
@@ -265,6 +270,7 @@ Edit [`js/config.js`](js/config.js):
 | `sizes` | Board sizes offered |
 | `defaultThickness` | Thickness pre-selected on the order form |
 | `ownerKeyHash` | Hash of your private owner key (see above) |
+| `frameMm` | Width of the optional frame on single engraved boards (sizes marked `frame: true`) |
 | `pricing` | Customer price: markup on material, extras for special places and routes, note shown under the price |
 | `backPlates` | Size of the credits and logo plates added to every SVG (`null` to leave one out) |
 | `sheet` | Cutting sheet size, border and gap between pieces for the laid-out sheets in the SVG |

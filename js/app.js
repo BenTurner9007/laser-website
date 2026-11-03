@@ -46,6 +46,7 @@ const state = {
   placeFontMm: +oneOf("pfont", optionValues("place-font-mm"), "3.5"),
   labelBoxes: params.get("lbox") === "1",
   contours: params.get("cl") !== "0",
+  frame: params.get("fr") === "1", // optional frame (single engraved boards on sizes that offer it)
   // Every bundled hill list is named (and Moon/Mars features); no per-list choice.
   lists: new Set([...HILL_LISTS.map((l) => l.id), "features"]),
   sharedBounds: parseBounds(params.get("b")),
@@ -456,6 +457,7 @@ function layoutFrame() {
   const r = frameRect();
   Object.assign(frameEl.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
   if (textMarkers) sizeTextMarkers();
+  renderFrameOption();
   $("#frame-size").textContent = state.template ? sizeOf(state.template).label : `${state.w} × ${state.h} mm`;
   updateScale();
 }
@@ -629,6 +631,33 @@ function pinnedMatchesFrame() {
   return Math.abs(aspect / (state.w / state.h) - 1) < 0.02;
 }
 
+// ---------- Optional frame (single engraved boards) ----------
+// Function declarations: the frame is laid out before this code runs.
+function currentSize() {
+  return state.template ? CONFIG.sizes.find((s) => s.id === state.template) : CONFIG.sizes.find((s) => !s.template && s.w === state.w && s.h === state.h);
+}
+function frameOffered() {
+  return state.style === "engraved" && !!currentSize()?.frame;
+}
+function frameActive() {
+  return state.frame && frameOffered();
+}
+// Show the checkbox only where a frame is offered, and the frame to scale on the map.
+function renderFrameOption() {
+  $("#frame-row").hidden = !frameOffered();
+  $("#frame-on").checked = state.frame;
+  const el = $("#frame-border");
+  el.hidden = !frameActive();
+  if (el.hidden) return;
+  el.classList.toggle("round", !!state.template);
+  el.style.borderWidth = `${((CONFIG.frameMm || 5) * frameRect().w) / state.w}px`;
+}
+$("#frame-mm").textContent = CONFIG.frameMm || 5;
+$("#frame-on").addEventListener("change", (e) => {
+  state.frame = e.target.checked;
+  renderFrameOption();
+});
+
 function setSize(w, h, template = null) {
   pinnedBounds = null; // a shared link's area no longer matches the new frame
   state.w = w;
@@ -637,13 +666,18 @@ function setSize(w, h, template = null) {
   renderSizes();
   layoutFrame();
   renderFrameTemplate();
+  renderFrameOption();
 }
 
 // ---------- Step 3: style ----------
 document.querySelectorAll('input[name="style"]').forEach((el) => {
   el.checked = el.value === state.style;
-  el.addEventListener("change", () => (state.style = el.value));
+  el.addEventListener("change", () => {
+    state.style = el.value;
+    renderFrameOption();
+  });
 });
+renderFrameOption();
 
 // Contour lines off: a flat engraved board (layers are made from contours,
 // so layered isn't possible), and no contours on the map either.
@@ -657,6 +691,7 @@ function applyContours() {
   if (!on && state.style === "layered") {
     state.style = "engraved";
     document.querySelector('input[name="style"][value="engraved"]').checked = true;
+    renderFrameOption();
   }
   onStyleReady(() => {
     for (const id of ["contour-lines", "contour-labels"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
@@ -727,6 +762,7 @@ function shareLink(b, ref) {
     ...(state.placeNames !== "none" ? { pn: state.placeNames, pfont: state.placeFontMm } : {}),
     ...(state.labelBoxes ? { lbox: "1" } : {}),
     ...(state.contours ? {} : { cl: "0" }),
+    ...(frameActive() ? { fr: "1" } : {}),
     t: $("#thickness").value,
     mat: $("#material").value,
   });
@@ -761,6 +797,7 @@ $("#generate").addEventListener("click", async () => {
         towns: state.placeNames === "none" ? [] : placesInFrame(b),
         townFontMm: state.placeFontMm,
         labelBoxes: state.labelBoxes,
+        frameMm: frameActive() ? CONFIG.frameMm || 5 : 0,
         contours: state.contours,
         dem: siteDem(b),
         template: state.template ? await loadTemplate(state.template) : null,
@@ -810,6 +847,7 @@ function renderStats() {
   const items = [
     ["Reference", lastResult.ref],
     ["Size", sizeText(m)],
+    ...(m.frameMm ? [["Frame", `${m.frameMm} mm, glued on top`]] : []),
     ["Heights", `${m.minElevation}–${m.maxElevation} m`],
     [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.contours ? m.layers - 1 : "off"],
     ["Named peaks", lastResult.peaksPlaced],
@@ -1012,7 +1050,7 @@ $("#order").addEventListener("submit", async (e) => {
   const m = lastResult.meta;
   const summary = [
     `Reference: ${lastResult.ref}`,
-    `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}`,
+    `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}${m.frameMm ? `, with a ${m.frameMm} mm frame on top` : ""}`,
     `Contours every ${m.interval} m, smoothing ${m.smoothing}, heights ${m.minElevation}-${m.maxElevation} m`,
     `Material: ${fd.material}`,
     ...(lastPrice

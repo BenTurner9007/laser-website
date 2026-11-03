@@ -493,6 +493,7 @@ const esc = (s) =>
  * @param {boolean} [o.contours]  false for a flat board with no contour lines
  * @param {boolean} [o.labelBoxes]  keep a box behind each label clear: of contour lines (engraved boards) and roads/water
  * @param {{url:string, maxzoom:number, sea:boolean}} [o.dem]  elevation tiles (Earth by default)
+ * @param {number} [o.frameMm]  single engraved boards: width of a frame glued on top round the edge (0 = none)
  * @param {object} [o.plates]  back plates for the SVG: {credits: {widthMm, fontMm, marginMm, title, maker,
  *   elevation, names}, logo: {widthMm, heightMm, marginMm, art: {w, h, polys}}}; either may be left out
  */
@@ -542,8 +543,25 @@ export async function buildLayout(o, onProgress) {
   const toMm = ([lng, lat]) => [((lngToX(lng, z) - fx0) / (fx1 - fx0)) * W, ((latToY(lat, z) - fy0) / (fy1 - fy0)) * H];
   // On the map: inside the frame, or the template's map region with a margin.
   const AROUND = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]];
+  // Optional frame (single engraved boards only): a ring frameMm wide, cut
+  // from the same material and glued on top round the edge. Rectangles are
+  // inset; round boards (clock, A4 round) are shrunk towards the centre.
+  const frameMm = o.style === "engraved" && o.frameMm > 0 ? o.frameMm : 0;
+  const FRAME_GAP = 0.8; // mm kept between labels and the frame
+  const insetOutline = (d) => {
+    if (!tpl) return [[d, d], [W - d, d], [W - d, H - d], [d, H - d], [d, d]];
+    const cx = W / 2, cy = H / 2;
+    return boardPolys[0][0].map(([x, y]) => {
+      const r = Math.hypot(x - cx, y - cy) || 1;
+      return [cx + ((x - cx) * (r - d)) / r, cy + ((y - cy) * (r - d)) / r];
+    });
+  };
+  const frameInner = frameMm ? [[insetOutline(frameMm)]] : null;
+  const frameClear = frameMm ? [[insetOutline(frameMm + FRAME_GAP)]] : null;
+  const framePoly = frameMm ? [boardPolys[0][0], [...frameInner[0][0]].reverse()] : null;
   const onBoard = ([x, y], margin = 0) =>
-    tpl ? AROUND.every(([dx, dy]) => inPolys(tpl.mapRegion, [x + dx * margin, y + dy * margin])) : x >= 0 && y >= 0 && x < W && y < H;
+    (tpl ? AROUND.every(([dx, dy]) => inPolys(tpl.mapRegion, [x + dx * margin, y + dy * margin])) : x >= 0 && y >= 0 && x < W && y < H) &&
+    (!frameClear || AROUND.every(([dx, dy]) => inPolys(frameClear, [x + dx * margin, y + dy * margin])));
   const mapRegion = tpl ? tpl.mapRegion : boardPolys;
   // Separate rings (glyph outlines, holes) to filled shapes.
   const solid = (rings) => (rings.length ? polygonClipping.xor(...rings.map((r) => [[r]])) : []);
@@ -606,8 +624,9 @@ export async function buildLayout(o, onProgress) {
     const w = Math.max(...widths), h = lh * (lines.length - 1) + asc + size * 0.24;
     let [cx, cy] = toMm([t.lng, t.lat]);
     if (!tpl) {
-      cx = Math.min(W - w / 2 - 1 - pad, Math.max(w / 2 + 1 + pad, cx));
-      cy = Math.min(H - h / 2 - 1 - pad, Math.max(h / 2 + 1 + pad, cy));
+      const edge = 1 + pad + (frameMm ? frameMm + FRAME_GAP : 0);
+      cx = Math.min(W - w / 2 - edge, Math.max(w / 2 + edge, cx));
+      cy = Math.min(H - h / 2 - edge, Math.max(h / 2 + edge, cy));
     }
     const text = { x0: cx - w / 2, y0: cy - h / 2, x1: cx + w / 2, y1: cy + h / 2 };
     const box = { x0: text.x0 - pad, y0: text.y0 - pad, x1: text.x1 + pad, y1: text.y1 + pad };
@@ -745,7 +764,9 @@ export async function buildLayout(o, onProgress) {
       const corners = [[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]];
       return corners.every((c) => inPolys(region, c)) ? [poly] : clip("intersection", [poly], region, ENGRAVE_MIN_MM2);
     });
-  const mapMarks = within(marks.flatMap((m) => closeTidy(m)), mapRegion);
+  // Nothing of the customer's (route, labels) is engraved under the frame.
+  const markRegion = frameInner ? clip("intersection", mapRegion, frameInner) : mapRegion;
+  const mapMarks = within(marks.flatMap((m) => closeTidy(m)), markRegion);
   const tplMarks = tpl?.engrave.length ? within(tpl.engrave, boardPolys) : [];
   const allMarks = [...mapMarks, ...tplMarks];
   const engrave = [];
@@ -869,7 +890,7 @@ export async function buildLayout(o, onProgress) {
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
-    style: o.style, contours: o.contours !== false, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length,
+    style: o.style, frameMm: frameMm || undefined, contours: o.contours !== false, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length,
     minElevation: Math.round(minE), maxElevation: Math.round(maxE), demZoom: zoom,
   };
   const line = (d, colour) => `<path d="${d}" fill="none" stroke="${colour}" stroke-width="0.1"/>`;
@@ -939,8 +960,10 @@ export async function buildLayout(o, onProgress) {
   };
   const getPlates = (ref) => {
     const cfg = o.plates;
-    if (!cfg) return [];
     const plates = [];
+    // The frame travels with the plates: cut alongside the board, glued on top.
+    if (framePoly) plates.push({ ...plate("frame", W, H, []), poly: framePoly, area: ringArea(framePoly[0]) - ringArea(framePoly[1]), label: `Frame ${frameMm} mm (glue on top)` });
+    if (!cfg) return plates;
     if (cfg.credits) {
       const { widthMm: pw = 90, fontMm: fs = 2.5, marginMm: m = 4, title = "Map data", maker } = cfg.credits;
       const rows = [{ text: title, size: fs * 1.2, weight: "bold", gap: fs * 0.6 }];
@@ -1005,7 +1028,10 @@ export async function buildLayout(o, onProgress) {
     if (o.style === "engraved") {
       assembled += `<g inkscape:groupmode="layer" inkscape:label="Board">\n${line(outline, COLOURS.cut)}\n`;
       if (contourPath) assembled += line(contourPath, COLOURS.guide) + "\n";
-      assembled += engravePath(0) + "\n" + waterPath(0) + "</g>\n";
+      assembled += engravePath(0) + "\n" + waterPath(0);
+      // Where the frame's inner edge sits, for lining it up when gluing (not cut).
+      if (frameInner) assembled += `<g inkscape:label="Frame position (guide)">${line(polygonsToPath(frameInner), COLOURS.guide)}</g>\n`;
+      assembled += "</g>\n";
     } else {
       layers.forEach((l, i) => {
         const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.elevation} m)`;
@@ -1023,9 +1049,11 @@ export async function buildLayout(o, onProgress) {
     if (!sheets.length && plates.length) {
       platesSvg += `<g inkscape:groupmode="layer" inkscape:label="Back plates" id="back-plates" transform="translate(${x0} 0)">\n`;
       for (const p of plates) {
-        platesSvg += `<g id="piece-${p.id}" inkscape:label="${p.id === "logo" ? "Logo plate" : "Credits plate"}" transform="translate(0 ${platesH})">\n${pieceContent(p)}</g>\n`;
-        platesH += p.poly[0][2][1] + 10;
-        platesW = Math.max(platesW, p.poly[0][2][0]);
+        const b = boxOf(p.poly[0]);
+        const label = p.label || (p.id === "logo" ? "Logo plate" : "Credits plate");
+        platesSvg += `<g id="piece-${p.id}" inkscape:label="${label}" transform="translate(0 ${platesH})">\n${pieceContent(p)}</g>\n`;
+        platesH += b.y1 + 10;
+        platesW = Math.max(platesW, b.x1);
       }
       platesSvg += "</g>\n";
       platesH -= 10;
@@ -1095,6 +1123,9 @@ export async function buildLayout(o, onProgress) {
     preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="${road ? "#2a1d14" : "#1f3f5c"}" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
   }
   preview += fillEach(allMarks, COLOURS.engrave);
+  // The frame lies on top of everything round the edge.
+  if (framePoly)
+    preview += `<path d="${polygonsToPath([framePoly])}" fill="rgb(206,170,120)" fill-rule="evenodd" stroke="rgba(60,30,10,.6)" stroke-width="${Math.max(W, H) / 600}"/>`;
   // Where a name runs over a lake, show that part light so it stays readable.
   if (lakes.length && allMarks.length) {
     preview +=
@@ -1103,5 +1134,5 @@ export async function buildLayout(o, onProgress) {
   }
   preview += "</svg>";
 
-  return { lakes, texts, townsPlaced, buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
+  return { frame: framePoly ? [framePoly] : null, lakes, texts, townsPlaced, buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }
