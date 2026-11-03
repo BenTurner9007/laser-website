@@ -21,12 +21,14 @@ board size, and send it as a layout for a laser-cut contour map.
    the board where it sits; not offered on layered maps), the
    contour interval, smoothing, label style (every bundled hill list is
    named), an optional **clear space behind names, text and special places** (contours,
-   roads and water are removed from a box that just fits the name; on layered maps
-   nothing is cut out of the layers, so only roads and water are cleared and the
-   name is engraved on whichever layer is on top under it), and which water to
+   roads and water are removed from a box that just fits the name; on layered
+   maps it keeps roads and water off the name), and which water to
    add: lake and reservoir shores, rivers and canals, streams and
    becks, and coastline (shown on the map as they choose; the data ships with
    the site, so nothing outside is needed).
+   On **layered maps every label sits on top**: each name, special place and
+   text box is engraved on a flat patch built up from the layers below to the
+   highest ground under it, so it is never split across layers or recessed.
 4. **Mark a special place** (optional): up to 3 draggable markers, each with
    a shape (heart, star, pin, circle, house, cross, diamond, triangle) and
    their own label, e.g. "Where we got engaged", at 5, 8 or 12 mm. The

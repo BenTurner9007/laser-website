@@ -603,8 +603,13 @@ export async function buildLayout(o, onProgress) {
   let labelsLeftOff = 0;
   // Clear space: boxes round names, markers and special places (mm), when o.labelBoxes.
   const labelBoxes = [];
+  // Layered maps: every label (name, special place, text) sits on a flat patch
+  // built up from the layers below it, so it is on top, never split or recessed.
+  const raisedBoxes = [];
   const clearBehind = (box, pad = 0.5) => {
-    if (o.labelBoxes) labelBoxes.push({ x0: box.x0 - pad, x1: box.x1 + pad, y0: box.y0 - pad, y1: box.y1 + pad });
+    const b = { x0: box.x0 - pad, x1: box.x1 + pad, y0: box.y0 - pad, y1: box.y1 + pad };
+    if (o.labelBoxes) labelBoxes.push(b);
+    if (o.style !== "engraved") raisedBoxes.push(b);
   };
 
   // Customer's text blocks first: they sit exactly where the customer
@@ -613,7 +618,6 @@ export async function buildLayout(o, onProgress) {
   // A text with a clear box gets a padded box with nothing behind it: no
   // contour lines, roads or water, and on layered maps a flat raised patch.
   const texts = [];
-  const raisedBoxes = [];
   const TEXT_PAD = 1.2; // mm of clear space round the text
   for (const t of o.texts || []) {
     const lines = t.text.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -636,7 +640,7 @@ export async function buildLayout(o, onProgress) {
     taken.push(box);
     if (t.clear) {
       labelBoxes.push(box);
-      raisedBoxes.push(box);
+      if (o.style !== "engraved") raisedBoxes.push(box);
     } else clearBehind(text);
     texts.push({ ...t, x: cx, y: cy });
   }
@@ -718,12 +722,10 @@ export async function buildLayout(o, onProgress) {
 
   placeTowns("tv");
 
-  // Label boxes on a layered map don't cut anything out of the layers: the
-  // names are engraved on whichever layer is on top under them (below), and
-  // the box only keeps roads and water clear.
-  // Text with a clear box on a layered map: the box is built up to the
-  // highest ground under it (added to every layer below that), so the text
-  // is engraved on one flat patch of the top layer. Nothing is cut away.
+  // Labels on a layered map: each label's box is built up to the highest
+  // ground under it (added to every layer below that), so the label is
+  // engraved on one flat patch on top, supported by the layers beneath.
+  // Nothing is cut away. (Clear space only keeps lines out of the boxes.)
   if (raisedBoxes.length && o.style !== "engraved") {
     const highestLayer = (b) => {
       let max = -Infinity;
@@ -738,7 +740,9 @@ export async function buildLayout(o, onProgress) {
     for (let i = 1; i < layers.length; i++) {
       const add = boxes.filter((b) => b.layer >= i).map((b) => b.poly);
       if (!add.length) continue;
-      layers[i].polys = tidy(polygonClipping.union(...layers[i].polys.map((p) => [p]), ...add));
+      // Patches stay on the map (not over a coaster's border or a hole).
+      const patch = tpl ? clip("intersection", polygonClipping.union(...add), mapRegion) : add;
+      layers[i].polys = tidy(polygonClipping.union(...layers[i].polys.map((p) => [p]), ...patch.map((p) => [p])));
       layers[i].d = polygonsToPath(layers[i].polys);
     }
   }
