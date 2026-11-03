@@ -494,6 +494,8 @@ const esc = (s) =>
  * @param {boolean} [o.labelBoxes]  keep a box behind each label clear: of contour lines (engraved boards) and roads/water
  * @param {{url:string, maxzoom:number, sea:boolean}} [o.dem]  elevation tiles (Earth by default)
  * @param {boolean} [o.labels3d]  layered: raise each label on a flat patch supported by the layers below
+ * @param {{widthMm:number, heightMm:number, depthMm:number, wallMm?:number}} [o.recess]  layered clocks: pocket at the back for the movement
+ * @param {number} [o.thicknessMm]  layer thickness, to turn the pocket depth into layers
  * @param {number} [o.frameMm]  single engraved boards: width of a frame glued on top round the edge (0 = none)
  * @param {object} [o.plates]  back plates for the SVG: {credits: {widthMm, fontMm, marginMm, title, maker,
  *   elevation, names}, logo: {widthMm, heightMm, marginMm, art: {w, h, polys}}}; either may be left out
@@ -790,6 +792,27 @@ export async function buildLayout(o, onProgress) {
     }
   }
 
+  // Layered clocks: a pocket at the back for the movement, centred on the
+  // spindle. It is cut up through the bottom layers (depthMm at the chosen
+  // layer thickness); a wall round it and the layer above (the ceiling) are
+  // added wherever the ground is lower, so the pocket never breaks through
+  // the map. The spindle hole still goes through the ceiling.
+  let recess = null;
+  if (o.recess && tpl && o.style !== "engraved" && layers.length > 1) {
+    const { widthMm: rw, heightMm: rh, depthMm, wallMm = 5 } = o.recess;
+    const t = o.thicknessMm || 3;
+    const k = Math.min(Math.max(1, Math.ceil(depthMm / t)), layers.length - 1);
+    const box = (hw, hh) => [[[W / 2 - hw, H / 2 - hh], [W / 2 + hw, H / 2 - hh], [W / 2 + hw, H / 2 + hh], [W / 2 - hw, H / 2 + hh], [W / 2 - hw, H / 2 - hh]]];
+    const pocket = [box(rw / 2, rh / 2)];
+    const support = clip("intersection", [box(rw / 2 + wallMm, rh / 2 + wallMm)], mapRegion);
+    for (let i = 1; i <= k; i++) {
+      layers[i].polys = tidy(polygonClipping.union(...layers[i].polys.map((p) => [p]), ...support.map((p) => [p])));
+    }
+    for (let i = 0; i < k; i++) layers[i].polys = clip("difference", layers[i].polys, pocket);
+    for (let i = 0; i <= k; i++) layers[i].d = polygonsToPath(layers[i].polys);
+    recess = { widthMm: rw, heightMm: rh, layers: k, depthMm: +(k * t).toFixed(1), short: k * t < depthMm };
+  }
+
   // Hiking route: a band along the line, solid or dashed.
   let routeOnBoard = false;
   if (o.route?.lines?.length) {
@@ -943,7 +966,7 @@ export async function buildLayout(o, onProgress) {
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
-    style: o.style, labels3d: (o.labels3d && o.style !== "engraved") || undefined, frameMm: frameMm || undefined, frameLayer: layeredFrame ? frameLayer : undefined, raisedTemplateLayer: raisedTpl ? tplLayer : undefined, contours: o.contours !== false, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length,
+    style: o.style, labels3d: (o.labels3d && o.style !== "engraved") || undefined, frameMm: frameMm || undefined, frameLayer: layeredFrame ? frameLayer : undefined, raisedTemplateLayer: raisedTpl ? tplLayer : undefined, recess: recess || undefined, thicknessMm: recess ? o.thicknessMm : undefined, contours: o.contours !== false, fontMm: o.fontMm, template: o.template?.name || null, layers: layers.length,
     minElevation: Math.round(minE), maxElevation: Math.round(maxE), demZoom: zoom,
   };
   const line = (d, colour) => `<path d="${d}" fill="none" stroke="${colour}" stroke-width="0.1"/>`;

@@ -233,7 +233,7 @@ Besides A4 and A3, customers can pick shaped boards made from your DXFs in
 | Size | Shape | Notes |
 | --- | --- | --- |
 | A4 round | 210 mm circle | plain circle, the width of A4 |
-| Clock 305 mm | circle | numbers and hour marks engraved; on layered clocks they are built up in 3D from the layers instead, level with the 3D frame if chosen, otherwise with the top contour layer; 10 mm centre hole for the movement, cut through every layer |
+| Clock 305 mm | circle | numbers and hour marks engraved; on layered clocks they are built up in 3D from the layers instead, level with the 3D frame if chosen, otherwise with the top contour layer; 10 mm centre hole for the movement, cut through every layer; layered clocks also get a 40 × 50 mm pocket for the movement cut up from the back (16 mm deep, rounded up to whole layers, with a 5 mm wall and a solid ceiling layer; `clockRecess` in `js/config.js`; changing the thickness rebuilds the layout) |
 | Bookmark | 50 × 169 mm rounded rectangle | 12 mm tassel hole, cut through every layer it crosses |
 | Round coaster | 100 mm circle | |
 | Square coaster | 98.7 mm square | map fills all but a 2 mm plain border on the base |
@@ -278,6 +278,7 @@ Edit [`js/config.js`](js/config.js):
 | `defaultThickness` | Thickness pre-selected on the order form |
 | `ownerKeyHash` | Hash of your private owner key (see above) |
 | `frameMm` | Width of the optional frame on single engraved boards (sizes marked `frame: true`) |
+| `clockRecess` | Size, depth and wall of the movement pocket at the back of layered clocks |
 | `pricing` | Customer price: markup on material, extras for special places and routes, note shown under the price |
 | `backPlates` | Size of the credits and logo plates added to every SVG (`null` to leave one out) |
 | `sheet` | Cutting sheet size, border and gap between pieces for the laid-out sheets in the SVG |

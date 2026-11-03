@@ -813,6 +813,8 @@ $("#generate").addEventListener("click", async () => {
         labelBoxes: state.labelBoxes,
         labels3d: state.labels3d,
         frameMm: frameActive() ? CONFIG.frameMm || 5 : 0,
+        recess: currentSize()?.recess ? CONFIG.clockRecess : null,
+        thicknessMm: +$("#thickness").value || state.thickness,
         contours: state.contours,
         dem: siteDem(b),
         template: state.template ? await loadTemplate(state.template) : null,
@@ -865,6 +867,7 @@ function renderStats() {
     ...(m.frameMm ? [["Frame", m.frameLayer ? `3D, ${m.frameMm} mm, built up to layer ${m.frameLayer}` : `${m.frameMm} mm, glued on top`]] : []),
     ...(m.labels3d ? [["Labels", "3D (raised on flat patches)"]] : []),
     ...(m.raisedTemplateLayer ? [["Clock numbers", `3D, raised to layer ${m.raisedTemplateLayer}`]] : []),
+    ...(m.recess ? [["Movement pocket", `${m.recess.widthMm} × ${m.recess.heightMm} mm at the back, ${m.recess.layers} layers (${m.recess.depthMm} mm) deep${m.recess.short ? " – as deep as this map allows" : ""}`]] : []),
     ["Heights", `${m.minElevation}–${m.maxElevation} m`],
     [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.contours ? m.layers - 1 : "off"],
     ["Named peaks", lastResult.peaksPlaced],
@@ -981,6 +984,13 @@ for (const id of ["#thickness", "#material"]) {
   $(id).addEventListener("change", () => {
     $("#cost-table").innerHTML = "";
     if (!lastResult) return;
+    // A layered clock's movement pocket is a number of layers that depends on
+    // the thickness, so a new thickness needs the layout made again.
+    if (lastResult.meta.recess && +$("#thickness").value !== lastResult.meta.thicknessMm) {
+      $("#result").close();
+      $("#generate").click();
+      return;
+    }
     renderPrice();
     lastResult.link = shareLink(lastResult.bounds, lastResult.ref);
     renderStats();
@@ -1072,6 +1082,7 @@ $("#order").addEventListener("submit", async (e) => {
     `Material: ${fd.material}`,
     ...(m.labels3d ? ["Labels: 3D (each on a raised flat patch)"] : []),
     ...(m.raisedTemplateLayer ? [`Clock numbers and marks: 3D, raised to layer ${m.raisedTemplateLayer}`] : []),
+    ...(m.recess ? [`Movement pocket: ${m.recess.widthMm} x ${m.recess.heightMm} mm at the back, layers 0-${m.recess.layers - 1} cut (${m.recess.depthMm} mm deep)`] : []),
     ...(lastPrice
       ? [`Price shown: ${money(lastPrice.total)} (board ${money(lastPrice.board)}${lastPrice.extras.map(([t, v]) => ` + ${t.toLowerCase()} ${money(v)}`).join("")}; sheets: ${lastPrice.sheets})`]
       : []),
