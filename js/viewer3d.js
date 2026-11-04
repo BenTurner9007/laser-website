@@ -251,25 +251,21 @@ export function createViewer(container) {
 
     // Water score lines, drawn as thin lines on the layer they sit on.
     const waterMat = new THREE.LineBasicMaterial({ color: ENGRAVE, transparent: true, opacity: 0.8 });
-    // Dotted lines (tracks, footpaths): a round dot at each mark.
-    const dotSprite = (() => {
-      const c = document.createElement("canvas");
-      c.width = c.height = 32;
-      const g = c.getContext("2d");
-      g.fillStyle = "#fff";
-      g.beginPath();
-      g.arc(16, 16, 15, 0, Math.PI * 2);
-      g.fill();
-      return new THREE.CanvasTexture(c);
-    })();
+    // Dotted lines (tracks, footpaths): a small flat black dot lying on the
+    // wood at each mark, as the laser will burn it.
+    const dotMat = new THREE.MeshBasicMaterial({ color: ENGRAVE, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const dotGeo = new THREE.CircleGeometry(0.5, 10).rotateX(-Math.PI / 2); // 1 mm across, scaled per kind
+    const placeDot = new THREE.Matrix4();
     for (const w of result.water || []) {
       const y = (style === "engraved" ? 1 : w.layer + 1) * boardT + 0.05;
       if (w.dotted) {
-        const pos = w.lines.flatMap((l) => [l[0][0] - W / 2, y + 0.02, l[0][1] - H / 2]);
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-        const mat = new THREE.PointsMaterial({ color: 0xb3261e, size: 2 * Math.min(2, window.devicePixelRatio || 1), sizeAttenuation: false, map: dotSprite, alphaTest: 0.5, transparent: true });
-        model.add(new THREE.Points(geo, mat));
+        const d = (w.previewDotMm || 1) * 0.7; // a little under the flat plan's dot
+        const dots = new THREE.InstancedMesh(dotGeo, dotMat, w.lines.length);
+        w.lines.forEach((l, i) => {
+          placeDot.makeScale(d, 1, d).setPosition(l[0][0] - W / 2, y - 0.02, l[0][1] - H / 2);
+          dots.setMatrixAt(i, placeDot);
+        });
+        model.add(dots);
         continue;
       }
       const pos = [];
