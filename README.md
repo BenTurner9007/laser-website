@@ -137,8 +137,8 @@ updates if they change material or thickness:
 The price is also written into the request email, with the sheets it was
 based on. Change the markup, extras or wording in `pricing` in
 `js/config.js` (set `includeVat: false` to work from ex-VAT prices, or
-`pricing: null` to hide prices). Prices are hidden in Etsy mode, as the
-listing has its own price. If no supplier sheet is big enough for a piece,
+`pricing: null` to hide prices). In Etsy mode the estimate uses `etsyMarkup` (55%) and is shown above the
+"What to choose on Etsy" box. If no supplier sheet is big enough for a piece,
 customers are told you'll send a price by email.
 
 
@@ -312,7 +312,7 @@ Edit [`js/config.js`](js/config.js):
 | `frameMm` | Width of the optional frame on single engraved boards (sizes marked `frame: true`) |
 | `clockRecess` | Size, depth and wall of the movement pocket at the back of layered clocks |
 | `backEngraving` | Logo, credits and reference engraved on the back of the base (`null` for none) |
-| `pricing` | Customer price: markup on material, extras for special places and routes, note shown under the price |
+| `pricing` | Customer price: markup on material (`markup` 40%; `etsyMarkup` 55% in Etsy mode, to cover Etsy's fees), extras for special places, text and routes, and the notes shown under the price |
 | `backPlates` | Size of the credits and logo plates added to every SVG (`null` to leave one out) |
 | `sheet` | Cutting sheet size, border and gap between pieces for the laid-out sheets in the SVG |
 | `maxLayers` | Above this, customers see a hint to use a larger contour interval |

@@ -1248,10 +1248,11 @@ function quote() {
   if (!cheapest) return { material: m, thickness: t, cheapest: null };
   const vat = 1 + MATERIALS.vat;
   const materials = cheapest.cost * (P.includeVat ? vat : 1);
-  const board = materials * (1 + P.markup);
+  const markup = ETSY && P.etsyMarkup != null ? P.etsyMarkup : P.markup; // Etsy mode covers Etsy's fees
+  const board = materials * (1 + markup);
   const extras = extrasFor(lastResult.places.length, lastResult.routeOnBoard, lastResult.texts.length);
   const total = Math.round((board + extras.reduce((n, [, v]) => n + v, 0)) * 100) / 100;
-  return { material: m, thickness: t, cheapest, costEx: cheapest.cost, costInc: cheapest.cost * vat, materials, board, extras, total, markup: P.markup, includeVat: P.includeVat };
+  return { material: m, thickness: t, cheapest, costEx: cheapest.cost, costInc: cheapest.cost * vat, materials, board, extras, total, markup, includeVat: P.includeVat };
 }
 // For the request email: what to order and what to charge (the shop's eyes only).
 function shopLines() {
@@ -1296,7 +1297,7 @@ function renderPrice() {
         (extras.length
           ? `<ul><li><span>Map board</span><span>${money(board)}</span></li>${extras.map(([txt, v]) => `<li><span>${txt}</span><span>${money(v)}</span></li>`).join("")}</ul>`
           : "") +
-        (PRICING.note ? `<p class="price-note">${escapeHtml(PRICING.note)}</p>` : "");
+        ((ETSY ? PRICING.etsyNote : PRICING.note) ? `<p class="price-note">${escapeHtml(ETSY ? PRICING.etsyNote : PRICING.note)}</p>` : "");
     } catch (err) {
       console.error(err);
       el.innerHTML = `<p class="price-note">We couldn't work out a price just now. We'll include it when we reply.</p>`;

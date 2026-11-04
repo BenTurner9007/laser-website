@@ -104,12 +104,14 @@ export const CONFIG = {
   // plus extras. Set to null to show no price.
   pricing: {
     markup: 0.4, // 40% on top of material
+    etsyMarkup: 0.55, // in Etsy mode: 55%, covering Etsy's fees (~10% of each sale)
     includeVat: true, // base the material cost on sheet prices inc VAT
     perSpecialPlace: 2.5, // each special place on the board
     perTextBlock: 2.5, // each block of the customer's own text
     route: 2.5, // a hiking route on the board
     note: "An estimate. We'll confirm the final price when we reply.",
-    showInEtsyMode: false, // Etsy listings carry their own price
+    etsyNote: "An estimate of the Etsy price. Choose the options below when you buy on Etsy.",
+    showInEtsyMode: true, // show the estimate in Etsy mode too (with etsyMarkup)
   },
 
   // Engraved on the back of the base board (turn it over left to right after
