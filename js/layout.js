@@ -1083,8 +1083,8 @@ export async function buildLayout(o, onProgress) {
     `<!-- Red = cut, blue = glue guide, black = engrave, green = water score lines, teal = road score lines, ` +
     `orange = assembly numbers (hidden once glued), magenta = numbers on pieces with nothing on top, ` +
     `grey = sheet edges (don't cut). Top left: the assembled model for reference. To the right: the same pieces ` +
-    `laid flat on cutting sheets, one layer per sheet; cut one sheet at a time. Pieces "credits" and "logo" are the back plates ` +
-    `(data credits and shop logo) to glue on the back. -->\n`;
+    `laid flat on cutting sheets, one layer per sheet; cut one sheet at a time. The "Back" layers below the model are engraved on the ` +
+    `back of each piece (logo, map details, credits, reference) after turning it over left to right. -->\n`;
   const svgOpen = (w, h, metaObj) =>
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" ` +
@@ -1333,10 +1333,14 @@ export async function buildLayout(o, onProgress) {
     const backY = H + 40;
     if (backEngraving) {
       const mirrored = layers[0].polys.map((poly) => poly.map((ring) => ring.map(([x, y]) => [W - x, y])));
-      backSvg =
-        `<g inkscape:groupmode="layer" inkscape:label="Back of base: turn the base over left to right, line it up, engrave" id="back-of-base" transform="translate(0 ${backY})">\n` +
+      // One back per piece (a set of coasters gets one under each).
+      const back =
         `<g inkscape:label="Base outline, turned over (guide, don't cut)">${line(polygonsToPath(mirrored), COLOURS.guide)}</g>\n` +
-        fillEach(backEngraving.readable, COLOURS.engrave) + "</g>\n";
+        fillEach(backEngraving.readable, COLOURS.engrave);
+      for (let k = 0; k <= extra; k++)
+        backSvg +=
+          `<g inkscape:groupmode="layer" inkscape:label="Back${extra ? ` ${k + 1} of ${extra + 1}` : ""}: turn the piece over left to right, line it up, engrave" transform="translate(${k * (W + 10)} ${backY})">\n` +
+          back + "</g>\n";
     }
     const rows = Math.ceil(sheets.length / COLS);
     const totalW = sheets.length ? x0 + Math.min(COLS, sheets.length) * cellW + (Math.min(COLS, sheets.length) - 1) * GAP : platesW ? x0 + platesW : W;

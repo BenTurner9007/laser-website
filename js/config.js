@@ -63,7 +63,9 @@ export const CONFIG = {
     // JSON file (built from a DXF by scripts/build-templates.py); w and h
     // must match the template.
     { id: "circle-a4", label: "A4 round (Ø210 mm)", w: 210, h: 210, template: "data/templates/circle-a4.json", frame: true },
-    { id: "clock305", label: "Clock 305 mm", w: 305, h: 305, template: "data/templates/clock-305.json", frame: true, recess: true },
+    // Clocks are single engraved boards for now; remove engravedOnly to offer
+    // layered clocks again (3D numbers and the movement pocket are built in).
+    { id: "clock305", label: "Clock 305 mm", w: 305, h: 305, template: "data/templates/clock-305.json", frame: true, recess: true, engravedOnly: true },
     { id: "bookmark", label: "Bookmark", w: 50.3, h: 168.91, template: "data/templates/bookmark.json", engravedOnly: true, product: "bookmark" },
     { id: "coaster-round", label: "Round coaster", w: 100, h: 100, template: "data/templates/coaster-round.json", engravedOnly: true, product: "coaster" },
     { id: "coaster-square", label: "Square coaster", w: 98.65, h: 98.65, template: "data/templates/coaster-square.json", engravedOnly: true, product: "coaster" },
@@ -96,10 +98,10 @@ export const CONFIG = {
   // back): a credits plate engraved with the data sources the map uses, and a
   // plate engraved with your logo (data/logo.json, traced from
   // images/logo.jpg by scripts/build-logo.py). Set either to null to leave it out.
-  backPlates: {
-    credits: { widthMm: 90, fontMm: 2.5, marginMm: 4 },
-    logo: { widthMm: 80, heightMm: 40, marginMm: 4, file: "data/logo.json" },
-  },
+  // Off: the logo and credits are engraved on the back of every piece instead
+  // (backEngraving below). To cut separate plates again, use:
+  // { credits: { widthMm: 90, fontMm: 2.5, marginMm: 4 }, logo: { widthMm: 80, heightMm: 40, marginMm: 4, file: "data/logo.json" } }
+  backPlates: null,
 
   // Price customers see once they create a layout: the cost of the cheapest
   // supplier sheets that fit the pieces (inc VAT if includeVat), plus markup,

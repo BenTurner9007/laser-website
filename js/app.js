@@ -710,7 +710,9 @@ function updateStyleOptions() {
   const layered = document.querySelector('input[name="style"][value="layered"]');
   layered.disabled = !state.contours || flatOnly;
   layered.closest("label").title = flatOnly
-    ? "Coasters and bookmarks are single engraved boards, so they lie flat"
+    ? currentSize().product
+      ? "Coasters and bookmarks are single engraved boards, so they lie flat"
+      : `The ${currentSize().label.toLowerCase()} is made as a single engraved board`
     : !state.contours ? "Layered boards are made from the contours – tick Contour lines to use them" : "";
   if (layered.disabled && state.style === "layered") {
     state.style = "engraved";

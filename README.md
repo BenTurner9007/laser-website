@@ -219,25 +219,11 @@ inside. Cut the base, turn it over left to right, line it up with the guide
 and engrave. Customers can see it with **See the back** in the 3D view.
 Text size is `backEngraving` in `js/config.js` (`null` for a plain back).
 
-### Back plates
+### Back plates (switched off)
 
-Every SVG also has two small plates to cut from the same board and glue on the back:
-
-- **Credits plate** (90 mm wide, height to fit): "Map data", then only the
-  sources that map actually uses (elevation; hill names if peaks are labelled;
-  OpenStreetMap if water, roads or place names are on it), and "Made by
-  TurnerMadeUK · reference". Moon and Mars maps get their own credits.
-- **Logo plate** (80 × 40 mm): your logo, engraved.
-
-Both are red cut rectangles with black engraving. On layered maps they are
-nested onto the cutting sheets with the other pieces (pieces `credits` and
-`logo`); on single engraved boards they sit beside the board in a "Back
-plates" layer. They are included in the material cost.
-
-Change the sizes in `backPlates` in `js/config.js`, or set either to `null` to
-leave it out. The logo outlines (`data/logo.json`) are traced from
-`images/logo.jpg` by `python3 scripts/build-logo.py`; if you have a vector copy
-of the logo, tracing that gives crisper edges.
+The separate logo and credits plates are no longer cut: the same information
+is engraved on the back of every piece (see above). To cut plates again, set
+`backPlates` in `js/config.js` (the line to use is in the comment there).
 
 ### How safe is owner mode?
 
@@ -275,7 +261,7 @@ Besides A4 and A3, customers can pick shaped boards made from your DXFs in
 | Size | Shape | Notes |
 | --- | --- | --- |
 | A4 round | 210 mm circle | plain circle, the width of A4 |
-| Clock 305 mm | circle | numbers and hour marks engraved; on layered clocks they are built up in 3D from the layers instead, level with the 3D frame if chosen, otherwise with the top contour layer; 10 mm centre hole for the movement, cut through every layer; layered clocks also get a 40 × 50 mm pocket for the movement cut up from the back (16 mm deep, rounded up to whole layers, with a 5 mm wall and a solid ceiling layer; `clockRecess` in `js/config.js`; changing the thickness rebuilds the layout) |
+| Clock 305 mm (single engraved board for now; layered clocks are built in but switched off with `engravedOnly`) | circle | numbers and hour marks engraved; on layered clocks they are built up in 3D from the layers instead, level with the 3D frame if chosen, otherwise with the top contour layer; 10 mm centre hole for the movement, cut through every layer; layered clocks also get a 40 × 50 mm pocket for the movement cut up from the back (16 mm deep, rounded up to whole layers, with a 5 mm wall and a solid ceiling layer; `clockRecess` in `js/config.js`; changing the thickness rebuilds the layout) |
 | Bookmark | 50 × 169 mm rounded rectangle | 12 mm tassel hole, cut through every layer it crosses |
 | Round coaster | 100 mm circle | |
 | Square coaster | 98.7 mm square | map fills all but a 2 mm plain border on the base |
