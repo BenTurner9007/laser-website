@@ -1,4 +1,4 @@
-"""Build data/places.json (UK city, town and village names) from Overture Maps.
+"""Build data/places.json (UK and Ireland city, town and village names) from Overture Maps.
 
 Usage: pip install pyarrow requests; python3 scripts/build-places.py
 
@@ -36,7 +36,7 @@ for key in keys:
         if not water.overlaps_uk(st("bbox.xmin").min, st("bbox.xmax").max, st("bbox.ymin").min, st("bbox.ymax").max):
             continue
         t = pf.read_row_group(g, columns=["subtype", "class", "country", "names", "population", "geometry"])
-        t = t.filter(pc.and_(pc.equal(t.column("country"), "GB"), pc.equal(t.column("subtype"), "locality")))
+        t = t.filter(pc.and_(pc.is_in(t.column("country"), value_set=__import__("pyarrow").array(["GB", "IE"])), pc.equal(t.column("subtype"), "locality")))
         t = t.filter(pc.is_in(t.column("class"), value_set=__import__("pyarrow").array(list(KINDS))))
         geoms = shapely.from_wkb(t.column("geometry").to_numpy(zero_copy_only=False))
         for cls, names, pop, geom in zip(t.column("class").to_pylist(), t.column("names").to_pylist(), t.column("population").to_pylist(), geoms):

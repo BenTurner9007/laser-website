@@ -43,7 +43,7 @@ OUT = ROOT / "data/water"
 
 BUCKET = "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com"
 RELEASE = "release/2026-10-21.0"  # newest Overture release when this was built
-UK = (-8.7, 49.8, 1.9, 61.0)  # west, south, east, north
+UK = (-10.8, 49.8, 1.9, 61.0)  # west, south, east, north: Great Britain and all of Ireland
 TILE = 0.1  # degrees
 SIMPLIFY_DEG = 0.00003  # ~3 m; far finer than a laser can show at map scale
 MIN_LAKE_M2 = 1500  # smaller ponds would be a dot on the board

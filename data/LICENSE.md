@@ -8,6 +8,8 @@ including commercially, as long as you follow the licence for each part.
 - `water/`: rivers, lakes, streams, coastline and lake areas
 - `roads/`: roads, tracks and paths
 - `places.json`: city, town and village names
+- `hills.geojson`: the hills with the list "osm" (other named peaks, added by
+  `build-peaks.py`)
 
 These are derived databases of OpenStreetMap data, made from the
 [Overture Maps](https://overturemaps.org) release 2026-10-21.0 by the scripts
@@ -25,7 +27,7 @@ the ODbL too.
 
 ## Hill data: Creative Commons Attribution 4.0
 
-- `hills.geojson`: hill names, heights and lists
+- `hills.geojson`: the hills on the named lists (Wainwrights, Munros and so on)
 
 From [The Database of British and Irish Hills](https://www.hill-bagging.co.uk/dobih)
 v18.6, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).

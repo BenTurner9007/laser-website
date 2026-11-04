@@ -447,6 +447,18 @@ they sit on (trimmed to where that layer is on top) and shown in the flat plan
 and 3D preview. Names are never placed over a lake. To add them to
 existing tiles without rebuilding the lines: `python3 scripts/build-water.py lakefill`.
 
+### Hills and the area covered
+
+The map covers **Great Britain and all of Ireland**: elevation everywhere,
+water, roads and place names in `data/` for that whole area, and hills from
+two sources in `data/hills.geojson`:
+
+- the named lists (Wainwrights, Munros, …) from the Database of British and
+  Irish Hills, built by `scripts/build-hills.mjs`;
+- every other named peak with a height from OpenStreetMap (via Overture Maps),
+  added by `python3 scripts/build-peaks.py` (run it after build-hills; it
+  skips peaks within 300 m of a listed hill).
+
 ### Updating the hill data
 
 `scripts/source/dobih-extract.json` is an extract of the Database of British

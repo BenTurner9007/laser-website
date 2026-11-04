@@ -772,7 +772,7 @@ export async function buildLayout(o, onProgress) {
   placeTowns("c"); // cities before peaks, towns and villages after
 
   // Peaks: a small triangle on the summit with the name beside it.
-  let peaksPlaced = 0;
+  let peaksPlaced = 0, osmPeaksPlaced = 0, listedPeaksPlaced = 0;
   if (o.labelMode !== "none") {
     const m = o.fontMm * 0.45; // marker half-size
     const ranked = o.peaks
@@ -789,6 +789,7 @@ export async function buildLayout(o, onProgress) {
       taken.push(box);
       clearBehind(box, 0.3);
       peaksPlaced++;
+      if (p.osm) osmPeaksPlaced++; else listedPeaksPlaced++;
       marks.push([[[[x - m, y + m * 0.8], [x, y - m], [x + m, y + m * 0.8]]]]); // one polygon, one ring
       const text = o.labelMode === "name-height" ? `${p.name} ${p.h} m` : p.name;
       const r = placeText(text, o.fontMm, "regular", x, y - m * 0.1, m, m * 0.9, prefer(x));
@@ -1109,10 +1110,11 @@ export async function buildLayout(o, onProgress) {
   const creditLines = () => {
     const c = o.back?.credits || o.plates?.credits || {};
     const kinds = new Set(water.map((w) => w.group));
-    const osm = [kinds.has("water") && "rivers and lakes", kinds.has("roads") && "roads and paths", townsPlaced && "place names"].filter(Boolean);
+    const anyWater = kinds.has("water") || lakeEngrave.length || riverEngrave.length;
+    const osm = [osmPeaksPlaced && "hill names", anyWater && "rivers and lakes", kinds.has("roads") && "roads and paths", townsPlaced && "place names"].filter(Boolean);
     return [
       c.elevation,
-      peaksPlaced && c.names,
+      listedPeaksPlaced && c.names,
       osm.length && `${osm.join(", ").replace(/^./, (m) => m.toUpperCase())}: ©\u00a0OpenStreetMap contributors (ODbL), via Overture\u00a0Maps.`,
     ].filter(Boolean);
   };

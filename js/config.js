@@ -142,6 +142,13 @@ export const REGIONS = [
   { label: "Yorkshire Dales", at: [-2.2, 54.22, 10.4] },
   { label: "Ben Nevis & Glen Coe", at: [-5.0, 56.74, 10.6] },
   { label: "Cairngorms", at: [-3.67, 57.08, 10.6] },
+  { label: "Skye Cuillin", at: [-6.23, 57.22, 11] },
+  { label: "Brecon Beacons", at: [-3.44, 51.88, 10.8] },
+  { label: "Dartmoor", at: [-3.95, 50.6, 10.8] },
+  { label: "Mourne Mountains", at: [-5.98, 54.18, 11] },
+  { label: "Wicklow Mountains", at: [-6.35, 53.06, 10.6] },
+  { label: "MacGillycuddy's Reeks", at: [-9.74, 52.0, 11] },
+  { label: "Connemara", at: [-9.82, 53.5, 10.8] },
 ];
 
 // Hill lists in data/hills.geojson, in display order.
@@ -152,4 +159,7 @@ export const HILL_LISTS = [
   { id: "ethels", label: "Ethels (Peak District)", on: true },
   { id: "dales-30", label: "Dales 30", on: true },
   { id: "yorkshire-three-peaks", label: "Yorkshire Three Peaks", on: true },
+  // Every other named peak in Great Britain and Ireland (OpenStreetMap, via
+  // Overture Maps; added by scripts/build-peaks.py).
+  { id: "osm", label: "Other named hills", on: true },
 ];
