@@ -193,6 +193,7 @@ To change the key, put the new hash there:
 ### Back of the base
 
 Every layout also engraves the **back of the base board** with your logo, the
+map's centre (latitude, longitude) and contour spacing, the
 data credits the map uses and "Made by TurnerMadeUK · Ref CM-…". It is fitted
 clear of the edge, holes and a clock's movement pocket, shrinking the text
 and dropping the logo on very small boards if it must. In the SVG it is a

@@ -1135,6 +1135,15 @@ export async function buildLayout(o, onProgress) {
   // reference, engraved after the base is cut and turned over (left to right).
   // The block is fitted on the board clear of holes, the edge and a clock's
   // movement pocket, shrinking (and re-wrapping) until it fits.
+  // "54.5270° N, 3.0176° W · Contours every 50 m" for the back of the base.
+  const mapFacts = () => {
+    const b = o.bounds;
+    const merc = (lat) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+    const lat = (Math.atan(Math.exp((merc(b.north) + merc(b.south)) / 2)) * 360) / Math.PI - 90; // middle of the frame as drawn
+    const lng = (b.west + b.east) / 2;
+    const at = `${Math.abs(lat).toFixed(4)}°\u00a0${lat >= 0 ? "N" : "S"}, ${Math.abs(lng).toFixed(4)}°\u00a0${lng >= 0 ? "E" : "W"}`;
+    return o.contours === false ? at : `${at} · Contours every\u00a0${o.interval}\u00a0m`;
+  };
   const backEngraving = (() => {
     const cfg = o.back;
     if (!cfg) return null;
@@ -1149,6 +1158,9 @@ export async function buildLayout(o, onProgress) {
         y += art.h * k + fs * 1.2;
       }
       const lines = [];
+      // The map's centre and contour spacing, above the credits.
+      for (const t of wrap(mapFacts(), fs * 1.1, wrapW, "bold")) lines.push({ t, size: fs * 1.1, weight: "bold" });
+      lines.push(null);
       for (const para of [...creditLines(), ...(cfg.extra || [])]) {
         wrap(para, fs, wrapW, "regular").forEach((t) => lines.push({ t, size: fs, weight: "regular" }));
         lines.push(null); // paragraph gap
