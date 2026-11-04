@@ -1613,8 +1613,8 @@ const waterLabel = () =>
 async function waterFor(bounds) {
   const kinds = [...state.water];
   if (!kinds.length) return null;
-  // Lake areas too, so the previews can show lakes filled in.
-  const all = await fetchWater(bounds, kinds.includes("lakes") ? [...kinds, "lakefill"] : kinds);
+  // Lake and wide-river areas too: they are filled in by the laser.
+  const all = await fetchWater(bounds, [...kinds, ...(kinds.includes("lakes") ? ["lakefill"] : []), ...(kinds.includes("rivers") ? ["riverfill"] : [])]);
   return Object.fromEntries(Object.keys(all).map((k) => [k, all[k]]));
 }
 
@@ -1641,7 +1641,7 @@ async function showWater() {
   note.textContent = "Loading rivers and lakes…";
   try {
     const water = await waterFor(view);
-    const features = Object.entries(water).filter(([kind]) => kind !== "lakefill").flatMap(([kind, lines]) =>
+    const features = Object.entries(water).filter(([kind]) => !kind.endsWith("fill")).flatMap(([kind, lines]) =>
       lines.map((l) => ({ type: "Feature", properties: { kind }, geometry: { type: "LineString", coordinates: l } }))
     );
     map.getSource("water").setData({ type: "FeatureCollection", features });

@@ -583,15 +583,39 @@ export async function buildLayout(o, onProgress) {
   // if none is, the name is left off (and counted) rather than overprinted.
   // Lake areas (lakes, tarns, ponds, reservoirs) in mm. They are filled in
   // by the laser, so names keep off them.
+  // Wide rivers and canals have an area too (riverfill), filled the same way.
   let lakeShapes = [];
-  if (o.water?.lakes?.length && o.water?.lakefill?.length) {
+  const areaRings = [...(o.water?.lakes ? o.water.lakefill || [] : []), ...(o.water?.rivers ? o.water.riverfill || [] : [])];
+  if (areaRings.length) {
     const frameBox = { x0: 0, y0: 0, x1: W, y1: H };
-    const rings = o.water.lakefill.map((r) => clipRingToBox(r.map(toMm), frameBox)).filter((r) => r.length >= 3);
+    const rings = areaRings.map((r) => clipRingToBox(r.map(toMm), frameBox)).filter((r) => r.length >= 3);
     lakeShapes = rings.length ? tidy(polygonClipping.xor(...rings.map((r) => [[r]])), 0.5) : [];
     if (tpl && lakeShapes.length) lakeShapes = clip("intersection", lakeShapes, tpl.mapRegion, 0.5);
   }
   const lakeBoxes = lakeShapes.map((p) => boxOf(p[0]));
+  // River and canal lines are filled bands too, so names keep off them.
+  const riverKind = WATER_KINDS.find((k) => k.id === "rivers");
+  const riverLines = (o.water?.rivers || []).map((l) => l.map(toMm)).filter((l) => l.length > 1);
+  const riverBoxes = riverLines.map((l) => boxOf(l));
+  const nearRiver = (q) => {
+    const pad = (riverKind?.widthMm || 1) / 2 + 0.4;
+    const x0 = q.x0 - pad, x1 = q.x1 + pad, y0 = q.y0 - pad, y1 = q.y1 + pad;
+    return riverLines.some((l, i) => {
+      const b = riverBoxes[i];
+      if (x0 > b.x1 || x1 < b.x0 || y0 > b.y1 || y1 < b.y0) return false;
+      for (let j = 1; j < l.length; j++) {
+        const [ax, ay] = l[j - 1], [bx, by] = l[j];
+        const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 0.4));
+        for (let t = 0; t <= n; t++) {
+          const x = ax + ((bx - ax) * t) / n, y = ay + ((by - ay) * t) / n;
+          if (x > x0 && x < x1 && y > y0 && y < y1) return true;
+        }
+      }
+      return false;
+    });
+  };
   const onWater = (q) =>
+    nearRiver(q) ||
     lakeShapes.some((poly, i) => {
       const b = lakeBoxes[i];
       if (q.x0 > b.x1 || q.x1 < b.x0 || q.y0 > b.y1 || q.y1 < b.y0) return false;
@@ -912,7 +936,7 @@ export async function buildLayout(o, onProgress) {
     for (const [layer, polys] of [...byLayer].sort((a, c) => a[0] - c[0])) engrave.push({ layer, polys });
   }
   const engravePath = (i) =>
-    [...engrave, ...lakeEngrave].filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.engrave)).join("");
+    [...engrave, ...lakeEngrave, ...riverEngrave].filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.engrave)).join("");
 
   // Water: lake shores, rivers, streams and coastline as score lines, each
   // stretch on whichever layer is on top there (looked up in a layer mask,
@@ -963,6 +987,9 @@ export async function buildLayout(o, onProgress) {
     })
     .filter((l) => l.polys.length);
 
+  // Rivers and canals: filled bands for the laser (like lakes), on the layer
+  // each stretch runs over, instead of score lines.
+  const riverEngrave = [];
   // Roads, paths and water stay off clear boxes and off raised (3D) labels.
   const clearBoxes = [...labelBoxes, ...raisedBoxes];
   if (lineKinds.length) {
@@ -978,12 +1005,18 @@ export async function buildLayout(o, onProgress) {
     for (const kind of lineKinds) {
       const lines = trimLines(kind.lines.map((l) => l.map(toMm)), W, H, 1).filter((l) => lineLength(l) >= 2);
       const clear = clearBoxes.length ? linesOutsideBoxes(lines, clearBoxes) : lines;
-      for (const [layer, runs] of splitByLayer(clear, mask))
+      for (const [layer, runs] of splitByLayer(clear, mask)) {
+        if (kind.id === "rivers") {
+          const band = routeBand(runs, kind.widthMm);
+          if (band.length) riverEngrave.push({ layer, polys: band });
+          continue;
+        }
         water.push({
           layer, group: kind.group, kind: kind.id, widthMm: kind.widthMm,
           lines: kind.dotMm ? dotted(runs, kind.dotMm) : runs,
           ...(kind.dotMm ? { dotted: true, previewDotMm: kind.previewDotMm } : {}),
         });
+      }
     }
   }
   // Engraved boards: contour lines as open lines, with the label boxes left clear.
@@ -1007,7 +1040,8 @@ export async function buildLayout(o, onProgress) {
   // Layered: each layer is a group of its separate pieces, so they can be
   // nested on sheets; each piece carries its glue guides, engraving and numbers.
   let piecesCache = null;
-  const getPieces = () => (piecesCache ??= numberPieces(splitIntoPieces(layers, [...engrave, ...lakeEngrave], water), NUMBER_MM));
+  const waterFill = [...lakeEngrave, ...riverEngrave]; // filled water, engraved
+  const getPieces = () => (piecesCache ??= numberPieces(splitIntoPieces(layers, [...engrave, ...waterFill], water), NUMBER_MM));
   const pieceContent = (p) =>
     line(polygonsToPath([p.poly]), COLOURS.cut) + "\n" +
     (o.guides && p.children.length ? line(polygonsToPath(p.children.map((c) => c.poly)), COLOURS.guide) + "\n" : "") +
@@ -1296,7 +1330,7 @@ export async function buildLayout(o, onProgress) {
       preview += `<path d="${l.d}" fill="${tone(i + 1)}" fill-rule="evenodd" stroke="rgba(60,30,10,.55)" stroke-width="${Math.max(W, H) / 900}"/>`;
     });
   }
-  for (const l of lakeEngrave) preview += `<path d="${polygonsToPath(l.polys)}" fill="#111" fill-rule="evenodd"/>`;
+  for (const l of waterFill) preview += `<path d="${polygonsToPath(l.polys)}" fill="#111" fill-rule="evenodd"/>`;
   for (const w of water) {
     const road = w.group === "roads";
     // Dotted kinds (tracks, footpaths) are rows of tiny marks: drawn as clear
@@ -1319,5 +1353,5 @@ export async function buildLayout(o, onProgress) {
   }
   preview += "</svg>";
 
-  return { back: backEngraving ? backEngraving.front : null, frame: framePoly && !layeredFrame ? [framePoly] : null, lakes: lakeEngrave, texts, townsPlaced, buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
+  return { back: backEngraving ? backEngraving.front : null, frame: framePoly && !layeredFrame ? [framePoly] : null, lakes: waterFill, texts, townsPlaced, buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }

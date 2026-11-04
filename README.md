@@ -437,7 +437,9 @@ To use a newer Overture release, change `RELEASE` at the top of the script.
 Tiny ponds (under 1,500 m²), ditches, drains and swimming pools are left out.
 
 Besides the lines, each tile holds the lake, tarn, pond and reservoir areas
-(`lakefill`). Lakes are filled in black: engraved in the SVG on the layer
+(`lakefill`), and the water area of wide rivers and canals (`riverfill`).
+Rivers and canals are filled too: narrow ones as a band along the river line,
+wide ones by their area. Lakes are filled in black: engraved in the SVG on the layer
 they sit on (trimmed to where that layer is on top) and shown in the flat plan
 and 3D preview. Names are never placed over a lake. To add them to
 existing tiles without rebuilding the lines: `python3 scripts/build-water.py lakefill`.

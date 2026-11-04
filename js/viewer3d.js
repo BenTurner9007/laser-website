@@ -233,7 +233,8 @@ export function createViewer(container) {
     if (result.back?.length) {
       const geo = new THREE.ShapeGeometry(shapesFor(result.back, W, H));
       geo.rotateX(-Math.PI / 2);
-      const mat = new THREE.MeshBasicMaterial({ color: ENGRAVE, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 });
+      // Only drawn from below (BackSide), so it can never show through the top.
+      const mat = new THREE.MeshBasicMaterial({ color: ENGRAVE, transparent: true, opacity: 0.85, side: THREE.BackSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.y = -0.3;
       model.add(mesh);

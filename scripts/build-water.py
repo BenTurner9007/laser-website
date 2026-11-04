@@ -15,9 +15,10 @@ Google's polyline algorithm (precision 5) and joined with ",":
   streams streams and becks
   coast   coastline (the edge of the sea)
 and one kind of area:
-  lakefill  lake, tarn, pond and reservoir areas, cut to the tile, as rings
-            (fill even-odd; islands are holes). Only for the preview, which
-            shows lakes filled in.
+and two kinds of area, cut to the tile, as rings (fill even-odd; islands are
+holes), filled in by the laser:
+  lakefill   lakes, tarns, ponds and reservoirs
+  riverfill  the water area of wide rivers and canals
 
   python3 scripts/build-water.py lakefill   # add just lakefill to existing tiles
 """
@@ -180,10 +181,12 @@ def as_lines(geom):
     return geom
 
 
-def lake_polygons(subtypes, classes, geoms):
+def lake_polygons(subtypes, classes, geoms, kind="lakes"):
+    """Areas of one kind: "lakes" (lakes, tarns, ponds, reservoirs) or
+    "rivers" (the water area of wide rivers and canals)."""
     out = []
     for sub, cls, g in zip(subtypes, classes, geoms):
-        if g is None or g.is_empty or classify(sub, cls, g.geom_type) != "lakes":
+        if g is None or g.is_empty or classify(sub, cls, g.geom_type) != kind:
             continue
         if g.geom_type in ("Polygon", "MultiPolygon") and area_m2(g) >= MIN_LAKE_M2:
             out.append(g)
@@ -226,19 +229,26 @@ def read_raw():
 
 
 def lakefill():
-    """Add lakefill to the existing tiles without rebuilding the lines."""
-    fills = lakefill_tiles(lake_polygons(*read_raw()))
+    """Add lakefill and riverfill to the existing tiles without rebuilding the lines."""
+    raw = read_raw()
     index = json.loads((OUT / "index.json").read_text())
     keys = set(index["tiles"])
-    for (tx, ty), rings in fills.items():
-        f = OUT / f"{tx}_{ty}.json"
-        body = json.loads(f.read_text()) if f.exists() else {}
-        body["lakefill"] = ",".join(rings)
-        f.write_text(json.dumps(body, separators=(",", ":")))
-        keys.add(f"{tx}_{ty}")
+    for name, kind in (("lakefill", "lakes"), ("riverfill", "rivers")):
+        fills = lakefill_tiles(lake_polygons(*raw, kind=kind))
+        for f in OUT.glob("*_*.json"):  # drop old copies of this area kind
+            body = json.loads(f.read_text())
+            if name in body:
+                del body[name]
+                f.write_text(json.dumps(body, separators=(",", ":")))
+        for (tx, ty), rings in fills.items():
+            f = OUT / f"{tx}_{ty}.json"
+            body = json.loads(f.read_text()) if f.exists() else {}
+            body[name] = ",".join(rings)
+            f.write_text(json.dumps(body, separators=(",", ":")))
+            keys.add(f"{tx}_{ty}")
+        print(f"{name}: {len(fills)} tiles", flush=True)
     index["tiles"] = sorted(keys)
     (OUT / "index.json").write_text(json.dumps(index, separators=(",", ":")))
-    print(f"lakefill: {len(fills)} tiles", flush=True)
 
 
 def build():
@@ -291,8 +301,10 @@ def build():
                             tiles[(tx, ty)][kind].append(s)
         print(f"{kind}: done", flush=True)
 
-    for key, rings in lakefill_tiles(lake_polygons(subtypes, classes, geoms)).items():
+    for key, rings in lakefill_tiles(lake_polygons(subtypes, classes, geoms, "lakes")).items():
         tiles[key]["lakefill"] = rings
+    for key, rings in lakefill_tiles(lake_polygons(subtypes, classes, geoms, "rivers")).items():
+        tiles[key]["riverfill"] = rings
     print("lakefill: done", flush=True)
 
     OUT.mkdir(parents=True, exist_ok=True)
