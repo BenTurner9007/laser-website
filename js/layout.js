@@ -370,6 +370,35 @@ function linesOutsideBoxes(lines, boxes) {
 
 // Keep only the parts of lines (in mm) that come near the board.
 /**
+ * A filled band along lines (rivers, canals), like routeBand but fail-safe:
+ * joining many small pieces into one shape occasionally trips the geometry
+ * library on awkward input, so on failure it retries line by line, then in
+ * short stretches, and skips only a stretch that still can't be joined.
+ */
+function safeBand(lines, widthMm) {
+  const tidyLine = (l) => l.map(([x, y]) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000]);
+  try {
+    return routeBand(lines.map(tidyLine), widthMm);
+  } catch {
+    const out = [];
+    for (const line of lines.map(tidyLine)) {
+      try {
+        out.push(...routeBand([line], widthMm));
+      } catch {
+        for (let i = 0; i < line.length - 1; i += 8) {
+          try {
+            out.push(...routeBand([line.slice(i, i + 9)], widthMm));
+          } catch {
+            /* skip this short stretch */
+          }
+        }
+      }
+    }
+    return out;
+  }
+}
+
+/**
  * Dotted lines (tracks, footpaths): a short mark every `spacing` mm along
  * each line, as tiny line segments, so the laser scores a row of dots.
  */
@@ -1007,7 +1036,7 @@ export async function buildLayout(o, onProgress) {
       const clear = clearBoxes.length ? linesOutsideBoxes(lines, clearBoxes) : lines;
       for (const [layer, runs] of splitByLayer(clear, mask)) {
         if (kind.id === "rivers") {
-          const band = routeBand(runs, kind.widthMm);
+          const band = safeBand(runs, kind.widthMm);
           if (band.length) riverEngrave.push({ layer, polys: band });
           continue;
         }
