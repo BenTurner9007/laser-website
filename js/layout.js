@@ -1386,10 +1386,10 @@ export async function buildLayout(o, onProgress) {
   for (const l of waterFill) preview += `<path d="${polygonsToPath(l.polys)}" fill="#111" fill-rule="evenodd"/>`;
   for (const w of water) {
     const road = w.group === "roads";
-    // Dotted kinds (tracks, footpaths) are rows of tiny marks: drawn as clear
-    // red dots, a little larger than they will burn, so they never read as contours.
+    // Dotted kinds (tracks, footpaths) are rows of tiny marks: drawn as black
+    // dots, a little larger than they will burn, so they read clearly as dots.
     if (w.dotted) {
-      preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="#b3261e" stroke-width="${w.previewDotMm}" stroke-linecap="round"/>`;
+      preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="#1a1a1a" stroke-width="${w.previewDotMm}" stroke-linecap="round"/>`;
       continue;
     }
     preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="${road ? "#2a1d14" : "#1f3f5c"}" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;

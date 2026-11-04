@@ -969,7 +969,7 @@ function render3d() {
     m.style === "layered"
       ? `<b>${sizeText(m)}</b>, <b>${m.layers} layers × ${t} mm = ${m.layers * t} mm tall</b>. ` +
         `Map scale 1:${scale}. Each layer is ${m.interval} m of height, ${exaggeration(t)}. The ruler is in centimetres.`
-      : `<b>${sizeText(m)}</b> board. Map scale 1:${scale}, ${m.contours ? `contours every ${m.interval} m` : "no contour lines"}. The ruler is in centimetres.`;
+      : `<b>${sizeText(m)}</b> board, <b>${t} mm thick</b>. Map scale 1:${scale}, ${m.contours ? `contours every ${m.interval} m` : "no contour lines"}. The ruler is in centimetres.`;
 }
 
 function selectTab(which) {

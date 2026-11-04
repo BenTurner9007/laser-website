@@ -162,7 +162,7 @@ export function createViewer(container) {
     const t = opts.thickness;
     const finish = FINISHES[opts.material] || FINISHES[DEFAULT_FINISH];
     const layers = style === "engraved" ? result.layers.slice(0, 1) : result.layers;
-    const boardT = style === "engraved" ? Math.max(t, 6) : t;
+    const boardT = t; // every board and layer at the real thickness of the chosen wood
     const n = layers.length;
 
     let grain = null;
