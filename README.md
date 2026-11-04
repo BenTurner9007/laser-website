@@ -160,6 +160,19 @@ under that code ("Etsy design CM-XMIVUY"), so find that email, open its link
 and download the SVG as usual. Without a form service, the customer copies the
 code plus the full design link instead. Nothing is ordered or paid on the site.
 
+### What to choose on Etsy
+
+In Etsy mode the layout window shows a **What to choose on Etsy** box, worked
+out from the design: which listing to buy (e.g. *Layered contour map*), its
+**Size** and **Layers** options, and how many of each extra to add from a
+separate **Map extras** listing (special places, text boxes, route, frame).
+Designs with more layers than your bands cover are told to message you first.
+The same line goes into the saved-design email.
+
+Set the names in `etsy.guide` in `js/config.js` and make your Etsy listings
+match them: one listing per product with two variations (Size and Layers;
+Etsy allows two), plus a *Map extras* listing whose options are the extras.
+
 ## Owner mode (downloading the SVG)
 
 The **Download SVG** button only appears in your own browser:

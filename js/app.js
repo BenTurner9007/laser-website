@@ -844,7 +844,7 @@ $("#generate").addEventListener("click", async () => {
       },
       (f) => setStatus(`Fetching elevation data… ${Math.round(f * 100)}%`)
     );
-    lastResult = { ...result, bounds: b, link: shareLink(b, ref), ref, waterFailed };
+    lastResult = { ...result, bounds: b, link: shareLink(b, ref), ref, waterFailed, sizeId: currentSize()?.id };
     showResult();
     setStatus("");
   } catch (err) {
@@ -978,6 +978,7 @@ function showResult() {
   $("#send-request").textContent = ETSY ? "Save my design" : "Send request";
   $("#etsy-done").hidden = true;
   renderStats();
+  renderEtsyGuide();
   $("#order-status").textContent = "";
   $("#owner-note").textContent = "";
   $("#cost-table").innerHTML = "";
@@ -1100,6 +1101,7 @@ $("#order").addEventListener("submit", async (e) => {
     `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}${m.frameMm ? (m.frameLayer ? `, with a ${m.frameMm} mm 3D frame built up to layer ${m.frameLayer}` : `, with a ${m.frameMm} mm frame on top`) : ""}`,
     `Contours every ${m.interval} m, smoothing ${m.smoothing}, heights ${m.minElevation}-${m.maxElevation} m`,
     `Material: ${fd.material}`,
+    ...(ETSY && etsyChoice() ? [`Etsy: ${etsyChoiceText(etsyChoice())}`] : []),
     ...(lastResult.back ? ["Back of base: logo, map credits and reference engraved (turn the base over left to right)"] : []),
     ...(m.labels3d ? ["Labels: 3D (each on a raised flat patch)"] : []),
     ...(m.raisedTemplateLayer ? [`Clock numbers and marks: 3D, raised to layer ${m.raisedTemplateLayer}`] : []),
@@ -1725,6 +1727,53 @@ onStyleReady(showRoadsSoon);
 // the customer a code to paste into the Etsy personalisation box.
 let etsyCopyText = "";
 
+// ---------- Etsy mode: which listing and options to choose ----------
+// Worked out from the design (see CONFIG.etsy.guide), so the customer buys
+// exactly what they designed.
+function etsyChoice() {
+  const g = CONFIG.etsy?.guide;
+  if (!g || !lastResult) return null;
+  const m = lastResult.meta;
+  const size = CONFIG.sizes.find((s) => s.id === lastResult.sizeId);
+  const product = g.products.find((p) => p.sizes.includes(lastResult.sizeId));
+  if (!size || !product) return null;
+  const layered = m.style !== "engraved";
+  const band = layered ? g.layerBands.find((b) => m.layers <= b.upTo) : null;
+  const extras = [];
+  const add = (key, n) => n > 0 && g.extras[key] && extras.push([g.extras[key], n]);
+  add("places", lastResult.places.length);
+  add("texts", lastResult.texts.length);
+  add("route", lastResult.routeOnBoard ? 1 : 0);
+  add("frame", m.frameMm ? 1 : 0);
+  return {
+    listing: product[layered ? "layered" : "engraved"],
+    options: [["Size", size.label], ...(layered ? [["Layers", band ? band.label : null]] : [])],
+    tooManyLayers: layered && !band ? m.layers : 0,
+    extrasListing: g.extrasListing,
+    extras,
+  };
+}
+const etsyChoiceText = (c) =>
+  `${c.listing} (${c.options.map(([k, v]) => `${k}: ${v ?? "message us"}`).join(", ")})` +
+  (c.extras.length ? ` + ${c.extrasListing}: ${c.extras.map(([n, q]) => `${n} x${q}`).join(", ")}` : "");
+function renderEtsyGuide() {
+  const el = $("#etsy-guide");
+  const c = ETSY ? etsyChoice() : null;
+  el.hidden = !c;
+  if (!c) return;
+  const pill = (t) => `<span class="opt">${escapeHtml(t)}</span>`;
+  el.innerHTML =
+    `<h4>What to choose on Etsy</h4><ol>` +
+    `<li>Listing <b>${escapeHtml(c.listing)}</b>: ${c.options.filter(([, v]) => v).map(([k, v]) => pill(`${k}: ${v}`)).join("")}</li>` +
+    (c.extras.length
+      ? `<li>Also add <b>${escapeHtml(c.extrasListing)}</b> to your basket, one for each: ${c.extras.map(([n, q]) => pill(`${n} × ${q}`)).join("")}</li>`
+      : "") +
+    `<li>Paste your design code into the personalisation box.</li></ol>` +
+    (c.tooManyLayers
+      ? `<p class="warn">Your design has ${c.tooManyLayers} layers, more than our listings cover. Please message us on Etsy before buying, or choose a bigger contour spacing.</p>`
+      : "");
+}
+
 if (ETSY) {
   $("#order-title").textContent = "Order on Etsy";
   $("#etsy-intro").hidden = false;
@@ -1770,7 +1819,7 @@ async function saveForEtsy(fd, summary) {
   $("#etsy-code").textContent = ref;
   $("#etsy-copy").textContent = saved ? "Copy code" : "Copy code and design link";
   $("#etsy-help").textContent = saved
-    ? "Paste this code into the personalisation box when you buy on Etsy. We have your design saved under it."
+    ? "Paste this code into the personalisation box when you buy on Etsy, with the options shown above. We have your design saved under it."
     : "Paste this into the personalisation box when you buy on Etsy. It includes your design link, so we can make exactly what you designed." +
       (etsyCopyText.length > 1000 ? " If it doesn't fit, send it to us in an Etsy message instead." : "");
   status.textContent = "";

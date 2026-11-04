@@ -24,6 +24,30 @@ export const CONFIG = {
   etsy: {
     enabled: false,
     listingUrl: "", // your Etsy listing or shop, for the "Back to Etsy to buy" button
+
+    // "What to choose on Etsy": worked out from each design and shown to the
+    // customer, so they buy the right listing and options. Make your Etsy
+    // listings match these names. An Etsy listing can have two variations,
+    // so each product listing uses Size and Layers, and extras are a separate
+    // "Map extras" listing bought alongside (one per extra).
+    guide: {
+      // Which listing each board size belongs to, by style.
+      products: [
+        { sizes: ["a4p", "a4l", "a3p", "a3l", "circle-a4"], layered: "Layered contour map", engraved: "Engraved contour map" },
+        { sizes: ["clock305"], layered: "Layered contour clock", engraved: "Engraved contour clock" },
+        { sizes: ["coaster-round", "coaster-square", "coaster-rounded"], layered: "Layered contour coaster", engraved: "Engraved contour coaster" },
+        { sizes: ["bookmark"], layered: "Layered contour bookmark", engraved: "Engraved contour bookmark" },
+      ],
+      // The Layers variation on layered listings (by number of layers).
+      layerBands: [
+        { upTo: 15, label: "Up to 15 layers" },
+        { upTo: 25, label: "16–25 layers" },
+        { upTo: 40, label: "26–40 layers" },
+      ],
+      // The "Map extras" listing and its options.
+      extrasListing: "Map extras",
+      extras: { places: "Special place", texts: "Your own text", route: "Hiking route", frame: "Frame" },
+    },
   },
 
   // Board sizes offered to customers, in millimetres.
