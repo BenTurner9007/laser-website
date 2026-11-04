@@ -415,7 +415,7 @@ score marks (every 2 mm for tracks, 2.5 mm for footpaths; `dotMm` in
 `js/water.js`), which the laser burns as dots. The flat plan draws them as
 larger black dots, and the 3D view as small flat black dots on the wood, as
 they will look when burnt.
-`data/roads/` holds about 4,800 tiles (137 MB, mostly streets and footpaths)
+`data/roads/` holds about 5,200 tiles (146 MB, mostly streets and footpaths)
 from Overture Maps (OpenStreetMap). Service roads, rail and ferries are left
 out. To refresh:
 
@@ -426,7 +426,7 @@ python3 scripts/build-roads.py build      # about 4 minutes
 
 ### Updating the water data
 
-`data/water/` holds about 4,900 small tiles (54 MB in all) covering the UK and
+`data/water/` holds about 5,300 small tiles (62 MB in all) covering the UK and
 Ireland. They come from [Overture Maps](https://overturemaps.org), a cleaned-up
 copy of OpenStreetMap. To refresh them (OpenStreetMap is edited all the time):
 

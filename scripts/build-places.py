@@ -40,11 +40,22 @@ for key in keys:
         t = t.filter(pc.is_in(t.column("class"), value_set=__import__("pyarrow").array(list(KINDS))))
         geoms = shapely.from_wkb(t.column("geometry").to_numpy(zero_copy_only=False))
         for cls, names, pop, geom in zip(t.column("class").to_pylist(), t.column("names").to_pylist(), t.column("population").to_pylist(), geoms):
-            name = (names or {}).get("primary")
+            # English name where there is one (Galway, not Cathair na Gaillimhe),
+            # without admin wording ("Belfast City District" -> Belfast).
+            names = names or {}
+            name = dict(names.get("common") or {}).get("en") or names.get("primary")
+            if name:
+                name = re.sub(r"^(County Borough of|City of) | (City District|District|City Council)$", "", name).strip()
             if not name or geom is None:
                 continue
             p = geom if geom.geom_type == "Point" else geom.representative_point()
             places.append([name, KINDS[cls], round(p.x, 5), round(p.y, 5), pop or 0])
 places.sort(key=lambda p: ("ctv".index(p[1]), -p[4]))
+# The same place twice (e.g. a city and its borough): keep the first, biggest one.
+kept = []
+for p in places:
+    if not any(q[0] == p[0] and abs(q[2] - p[2]) < 0.05 and abs(q[3] - p[3]) < 0.05 for q in kept[-400:] if q[0] == p[0]):
+        kept.append(p)
+places = kept
 OUT.write_text(json.dumps({"source": f"Overture Maps {water.RELEASE} (OpenStreetMap, ODbL)", "places": places}, separators=(",", ":"), ensure_ascii=False))
 print(len(places), "places:", {k: sum(1 for p in places if p[1] == v) for k, v in KINDS.items()}, f"{OUT.stat().st_size / 1e6:.1f} MB")
