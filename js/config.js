@@ -35,8 +35,8 @@ export const CONFIG = {
       products: [
         { sizes: ["a4p", "a4l", "a3p", "a3l", "circle-a4"], layered: "Layered contour map", engraved: "Engraved contour map" },
         { sizes: ["clock305"], layered: "Layered contour clock", engraved: "Engraved contour clock" },
-        { sizes: ["coaster-round", "coaster-square", "coaster-rounded"], layered: "Layered contour coaster", engraved: "Engraved contour coaster" },
-        { sizes: ["bookmark"], layered: "Layered contour bookmark", engraved: "Engraved contour bookmark" },
+        { sizes: ["coaster-round", "coaster-square", "coaster-rounded"], engraved: "Contour coaster" }, // options: Size, Quantity
+        { sizes: ["bookmark"], engraved: "Contour bookmark" },
       ],
       // The Layers variation on layered listings (by number of layers).
       layerBands: [
@@ -57,15 +57,17 @@ export const CONFIG = {
     { id: "a4l", label: "A4 landscape", w: 297, h: 210, frame: true },
     { id: "a3p", label: "A3 portrait", w: 297, h: 420, frame: true },
     { id: "a3l", label: "A3 landscape", w: 420, h: 297, frame: true },
-    // Board templates: shape, holes, map area and engraving come from the
+    // engravedOnly: single engraved boards only (no layered option), e.g.
+  // coasters and bookmarks, which must be flat. product: fixed price (pricing.fixed).
+  // Board templates: shape, holes, map area and engraving come from the
     // JSON file (built from a DXF by scripts/build-templates.py); w and h
     // must match the template.
     { id: "circle-a4", label: "A4 round (Ø210 mm)", w: 210, h: 210, template: "data/templates/circle-a4.json", frame: true },
     { id: "clock305", label: "Clock 305 mm", w: 305, h: 305, template: "data/templates/clock-305.json", frame: true, recess: true },
-    { id: "bookmark", label: "Bookmark", w: 50.3, h: 168.91, template: "data/templates/bookmark.json" },
-    { id: "coaster-round", label: "Round coaster", w: 100, h: 100, template: "data/templates/coaster-round.json" },
-    { id: "coaster-square", label: "Square coaster", w: 98.65, h: 98.65, template: "data/templates/coaster-square.json" },
-    { id: "coaster-rounded", label: "Rounded square coaster", w: 100, h: 100, template: "data/templates/coaster-rounded-square.json" },
+    { id: "bookmark", label: "Bookmark", w: 50.3, h: 168.91, template: "data/templates/bookmark.json", engravedOnly: true, product: "bookmark" },
+    { id: "coaster-round", label: "Round coaster", w: 100, h: 100, template: "data/templates/coaster-round.json", engravedOnly: true, product: "coaster" },
+    { id: "coaster-square", label: "Square coaster", w: 98.65, h: 98.65, template: "data/templates/coaster-square.json", engravedOnly: true, product: "coaster" },
+    { id: "coaster-rounded", label: "Rounded square coaster", w: 100, h: 100, template: "data/templates/coaster-rounded-square.json", engravedOnly: true, product: "coaster" },
   ],
 
   // Width of the optional frame glued on top round the edge of single
@@ -110,6 +112,13 @@ export const CONFIG = {
     perTextBlock: 2.5, // each block of the customer's own text
     route: 2.5, // a hiking route on the board
     note: "An estimate. We'll confirm the final price when we reply.",
+    // Fixed-price products (sizes with product: …), engraved only. Coasters
+    // come in sets of up to maxQty with the same design: each one added takes
+    // discountPerExtra off the price of every coaster (£10, then £9.50, £9, £8.50 each).
+    fixed: {
+      bookmark: { price: 8 },
+      coaster: { price: 10, maxQty: 4, discountPerExtra: 0.05 },
+    },
     etsyNote: "An estimate of the Etsy price. Choose the options below when you buy on Etsy.",
     showInEtsyMode: true, // show the estimate in Etsy mode too (with etsyMarkup)
   },

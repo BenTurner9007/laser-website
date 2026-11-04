@@ -47,7 +47,8 @@ const state = {
   labelBoxes: params.get("lbox") === "1",
   labels3d: params.get("l3d") === "1", // layered: labels on raised flat patches
   contours: params.get("cl") !== "0",
-  frame: params.get("fr") === "1", // optional frame (single engraved boards on sizes that offer it)
+  frame: params.get("fr") === "1",
+  qty: Math.min(10, Math.max(1, Math.round(+params.get("qty") || 1))), // coasters in a set // optional frame (single engraved boards on sizes that offer it)
   // Every bundled hill list is named (and Moon/Mars features); no per-list choice.
   lists: new Set([...HILL_LISTS.map((l) => l.id), "features"]),
   sharedBounds: parseBounds(params.get("b")),
@@ -687,7 +688,7 @@ function setSize(w, h, template = null) {
   renderSizes();
   layoutFrame();
   renderFrameTemplate();
-  renderFrameOption();
+  updateStyleOptions();
 }
 
 // ---------- Step 3: style ----------
@@ -702,18 +703,27 @@ renderFrameOption();
 
 // Contour lines off: a flat engraved board (layers are made from contours,
 // so layered isn't possible), and no contours on the map either.
+// Layered needs contour lines, and isn't offered for flat-only products
+// (coasters and bookmarks must lie flat).
+function updateStyleOptions() {
+  const flatOnly = !!currentSize()?.engravedOnly;
+  const layered = document.querySelector('input[name="style"][value="layered"]');
+  layered.disabled = !state.contours || flatOnly;
+  layered.closest("label").title = flatOnly
+    ? "Coasters and bookmarks are single engraved boards, so they lie flat"
+    : !state.contours ? "Layered boards are made from the contours – tick Contour lines to use them" : "";
+  if (layered.disabled && state.style === "layered") {
+    state.style = "engraved";
+    document.querySelector('input[name="style"][value="engraved"]').checked = true;
+  }
+  renderFrameOption();
+}
+
 function applyContours() {
   const on = state.contours;
   $("#contours-on").checked = on;
   $("#contour-row").hidden = !on;
-  const layered = document.querySelector('input[name="style"][value="layered"]');
-  layered.disabled = !on;
-  layered.closest("label").title = on ? "" : "Layered boards are made from the contours – tick Contour lines to use them";
-  if (!on && state.style === "layered") {
-    state.style = "engraved";
-    document.querySelector('input[name="style"][value="engraved"]').checked = true;
-    renderFrameOption();
-  }
+  updateStyleOptions();
   onStyleReady(() => {
     for (const id of ["contour-lines", "contour-labels"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
   });
@@ -787,6 +797,7 @@ function shareLink(b, ref) {
     ...(state.labels3d ? { l3d: "1" } : {}),
     ...(state.contours ? {} : { cl: "0" }),
     ...(frameActive() ? { fr: "1" } : {}),
+    ...(state.qty > 1 && currentSize()?.product === "coaster" ? { qty: state.qty } : {}),
     t: $("#thickness").value,
     mat: $("#material").value,
   });
@@ -972,12 +983,33 @@ $("#tab-3d").addEventListener("click", () => selectTab("3d"));
 $("#tab-plan").addEventListener("click", () => selectTab("plan"));
 $("#result").addEventListener("close", () => viewer?.stop());
 
+// Coasters: how many in the set (same design), with the price of each.
+function renderQty() {
+  const fp = fixedProduct();
+  const row = $("#qty-row");
+  row.hidden = !(fp && fp.maxQty > 1);
+  if (row.hidden) return;
+  $("#qty").innerHTML = Array.from({ length: fp.maxQty }, (_, i) => {
+    const n = i + 1, each = fixedEach(fp, n);
+    return `<option value="${n}">${n} ${fp.kind}${n > 1 ? "s" : ""} – ${money(each * n)}${n > 1 ? ` (${money(each)} each)` : ""}</option>`;
+  }).join("");
+  $("#qty").value = String(fp.qty);
+}
+$("#qty").addEventListener("change", (e) => {
+  state.qty = +e.target.value;
+  if (!lastResult) return;
+  lastResult.link = shareLink(lastResult.bounds, lastResult.ref);
+  renderPrice();
+  renderEtsyGuide();
+});
+
 function showResult() {
   $("#preview").innerHTML = lastResult.preview;
   $("#send-request").disabled = false;
   $("#send-request").textContent = ETSY ? "Save my design" : "Send request";
   $("#etsy-done").hidden = true;
   renderStats();
+  renderQty();
   renderEtsyGuide();
   $("#order-status").textContent = "";
   $("#owner-note").textContent = "";
@@ -1060,7 +1092,10 @@ $("#download").addEventListener("click", () => {
   setTimeout(() => {
     try {
       // Assembled model plus the pieces laid flat on cutting sheets.
-      lastResult.svg ??= lastResult.buildSvg(CONFIG.sheet, { ref: lastResult.ref });
+      const copies = fixedProduct()?.qty || 1;
+      if (lastResult.svgCopies !== copies) lastResult.svg = null;
+      lastResult.svgCopies = copies;
+      lastResult.svg ??= lastResult.buildSvg(CONFIG.sheet, { ref: lastResult.ref, copies });
       const { text, sheets, oversize } = lastResult.svg;
       const blob = new Blob([text], { type: "image/svg+xml" });
       const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `contour-layout-${lastResult.ref}.svg` });
@@ -1101,6 +1136,7 @@ $("#order").addEventListener("submit", async (e) => {
     `Board: ${sizeText(m)}, ${m.style === "layered" ? `${m.layers} layers at ${fd.thickness} mm (≈${stackHeight()} mm)` : "single engraved board"}${m.frameMm ? (m.frameLayer ? `, with a ${m.frameMm} mm 3D frame built up to layer ${m.frameLayer}` : `, with a ${m.frameMm} mm frame on top`) : ""}`,
     `Contours every ${m.interval} m, smoothing ${m.smoothing}, heights ${m.minElevation}-${m.maxElevation} m`,
     `Material: ${fd.material}`,
+    ...(fixedProduct()?.qty > 1 ? [`Quantity: ${copiesLabel(fixedProduct())}, all the same design (the SVG has them all)`] : []),
     ...(ETSY && etsyChoice() ? [`Etsy: ${etsyChoiceText(etsyChoice())}`] : []),
     ...(lastResult.back ? ["Back of base: logo, map credits and reference engraved (turn the base over left to right)"] : []),
     ...(m.labels3d ? ["Labels: 3D (each on a raised flat patch)"] : []),
@@ -1239,20 +1275,34 @@ let priceToken = 0;
 let lastPrice = null;
 // The wood to buy and the price to charge for the current layout, material and
 // thickness: the cheapest supplier sheets the pieces fit on, plus markup and extras.
+// Fixed-price product of the current layout (coaster, bookmark), and how many.
+function fixedProduct() {
+  const size = CONFIG.sizes.find((s) => s.id === lastResult?.sizeId);
+  const f = size?.product && CONFIG.pricing?.fixed?.[size.product];
+  if (!f) return null;
+  const qty = f.maxQty ? Math.min(f.maxQty, state.qty) : 1;
+  return { ...f, kind: size.product, qty, each: fixedEach(f, qty) };
+}
+// Price of each item in a set of qty: every extra one takes discountPerExtra off.
+const fixedEach = (f, qty) => Math.round(f.price * (1 - (f.discountPerExtra || 0) * (qty - 1)) * 100) / 100;
+const copiesLabel = (fp) => `${fp.qty} ${fp.kind}${fp.qty > 1 ? "s" : ""}`;
+
 function quote() {
   const P = CONFIG.pricing || { markup: 0.4, includeVat: true };
   const m = materialByName($("#material").value);
   const t = m.thicknesses.find((x) => x.mm === +$("#thickness").value) || m.thicknesses[0];
-  const { options } = lastResult.buildCost(t.sheets, CONFIG.sheet);
+  const fp = fixedProduct();
+  const { options } = lastResult.buildCost(t.sheets, CONFIG.sheet, fp?.qty || 1);
   const cheapest = options.filter((x) => x.cost != null).reduce((a, x) => (!a || x.cost < a.cost ? x : a), null);
   if (!cheapest) return { material: m, thickness: t, cheapest: null };
   const vat = 1 + MATERIALS.vat;
   const materials = cheapest.cost * (P.includeVat ? vat : 1);
   const markup = ETSY && P.etsyMarkup != null ? P.etsyMarkup : P.markup; // Etsy mode covers Etsy's fees
-  const board = materials * (1 + markup);
+  // Coasters and bookmarks have a standard price instead of materials + markup.
+  const board = fp ? fp.each * fp.qty : materials * (1 + markup);
   const extras = extrasFor(lastResult.places.length, lastResult.routeOnBoard, lastResult.texts.length);
   const total = Math.round((board + extras.reduce((n, [, v]) => n + v, 0)) * 100) / 100;
-  return { material: m, thickness: t, cheapest, costEx: cheapest.cost, costInc: cheapest.cost * vat, materials, board, extras, total, markup, includeVat: P.includeVat };
+  return { material: m, thickness: t, cheapest, costEx: cheapest.cost, costInc: cheapest.cost * vat, materials, board, extras, total, markup, includeVat: P.includeVat, fixed: fp };
 }
 // For the request email: what to order and what to charge (the shop's eyes only).
 function shopLines() {
@@ -1266,7 +1316,10 @@ function shopLines() {
       "--- For the shop (not shown to the customer) ---",
       `Wood to order: ${c.sheets} x ${name}, ${c.w} x ${c.h} mm sheet (${MATERIALS.supplier} ${c.code}) at ${money(c.price)} each = ${money(q.costEx)} ex VAT / ${money(q.costInc)} inc VAT`,
       ...(c.url ? [`  ${c.url}`] : []),
-      `Price to charge${ETSY ? " on Etsy" : ""}: ${money(q.total)} = materials ${money(q.materials)}${q.includeVat ? " inc VAT" : ""} + ${Math.round(q.markup * 100)}% (${money(q.board)})` +
+      `Price to charge${ETSY ? " on Etsy" : ""}: ${money(q.total)} = ` +
+        (q.fixed
+          ? `${copiesLabel(q.fixed)} at ${money(q.fixed.each)} each (${money(q.board)}; standard price, materials ${money(q.materials)})`
+          : `materials ${money(q.materials)}${q.includeVat ? " inc VAT" : ""} + ${Math.round(q.markup * 100)}% (${money(q.board)})`) +
         q.extras.map(([t, v]) => ` + ${t.toLowerCase()} ${money(v)}`).join(""),
     ];
   } catch (err) {
@@ -1286,16 +1339,16 @@ function renderPrice() {
     if (token !== priceToken) return;
     try {
       const q = quote();
-      const { material: m, thickness: t, cheapest, board, extras, total } = q;
+      const { material: m, thickness: t, cheapest, board, extras, total, fixed: fp } = q;
       if (!cheapest) {
         el.innerHTML = `<p class="price-note">This one is bigger than our standard sheets, so we'll send you a price by email.</p>`;
         return;
       }
       lastPrice = { total, board, extras, sheets: `${cheapest.sheets} × ${cheapest.w} × ${cheapest.h} ${cheapest.code}` };
       el.innerHTML =
-        `<p class="price-total">${money(total)} <small>for ${escapeHtml(m.name.replace(/ \(.*\)$/, ""))}, ${t.mm} mm</small></p>` +
-        (extras.length
-          ? `<ul><li><span>Map board</span><span>${money(board)}</span></li>${extras.map(([txt, v]) => `<li><span>${txt}</span><span>${money(v)}</span></li>`).join("")}</ul>`
+        `<p class="price-total">${money(total)} <small>for ${fp ? `${copiesLabel(fp)}, ` : ""}${escapeHtml(m.name.replace(/ \(.*\)$/, ""))}, ${t.mm} mm</small></p>` +
+        (extras.length || (fp && fp.qty > 1)
+          ? `<ul><li><span>${fp ? `${copiesLabel(fp).replace(/^./, (c) => c.toUpperCase())}${fp.qty > 1 ? ` at ${money(fp.each)} each` : ""}` : "Map board"}</span><span>${money(board)}</span></li>${extras.map(([txt, v]) => `<li><span>${txt}</span><span>${money(v)}</span></li>`).join("")}</ul>`
           : "") +
         ((ETSY ? PRICING.etsyNote : PRICING.note) ? `<p class="price-note">${escapeHtml(ETSY ? PRICING.etsyNote : PRICING.note)}</p>` : "");
     } catch (err) {
@@ -1782,7 +1835,7 @@ function etsyChoice() {
   add("frame", m.frameMm ? 1 : 0);
   return {
     listing: product[layered ? "layered" : "engraved"],
-    options: [["Size", size.label], ...(layered ? [["Layers", band ? band.label : null]] : [])],
+    options: [["Size", size.label], ...(layered ? [["Layers", band ? band.label : null]] : []), ...(fixedProduct()?.maxQty > 1 ? [["Quantity", String(fixedProduct().qty)]] : [])],
     tooManyLayers: layered && !band ? m.layers : 0,
     extrasListing: g.extrasListing,
     extras,

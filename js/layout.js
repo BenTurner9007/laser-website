@@ -1249,16 +1249,21 @@ export async function buildLayout(o, onProgress) {
   // customer switches material or thickness.
   const nestCache = new Map();
   let costPieces = null;
-  const buildCost = (stock, spacing) => {
-    const pieces = (costPieces ??= [
+  // copies: identical boards in one order (e.g. a set of coasters); the back
+  // plates are only needed once.
+  const buildCost = (stock, spacing, copies = 1) => {
+    costPieces ??= [
       ...(o.style === "engraved"
         ? boardPolys.map((poly, i) => ({ id: `board${i}`, poly, area: ringArea(poly[0]) }))
         : getPieces().flat()),
+    ];
+    const pieces = [
+      ...Array.from({ length: Math.max(1, copies) }, (_, k) => costPieces.map((p) => (k ? { ...p, id: `${p.id}-copy${k + 1}` } : p))).flat(),
       ...getPlates(),
-    ]);
+    ];
     const areaMm2 = pieces.reduce((n, p) => n + p.area, 0);
     const options = stock.map((s) => {
-      const key = `${s.w}x${s.h}x${spacing.marginMm}x${spacing.gapMm}`;
+      const key = `${s.w}x${s.h}x${spacing.marginMm}x${spacing.gapMm}x${copies}`;
       if (!nestCache.has(key)) {
         const { sheets } = nestPieces(pieces, { w: s.w, h: s.h, marginMm: spacing.marginMm, gapMm: spacing.gapMm });
         nestCache.set(key, { count: sheets.length, oversize: sheets.some((x) => x.oversize) });
@@ -1269,17 +1274,20 @@ export async function buildLayout(o, onProgress) {
     return { pieces: pieces.length, areaMm2, options };
   };
 
-  const buildSvg = (sheet, { ref } = {}) => {
+  const buildSvg = (sheet, { ref, copies = 1 } = {}) => {
     const pieces = o.style === "engraved" ? null : getPieces();
     const plates = getPlates(ref);
     let assembled = "";
+    // Several identical boards (a set of coasters): extra copies in a row to the right.
+    const extra = o.style === "engraved" ? Math.max(0, copies - 1) : 0;
     if (o.style === "engraved") {
-      assembled += `<g inkscape:groupmode="layer" inkscape:label="Board">\n${line(outline, COLOURS.cut)}\n`;
-      if (contourPath) assembled += line(contourPath, COLOURS.guide) + "\n";
-      assembled += engravePath(0) + "\n" + waterPath(0);
+      let board = `${line(outline, COLOURS.cut)}\n`;
+      if (contourPath) board += line(contourPath, COLOURS.guide) + "\n";
+      board += engravePath(0) + "\n" + waterPath(0);
       // Where the frame's inner edge sits, for lining it up when gluing (not cut).
-      if (frameInner && !layeredFrame) assembled += `<g inkscape:label="Frame position (guide)">${line(polygonsToPath(frameInner), COLOURS.guide)}</g>\n`;
-      assembled += "</g>\n";
+      if (frameInner && !layeredFrame) board += `<g inkscape:label="Frame position (guide)">${line(polygonsToPath(frameInner), COLOURS.guide)}</g>\n`;
+      for (let k = 0; k <= extra; k++)
+        assembled += `<g inkscape:groupmode="layer" inkscape:label="Board${extra ? ` ${k + 1} of ${extra + 1}` : ""}"${k ? ` transform="translate(${k * (W + 10)} 0)"` : ""}>\n${board}</g>\n`;
     } else {
       layers.forEach((l, i) => {
         const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.elevation} m)`;
@@ -1291,7 +1299,7 @@ export async function buildLayout(o, onProgress) {
 
     // Cutting sheets, laid out in a grid to the right of the model.
     const sheets = pieces && sheet ? nestPieces([...pieces.flat(), ...plates], sheet).sheets : [];
-    const GAP = 40, COLS = 2, x0 = W + 60;
+    const GAP = 40, COLS = 2, x0 = W + 60 + extra * (W + 10);
     // Single engraved boards have no cutting sheets: the plates sit beside the board.
     let platesSvg = "", platesW = 0, platesH = 0;
     if (!sheets.length && plates.length) {

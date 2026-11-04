@@ -147,6 +147,16 @@ section the customer never sees: the wood to order (number of sheets, sheet
 size, supplier code and link, cost ex and inc VAT) and the price to charge
 (materials + 40% + extras, the same sum the site shows; "on Etsy" in Etsy mode).
 
+
+**Coasters and bookmarks** are single engraved boards only (the layered option
+is switched off for them, as they must lie flat) and have a standard price
+instead of materials + markup: **bookmark £8**, **coaster £10**. Coasters can
+be ordered in sets of up to 4 with the same design; each one added takes 5%
+off every coaster in the set (1 for £10, 2 for £19, 3 for £27, 4 for £34).
+The cutting file then holds that many boards side by side, the wood order
+covers them all, and the Etsy guide adds a Quantity option. Set in
+`pricing.fixed` and the sizes' `engravedOnly` / `product` in `js/config.js`.
+
 ## Etsy mode
 
 Etsy doesn't allow a sale that starts on Etsy to be finished elsewhere, so
