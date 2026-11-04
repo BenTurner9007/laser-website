@@ -1123,6 +1123,7 @@ $("#order").addEventListener("submit", async (e) => {
     `Open the design: ${lastResult.link}`,
     "",
     `Notes: ${fd.notes || "-"}`,
+    ...shopLines(),
   ].join("\n");
   const status = $("#order-status");
   const subject = `Contour map request ${lastResult.ref}`;
@@ -1226,6 +1227,7 @@ function refreshMarkers() {
 const PRICING = CONFIG.pricing && (!ETSY || CONFIG.pricing.showInEtsyMode) ? CONFIG.pricing : null;
 const money = (v) => `£${v.toFixed(2)}`;
 function extrasFor(placeCount, hasRoute, textCount = 0) {
+  const PRICING = CONFIG.pricing || {}; // also used for the shop's own figures in Etsy mode
   const out = [];
   if (textCount && PRICING.perTextBlock) out.push([`${textCount} text box${textCount > 1 ? "es" : ""}`, textCount * PRICING.perTextBlock]);
   if (placeCount && PRICING.perSpecialPlace)
@@ -1235,6 +1237,43 @@ function extrasFor(placeCount, hasRoute, textCount = 0) {
 }
 let priceToken = 0;
 let lastPrice = null;
+// The wood to buy and the price to charge for the current layout, material and
+// thickness: the cheapest supplier sheets the pieces fit on, plus markup and extras.
+function quote() {
+  const P = CONFIG.pricing || { markup: 0.4, includeVat: true };
+  const m = materialByName($("#material").value);
+  const t = m.thicknesses.find((x) => x.mm === +$("#thickness").value) || m.thicknesses[0];
+  const { options } = lastResult.buildCost(t.sheets, CONFIG.sheet);
+  const cheapest = options.filter((x) => x.cost != null).reduce((a, x) => (!a || x.cost < a.cost ? x : a), null);
+  if (!cheapest) return { material: m, thickness: t, cheapest: null };
+  const vat = 1 + MATERIALS.vat;
+  const materials = cheapest.cost * (P.includeVat ? vat : 1);
+  const board = materials * (1 + P.markup);
+  const extras = extrasFor(lastResult.places.length, lastResult.routeOnBoard, lastResult.texts.length);
+  const total = Math.round((board + extras.reduce((n, [, v]) => n + v, 0)) * 100) / 100;
+  return { material: m, thickness: t, cheapest, costEx: cheapest.cost, costInc: cheapest.cost * vat, materials, board, extras, total, markup: P.markup, includeVat: P.includeVat };
+}
+// For the request email: what to order and what to charge (the shop's eyes only).
+function shopLines() {
+  try {
+    const q = quote();
+    const name = `${q.material.name}, ${q.thickness.mm} mm`;
+    if (!q.cheapest) return ["", "--- For the shop ---", `Wood: no ${MATERIALS.supplier} sheet of ${name} is big enough for the largest piece. Quote by hand.`];
+    const c = q.cheapest;
+    return [
+      "",
+      "--- For the shop (not shown to the customer) ---",
+      `Wood to order: ${c.sheets} x ${name}, ${c.w} x ${c.h} mm sheet (${MATERIALS.supplier} ${c.code}) at ${money(c.price)} each = ${money(q.costEx)} ex VAT / ${money(q.costInc)} inc VAT`,
+      ...(c.url ? [`  ${c.url}`] : []),
+      `Price to charge${ETSY ? " on Etsy" : ""}: ${money(q.total)} = materials ${money(q.materials)}${q.includeVat ? " inc VAT" : ""} + ${Math.round(q.markup * 100)}% (${money(q.board)})` +
+        q.extras.map(([t, v]) => ` + ${t.toLowerCase()} ${money(v)}`).join(""),
+    ];
+  } catch (err) {
+    console.error(err);
+    return ["", "--- For the shop ---", "Couldn't work out the wood order; use owner mode's material cost."];
+  }
+}
+
 function renderPrice() {
   const el = $("#price");
   lastPrice = null;
@@ -1245,17 +1284,12 @@ function renderPrice() {
   setTimeout(() => {
     if (token !== priceToken) return;
     try {
-      const m = materialByName($("#material").value);
-      const t = m.thicknesses.find((x) => x.mm === +$("#thickness").value) || m.thicknesses[0];
-      const { options } = lastResult.buildCost(t.sheets, CONFIG.sheet);
-      const cheapest = options.filter((x) => x.cost != null).reduce((a, x) => (!a || x.cost < a.cost ? x : a), null);
+      const q = quote();
+      const { material: m, thickness: t, cheapest, board, extras, total } = q;
       if (!cheapest) {
         el.innerHTML = `<p class="price-note">This one is bigger than our standard sheets, so we'll send you a price by email.</p>`;
         return;
       }
-      const board = cheapest.cost * (PRICING.includeVat ? 1 + MATERIALS.vat : 1) * (1 + PRICING.markup);
-      const extras = extrasFor(lastResult.places.length, lastResult.routeOnBoard, lastResult.texts.length);
-      const total = Math.round((board + extras.reduce((n, [, v]) => n + v, 0)) * 100) / 100;
       lastPrice = { total, board, extras, sheets: `${cheapest.sheets} × ${cheapest.w} × ${cheapest.h} ${cheapest.code}` };
       el.innerHTML =
         `<p class="price-total">${money(total)} <small>for ${escapeHtml(m.name.replace(/ \(.*\)$/, ""))}, ${t.mm} mm</small></p>` +

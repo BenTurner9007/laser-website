@@ -141,6 +141,12 @@ based on. Change the markup, extras or wording in `pricing` in
 listing has its own price. If no supplier sheet is big enough for a piece,
 customers are told you'll send a price by email.
 
+
+Every request email (and Etsy saved-design email) ends with a **For the shop**
+section the customer never sees: the wood to order (number of sheets, sheet
+size, supplier code and link, cost ex and inc VAT) and the price to charge
+(materials + 40% + extras, the same sum the site shows; "on Etsy" in Etsy mode).
+
 ## Etsy mode
 
 Etsy doesn't allow a sale that starts on Etsy to be finished elsewhere, so
