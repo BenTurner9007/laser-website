@@ -9,7 +9,7 @@ export const CONFIG = {
   // Send requests straight from the page (no email app). Get a free access
   // key at https://web3forms.com by entering orderEmail; requests then arrive
   // there with the customer's address as reply-to. 250 a month free.
-  web3formsKey: "",
+  web3formsKey: "a4123f01-4458-4d86-bced-cb4b588879f7",
 
   // Alternative: a Formspree endpoint, e.g. "https://formspree.io/f/abcdwxyz".
   // If neither is set, "Send request" opens the customer's email app instead.
