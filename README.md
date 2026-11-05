@@ -185,14 +185,13 @@ separate **Map extras** listing (special places, text boxes, route, frame).
 Designs with more layers than your bands cover are told to message you first.
 The same line goes into the saved-design email.
 
-The design code carries a tag for the options it needs, e.g.
-`CM-0K3FWZ-A3P-L3-X2`: size code (each size's `code` in `js/config.js`), then E
-(engraved), L1–L3 (layer band) or Q2–Q4 (coasters), then X + number of extras.
-The email spells it out ("Code check: A3P-L3-X2 = A3 portrait, 26–40 layers,
-2 extras"), so a cheaper Etsy order than the design needs is easy to spot. The
-guide asks customers to choose exactly those options, and the terms page says
-you check every order and will message them (pay the difference, change the
-design or a full refund) if they don't match.
+The line customers paste into Etsy spells out the options the design needs,
+e.g. `CM-0K3FWZ | A3 portrait | 26–40 layers | 2 special places` (or
+`… | Square coaster | Set of 3`), and the email repeats it ("The Etsy order
+should be for: …"), so a cheaper Etsy order than the design needs is easy to
+spot. The guide asks customers to choose exactly those options, and the terms
+page says you check every order and will message them (pay the difference,
+change the design or a full refund) if they don't match.
 
 Set the names in `etsy.guide` in `js/config.js` and make your Etsy listings
 match them: one listing per product with two variations (Size and Layers;

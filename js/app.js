@@ -2018,12 +2018,19 @@ function etsyChoice() {
   add("texts", lastResult.texts.length);
   add("route", lastResult.routeOnBoard ? 1 : 0);
   add("frame", m.frameMm ? 1 : 0);
-  // Tag for the design code: size, option (E engraved, L1–L3 layer band,
-  // Q2–Q4 coasters) and X + number of extras, e.g. A3P-L3-X2.
+  // The order line pasted into Etsy, in plain words, e.g.
+  // "A4 portrait | 16–25 layers | 2 special places".
   const qty = fixedProduct()?.qty || 1;
-  const nExtras = extras.reduce((n, [, q]) => n + q, 0);
-  const option = layered ? (band ? `L${g.layerBands.indexOf(band) + 1}` : "L?") : qty > 1 ? `Q${qty}` : "E";
-  const tag = [size.code || size.id.toUpperCase(), option, ...(nExtras ? [`X${nExtras}`] : [])].join("-");
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const extraWords = [
+    lastResult.places.length && plural(lastResult.places.length, "special place", "special places"),
+    lastResult.texts.length && plural(lastResult.texts.length, "text box", "text boxes"),
+    lastResult.routeOnBoard && "Hiking route",
+    m.frameMm && "Frame",
+  ].filter(Boolean);
+  const sizeWords = lastResult.sizeId === "custom" ? "Custom shape" : size.label.replace(/ \(.*\)$/, "");
+  const optionWords = layered ? (band ? band.label : `${m.layers} layers – message us`) : qty > 1 ? `Set of ${qty}` : "Engraved";
+  const tag = [sizeWords, optionWords, ...extraWords].join(" | ");
   return {
     tag,
     listing: product[layered ? "layered" : "engraved"],
@@ -2032,14 +2039,6 @@ function etsyChoice() {
     extrasListing: g.extrasListing,
     extras,
   };
-}
-// "A3P-L3-X2" -> "A3 portrait, 26–40 layers, 2 extras", for the email.
-function etsyTagMeaning(tag) {
-  const [code, option, extras] = tag.split("-");
-  const size = CONFIG.sizes.find((s) => s.code === code);
-  const bands = CONFIG.etsy?.guide?.layerBands || [];
-  const opt = option === "E" ? "engraved" : option.startsWith("Q") ? `${option.slice(1)} coasters` : bands[+option.slice(1) - 1]?.label.toLowerCase() || "layers not covered";
-  return [size?.label || code, opt, ...(extras ? [`${extras.slice(1)} extra${extras === "X1" ? "" : "s"}`] : [])].join(", ");
 }
 const etsyChoiceText = (c) =>
   `${c.listing} (${c.options.map(([k, v]) => `${k}: ${v ?? "message us"}`).join(", ")})` +
@@ -2079,9 +2078,9 @@ if (ETSY) {
 async function saveForEtsy(fd, summary) {
   const btn = $("#send-request");
   const status = $("#order-status");
-  // The code to paste into Etsy: the reference plus the options it needs.
+  // The line to paste into Etsy: the reference plus the options it needs, in words.
   const tag = etsyChoice()?.tag;
-  const ref = tag ? `${lastResult.ref}-${tag}` : lastResult.ref;
+  const ref = tag ? `${lastResult.ref} | ${tag}` : lastResult.ref;
   btn.disabled = true;
   status.className = "status";
   let saved = false;
@@ -2091,7 +2090,7 @@ async function saveForEtsy(fd, summary) {
     status.textContent = "Saving your design…";
     const message =
       `${summary}\n\nEtsy mode: the customer will order and pay on Etsy, quoting ${ref}.` +
-      (tag ? `\nCode check: ${tag} = ${etsyTagMeaning(tag)}. Make sure the Etsy order has these options.` : "");
+      (tag ? `\nThe Etsy order should be for: ${tag}. Check it has these options.` : "");
     const body = CONFIG.web3formsKey
       ? { access_key: CONFIG.web3formsKey, subject: `Etsy design ${ref}`, from_name: `${CONFIG.businessName} website`, name: fd.name || "Etsy customer", message, botcheck: !!fd.botcheck }
       : { name: fd.name || "Etsy customer", _subject: `Etsy design ${ref}`, message };
@@ -2109,7 +2108,8 @@ async function saveForEtsy(fd, summary) {
   }
   // Without one (or if saving failed), the customer pastes the full design link.
   etsyCopyText = saved ? ref : `${ref} ${lastResult.link}`;
-  $("#etsy-code").textContent = ref;
+  $("#etsy-code").textContent = lastResult.ref;
+  $("#etsy-order").textContent = tag || "";
   $("#etsy-copy").textContent = saved ? "Copy code" : "Copy code and design link";
   $("#etsy-help").textContent = saved
     ? "Paste this code into the personalisation box when you buy on Etsy, with the options shown above. We have your design saved under it."
