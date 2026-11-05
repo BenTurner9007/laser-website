@@ -28,8 +28,17 @@ const TEXT_MIN_MM = 2, TEXT_MAX_MM = 20, TEXT_PAD_MM = 1.2; // pad matches layou
 const textSize = (v) =>
   Number.isFinite(+v) && +v > 0 ? Math.min(TEXT_MAX_MM, Math.max(TEXT_MIN_MM, Math.round(+v * 2) / 2)) : +params.get("font") || 3.5;
 const cleanText = (s) => String(s || "").replace(/\r/g, "").split("\n").slice(0, TEXT_MAX_LINES).join("\n").slice(0, TEXT_MAX_CHARS);
+// Whether the link carries a usable custom shape (worked out again below, once
+// the helpers exist; this only checks it can be decoded).
+function customShapeFromLink() {
+  try {
+    return (decodeRoute(params.get("cs") || "")[0] || []).length >= 3;
+  } catch {
+    return false;
+  }
+}
 function boardSize() {
-  const tpl = CONFIG.sizes.find((s) => s.template && s.id === params.get("tpl"));
+  const tpl = CONFIG.sizes.find((s) => s.template && s.id === params.get("tpl") && (s.id !== "custom" || customShapeFromLink()));
   const s = tpl || CONFIG.sizes.find((x) => !x.template && x.w === +params.get("w") && x.h === +params.get("h")) || CONFIG.sizes[0];
   return { w: s.w, h: s.h };
 }
@@ -72,7 +81,7 @@ const state = {
     widthMm: [0.8, 1.2, 2].includes(+params.get("rw")) ? +params.get("rw") : 1.2,
   },
   // Board template id (e.g. the clock); null for plain rectangles.
-  template: CONFIG.sizes.find((s) => s.id === params.get("tpl") && s.template)?.id || null,
+  template: params.get("tpl") === "custom" ? (customShapeFromLink() ? "custom" : null) : CONFIG.sizes.find((s) => s.id === params.get("tpl") && s.template)?.id || null,
 };
 // Back plates for the owner's SVG (see backPlates in config.js).
 let logoArt = null;
@@ -98,11 +107,67 @@ async function backPlates() {
 const templates = {};
 const sizeOf = (id) => CONFIG.sizes.find((s) => s.id === id);
 async function loadTemplate(id) {
+  if (id === "custom") return templates.custom || null;
   const s = sizeOf(id);
   if (!s?.template) return null;
   templates[id] ??= await fetch(s.template).then((r) => r.json());
   return templates[id];
 }
+// ---------- Custom shape: a board outline the customer draws on the map ----------
+const SHAPE_SIZES = [200, 300, 400, 500]; // longest side, mm
+const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+/**
+ * Board template from a drawn ring of [lng, lat]: its outline in mm, scaled so
+ * the longest side is maxMm, and the map area that exactly fits round it.
+ * A ring that crosses itself is untangled (the biggest part is kept).
+ */
+function customTemplateFrom(ring, maxMm) {
+  if (!ring || ring.length < 3) return null;
+  let clean;
+  try {
+    const parts = polygonClipping.union([[[...ring, ring[0]]]]);
+    const area = (r) => Math.abs(r.reduce((n, p, i) => n + (i ? (r[i - 1][0] - p[0]) * (r[i - 1][1] + p[1]) : 0), 0));
+    clean = parts.map((p) => p[0]).sort((a, b) => area(b) - area(a))[0];
+  } catch {
+    return null;
+  }
+  if (!clean || clean.length < 4) return null;
+  clean = clean.slice(0, -1); // drop the closing point
+  const lngs = clean.map((p) => p[0]), lats = clean.map((p) => p[1]);
+  const west = Math.min(...lngs), east = Math.max(...lngs), south = Math.min(...lats), north = Math.max(...lats);
+  const x0 = (west * Math.PI) / 180, x1 = (east * Math.PI) / 180, y0 = mercY(south), y1 = mercY(north);
+  if (x1 - x0 < 1e-5 || y1 - y0 < 1e-5) return null;
+  const aspect = (x1 - x0) / (y1 - y0);
+  const w = Math.round((aspect >= 1 ? maxMm : maxMm * aspect) * 10) / 10;
+  const h = Math.round((aspect >= 1 ? maxMm / aspect : maxMm) * 10) / 10;
+  if (Math.min(w, h) < 40) return { tooThin: true };
+  const outline = clean.map(([lng, lat]) => [
+    Math.round(((((lng * Math.PI) / 180 - x0) / (x1 - x0)) * w) * 1000) / 1000,
+    Math.round((((y1 - mercY(lat)) / (y1 - y0)) * h) * 1000) / 1000,
+  ]);
+  return {
+    template: { name: "Custom shape", w, h, outline, holes: [], mapArea: null, engrave: [] },
+    bounds: { west, south, east, north },
+    ring: clean,
+  };
+}
+// From a shared link: tpl=custom with the ring (cs) and size (cm).
+let customShape = null;
+if (params.get("tpl") === "custom") {
+  try {
+    const ring = decodeRoute(params.get("cs") || "")[0];
+    const max = SHAPE_SIZES.includes(+params.get("cm")) ? +params.get("cm") : 300;
+    const c = customTemplateFrom(ring, max);
+    if (c?.template) customShape = { ...c, maxMm: max };
+  } catch {
+    /* no usable shape: falls back to the first size */
+  }
+}
+if (customShape) {
+  templates.custom = customShape.template;
+  Object.assign(sizeOf("custom"), { w: customShape.template.w, h: customShape.template.h });
+}
+
 // "west,south,east,north": real coordinates, west < east, south < north, and
 // no bigger than about 5° across (larger areas can't be built sensibly).
 function parseBounds(text) {
@@ -265,6 +330,7 @@ const map = new maplibregl.Map({
       roads: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       towns: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       "route-draft": { type: "geojson", data: { type: "FeatureCollection", features: [] } },
+      "shape-draft": { type: "geojson", data: { type: "FeatureCollection", features: [] } },
     },
     layers: [
       { id: "paper", type: "background", paint: { "background-color": WORLD.paper } },
@@ -339,6 +405,27 @@ const map = new maplibregl.Map({
         type: "line",
         source: "route-draft",
         paint: { "line-color": "#2e2723", "line-width": 2.5, "line-dasharray": [2, 1.5] },
+      },
+      {
+        id: "shape-draft-fill",
+        type: "fill",
+        source: "shape-draft",
+        filter: ["==", ["geometry-type"], "Polygon"],
+        paint: { "fill-color": "#b9581f", "fill-opacity": 0.15 },
+      },
+      {
+        id: "shape-draft-line",
+        type: "line",
+        source: "shape-draft",
+        filter: ["!=", ["geometry-type"], "Point"],
+        paint: { "line-color": "#b9581f", "line-width": 2.5 },
+      },
+      {
+        id: "shape-draft-pts",
+        type: "circle",
+        source: "shape-draft",
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: { "circle-radius": ["case", ["get", "first"], 7, 4], "circle-color": "#fff", "circle-stroke-color": "#b9581f", "circle-stroke-width": 2.5 },
       },
       {
         id: "route-draft-pts",
@@ -470,7 +557,8 @@ function layoutFrame() {
   Object.assign(frameEl.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
   if (textMarkers) sizeTextMarkers();
   renderFrameOption();
-  $("#frame-size").textContent = state.template ? sizeOf(state.template).label : `${state.w} × ${state.h} mm`;
+  $("#frame-size").textContent =
+    state.template === "custom" ? `Custom shape ${Math.round(state.w)} × ${Math.round(state.h)} mm` : state.template ? sizeOf(state.template).label : `${state.w} × ${state.h} mm`;
   updateScale();
 }
 
@@ -632,6 +720,8 @@ function renderSizes() {
 $("#sizes").addEventListener("click", (e) => {
   const s = CONFIG.sizes.find((x) => x.id === e.target.dataset.id);
   if (!s) return;
+  if (s.custom) return startShapeDrawing(); // draw the outline on the map
+  if (shapeDrawing) stopShapeDrawing(false);
   setSize(s.w, s.h, s.template ? s.id : null);
 });
 // A shared link's area is only reused if its shape matches the board.
@@ -799,6 +889,7 @@ function shareLink(b, ref) {
     ...(state.labels3d ? { l3d: "1" } : {}),
     ...(state.contours ? {} : { cl: "0" }),
     ...(frameActive() ? { fr: "1" } : {}),
+    ...(state.template === "custom" && customShape ? { cs: encodeRoute([customShape.ring]), cm: customShape.maxMm } : {}),
     ...(state.qty > 1 && currentSize()?.product === "coaster" ? { qty: state.qty } : {}),
     t: $("#thickness").value,
     mat: $("#material").value,
@@ -1646,6 +1737,98 @@ document.addEventListener("keydown", (e) => {
 });
 
 $("#route-draw").addEventListener("click", startDrawing);
+
+// ---------- Drawing a custom board shape ----------
+let shapeDrawing = false;
+let shapeDraft = [];
+$("#shape-size").innerHTML = SHAPE_SIZES.map((mm) => `<option value="${mm}">${mm / 10} cm</option>`).join("");
+$("#shape-size").value = String(customShape?.maxMm || 300);
+
+function updateShapeDraft() {
+  const features = shapeDraft.map((c, i) => ({ type: "Feature", properties: { first: i === 0 && shapeDraft.length >= 3 }, geometry: { type: "Point", coordinates: c } }));
+  if (shapeDraft.length >= 3) features.push({ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [[...shapeDraft, shapeDraft[0]]] } });
+  else if (shapeDraft.length === 2) features.push({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: shapeDraft } });
+  onStyleReady(() => map.getSource("shape-draft").setData({ type: "FeatureCollection", features }));
+  $("#shape-points").textContent = shapeDraft.length ? `${shapeDraft.length} point${shapeDraft.length > 1 ? "s" : ""}` : "";
+}
+function setShapeStatus(msg, kind = "") {
+  $("#shape-status").textContent = msg;
+  $("#shape-status").className = `status ${kind}`;
+}
+function startShapeDrawing() {
+  if (drawing) stopDrawing(false);
+  shapeDrawing = true;
+  shapeDraft = [];
+  updateShapeDraft();
+  setMapLocked(false);
+  map.doubleClickZoom.disable();
+  map.getCanvas().style.cursor = "crosshair";
+  frameEl.classList.add("drawing-shape");
+  $("#shape-panel").hidden = false;
+  $("#shape-row").hidden = false;
+  setShapeStatus("");
+}
+function stopShapeDrawing(keep) {
+  shapeDrawing = false;
+  map.doubleClickZoom.enable();
+  map.getCanvas().style.cursor = "";
+  frameEl.classList.remove("drawing-shape");
+  $("#shape-panel").hidden = true;
+  const ring = shapeDraft;
+  shapeDraft = [];
+  updateShapeDraft();
+  if (keep) {
+    if (ring.length < 3) setShapeStatus("A shape needs at least three points.", "error");
+    else applyShape(ring, +$("#shape-size").value);
+  }
+  $("#shape-row").hidden = state.template !== "custom";
+}
+// Make the drawn shape the board: its outline, size, and exactly its area of map.
+function applyShape(ring, maxMm) {
+  const c = customTemplateFrom(ring, maxMm);
+  if (!c || c.tooThin) {
+    setShapeStatus(c?.tooThin ? "That shape is too thin to cut at this size. Draw a wider shape or pick a bigger size." : "Couldn't use that shape. Please draw it again.", "error");
+    return;
+  }
+  customShape = { ...c, maxMm };
+  templates.custom = c.template;
+  Object.assign(sizeOf("custom"), { w: c.template.w, h: c.template.h });
+  setSize(c.template.w, c.template.h, "custom");
+  $("#shape-row").hidden = false;
+  const { west, south, east, north } = c.bounds;
+  fitFrameTo([west, south, east, north]);
+  pinnedBounds = { ...c.bounds }; // exactly the drawn area, until the map is moved by hand
+  setMapLocked(true); // keep the drawn area in place
+  setShapeStatus(`Your board: ${Math.round(c.template.w)} × ${Math.round(c.template.h)} mm. The map is locked so the area stays put.`, "ok");
+}
+map.on("click", (e) => {
+  if (!shapeDrawing) return;
+  // Clicking the first point closes the shape.
+  if (shapeDraft.length >= 3) {
+    const first = map.project(shapeDraft[0]);
+    if (Math.hypot(first.x - e.point.x, first.y - e.point.y) < 12) return stopShapeDrawing(true);
+  }
+  shapeDraft.push([e.lngLat.lng, e.lngLat.lat]);
+  updateShapeDraft();
+});
+map.on("dblclick", () => shapeDrawing && stopShapeDrawing(true));
+document.addEventListener("keydown", (e) => {
+  if (!shapeDrawing) return;
+  if (e.key === "Enter") stopShapeDrawing(true);
+  if (e.key === "Escape") stopShapeDrawing(false);
+});
+$("#shape-undo").addEventListener("click", () => {
+  shapeDraft.pop();
+  updateShapeDraft();
+});
+$("#shape-done").addEventListener("click", () => stopShapeDrawing(true));
+$("#shape-cancel").addEventListener("click", () => stopShapeDrawing(false));
+$("#shape-redraw").addEventListener("click", startShapeDrawing);
+$("#shape-size").addEventListener("change", (e) => {
+  if (shapeDrawing || !customShape) return; // used when the shape is finished
+  applyShape(customShape.ring, +e.target.value);
+});
+$("#shape-row").hidden = state.template !== "custom";
 $("#route-undo").addEventListener("click", () => {
   draft.pop();
   updateDraft();

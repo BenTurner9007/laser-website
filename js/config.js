@@ -33,7 +33,7 @@ export const CONFIG = {
     guide: {
       // Which listing each board size belongs to, by style.
       products: [
-        { sizes: ["a4p", "a4l", "a3p", "a3l", "circle-a4"], layered: "Layered contour map", engraved: "Engraved contour map" },
+        { sizes: ["a4p", "a4l", "a3p", "a3l", "circle-a4", "custom"], layered: "Layered contour map", engraved: "Engraved contour map" },
         { sizes: ["clock305"], layered: "Layered contour clock", engraved: "Engraved contour clock" },
         { sizes: ["coaster-round", "coaster-square", "coaster-rounded"], engraved: "Contour coaster" }, // options: Size, Quantity
         { sizes: ["bookmark"], engraved: "Contour bookmark" },
@@ -62,6 +62,9 @@ export const CONFIG = {
   // Board templates: shape, holes, map area and engraving come from the
     // JSON file (built from a DXF by scripts/build-templates.py); w and h
     // must match the template.
+    // The customer draws the board's outline on the map (w/h are worked out
+    // from the shape; its longest side is chosen from 20–50 cm).
+    { id: "custom", label: "Draw your own shape", w: 300, h: 300, template: "custom", custom: true },
     { id: "circle-a4", label: "A4 round (Ø210 mm)", w: 210, h: 210, template: "data/templates/circle-a4.json", frame: true },
     // Clocks are single engraved boards for now; remove engravedOnly to offer
     // layered clocks again (3D numbers and the movement pocket are built in).

@@ -57,6 +57,19 @@
         <li class="step">
           <h2><span class="num">02</span> Pick a board size</h2>
           <div class="chips" id="sizes" role="radiogroup" aria-label="Board size"></div>
+          <div id="shape-panel" class="route-panel" hidden>
+            <p id="shape-help"><b>Click round the area you want on the map.</b> Click the first point again, or Finish, to close the shape. <span id="shape-points"></span></p>
+            <div class="row">
+              <button id="shape-undo" class="btn" type="button">Undo point</button>
+              <button id="shape-done" class="btn primary" type="button">Finish</button>
+              <button id="shape-cancel" class="link-btn" type="button">Cancel</button>
+            </div>
+          </div>
+          <div id="shape-row" class="row shape-row" hidden>
+            <label class="field small"><span>Longest side</span><select id="shape-size"></select></label>
+            <button id="shape-redraw" class="btn" type="button">Redraw shape</button>
+          </div>
+          <p id="shape-status" class="status" role="status"></p>
         </li>
 
         <li class="step">

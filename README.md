@@ -261,6 +261,7 @@ Besides A4 and A3, customers can pick shaped boards made from your DXFs in
 | Size | Shape | Notes |
 | --- | --- | --- |
 | A4 round | 210 mm circle | plain circle, the width of A4 |
+| Draw your own shape | any outline | the customer clicks round the area on the map (close it on the first point, Finish, Enter or a double-click); the shape becomes the board's cut outline and the map area fits it exactly. Longest side 20, 30, 40 or 50 cm. Saved in the share link (`cs`, `cm`); priced like A4/A3 maps; no frame option |
 | Clock 305 mm (single engraved board for now; layered clocks are built in but switched off with `engravedOnly`) | circle | numbers and hour marks engraved; on layered clocks they are built up in 3D from the layers instead, level with the 3D frame if chosen, otherwise with the top contour layer; 10 mm centre hole for the movement, cut through every layer; layered clocks also get a 40 × 50 mm pocket for the movement cut up from the back (16 mm deep, rounded up to whole layers, with a 5 mm wall and a solid ceiling layer; `clockRecess` in `js/config.js`; changing the thickness rebuilds the layout) |
 | Bookmark | 50 × 169 mm rounded rectangle | 12 mm tassel hole, cut through every layer it crosses |
 | Round coaster | 100 mm circle | |
