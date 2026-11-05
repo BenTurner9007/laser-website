@@ -2018,13 +2018,28 @@ function etsyChoice() {
   add("texts", lastResult.texts.length);
   add("route", lastResult.routeOnBoard ? 1 : 0);
   add("frame", m.frameMm ? 1 : 0);
+  // Tag for the design code: size, option (E engraved, L1–L3 layer band,
+  // Q2–Q4 coasters) and X + number of extras, e.g. A3P-L3-X2.
+  const qty = fixedProduct()?.qty || 1;
+  const nExtras = extras.reduce((n, [, q]) => n + q, 0);
+  const option = layered ? (band ? `L${g.layerBands.indexOf(band) + 1}` : "L?") : qty > 1 ? `Q${qty}` : "E";
+  const tag = [size.code || size.id.toUpperCase(), option, ...(nExtras ? [`X${nExtras}`] : [])].join("-");
   return {
+    tag,
     listing: product[layered ? "layered" : "engraved"],
     options: [["Size", size.label], ...(layered ? [["Layers", band ? band.label : null]] : []), ...(fixedProduct()?.maxQty > 1 ? [["Quantity", String(fixedProduct().qty)]] : [])],
     tooManyLayers: layered && !band ? m.layers : 0,
     extrasListing: g.extrasListing,
     extras,
   };
+}
+// "A3P-L3-X2" -> "A3 portrait, 26–40 layers, 2 extras", for the email.
+function etsyTagMeaning(tag) {
+  const [code, option, extras] = tag.split("-");
+  const size = CONFIG.sizes.find((s) => s.code === code);
+  const bands = CONFIG.etsy?.guide?.layerBands || [];
+  const opt = option === "E" ? "engraved" : option.startsWith("Q") ? `${option.slice(1)} coasters` : bands[+option.slice(1) - 1]?.label.toLowerCase() || "layers not covered";
+  return [size?.label || code, opt, ...(extras ? [`${extras.slice(1)} extra${extras === "X1" ? "" : "s"}`] : [])].join(", ");
 }
 const etsyChoiceText = (c) =>
   `${c.listing} (${c.options.map(([k, v]) => `${k}: ${v ?? "message us"}`).join(", ")})` +
@@ -2042,6 +2057,7 @@ function renderEtsyGuide() {
       ? `<li>Also add <b>${escapeHtml(c.extrasListing)}</b> to your basket, one for each: ${c.extras.map(([n, q]) => pill(`${n} × ${q}`)).join("")}</li>`
       : "") +
     `<li>Paste your design code into the personalisation box.</li></ol>` +
+    `<p class="etsy-check">Please choose exactly these options. We check every order against its design before making anything.</p>` +
     (c.tooManyLayers
       ? `<p class="warn">Your design has ${c.tooManyLayers} layers, more than our listings cover. Please message us on Etsy before buying, or choose a bigger contour spacing.</p>`
       : "");
@@ -2063,7 +2079,9 @@ if (ETSY) {
 async function saveForEtsy(fd, summary) {
   const btn = $("#send-request");
   const status = $("#order-status");
-  const ref = lastResult.ref;
+  // The code to paste into Etsy: the reference plus the options it needs.
+  const tag = etsyChoice()?.tag;
+  const ref = tag ? `${lastResult.ref}-${tag}` : lastResult.ref;
   btn.disabled = true;
   status.className = "status";
   let saved = false;
@@ -2071,7 +2089,9 @@ async function saveForEtsy(fd, summary) {
   // so the short code is all the customer needs to paste into Etsy.
   if (CONFIG.web3formsKey || CONFIG.formEndpoint) {
     status.textContent = "Saving your design…";
-    const message = `${summary}\n\nEtsy mode: the customer will order and pay on Etsy, quoting ${ref}.`;
+    const message =
+      `${summary}\n\nEtsy mode: the customer will order and pay on Etsy, quoting ${ref}.` +
+      (tag ? `\nCode check: ${tag} = ${etsyTagMeaning(tag)}. Make sure the Etsy order has these options.` : "");
     const body = CONFIG.web3formsKey
       ? { access_key: CONFIG.web3formsKey, subject: `Etsy design ${ref}`, from_name: `${CONFIG.businessName} website`, name: fd.name || "Etsy customer", message, botcheck: !!fd.botcheck }
       : { name: fd.name || "Etsy customer", _subject: `Etsy design ${ref}`, message };

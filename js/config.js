@@ -52,11 +52,13 @@ export const CONFIG = {
 
   // Board sizes offered to customers, in millimetres.
   sizes: [
+    // code: short tag on Etsy design codes (CM-0K3FWZ-A3P-L3-X2), so you can
+    // see at a glance which listing options a design needs.
     // frame: true offers the optional frame on single engraved boards (frameMm below).
-    { id: "a4p", label: "A4 portrait", w: 210, h: 297, frame: true },
-    { id: "a4l", label: "A4 landscape", w: 297, h: 210, frame: true },
-    { id: "a3p", label: "A3 portrait", w: 297, h: 420, frame: true },
-    { id: "a3l", label: "A3 landscape", w: 420, h: 297, frame: true },
+    { id: "a4p", code: "A4P", label: "A4 portrait", w: 210, h: 297, frame: true },
+    { id: "a4l", code: "A4L", label: "A4 landscape", w: 297, h: 210, frame: true },
+    { id: "a3p", code: "A3P", label: "A3 portrait", w: 297, h: 420, frame: true },
+    { id: "a3l", code: "A3L", label: "A3 landscape", w: 420, h: 297, frame: true },
     // engravedOnly: single engraved boards only (no layered option), e.g.
   // coasters and bookmarks, which must be flat. product: fixed price (pricing.fixed).
   // Board templates: shape, holes, map area and engraving come from the
@@ -64,15 +66,15 @@ export const CONFIG = {
     // must match the template.
     // The customer draws the board's outline on the map (w/h are worked out
     // from the shape; its longest side is chosen from 20–50 cm).
-    { id: "custom", label: "Draw your own shape", w: 300, h: 300, template: "custom", custom: true },
-    { id: "circle-a4", label: "A4 round (Ø210 mm)", w: 210, h: 210, template: "data/templates/circle-a4.json", frame: true },
+    { id: "custom", code: "CUS", label: "Draw your own shape", w: 300, h: 300, template: "custom", custom: true },
+    { id: "circle-a4", code: "A4R", label: "A4 round (Ø210 mm)", w: 210, h: 210, template: "data/templates/circle-a4.json", frame: true },
     // Clocks are single engraved boards for now; remove engravedOnly to offer
     // layered clocks again (3D numbers and the movement pocket are built in).
-    { id: "clock305", label: "Clock 305 mm", w: 305, h: 305, template: "data/templates/clock-305.json", frame: true, recess: true, engravedOnly: true },
-    { id: "bookmark", label: "Bookmark", w: 50.3, h: 168.91, template: "data/templates/bookmark.json", engravedOnly: true, product: "bookmark" },
-    { id: "coaster-round", label: "Round coaster", w: 100, h: 100, template: "data/templates/coaster-round.json", engravedOnly: true, product: "coaster" },
-    { id: "coaster-square", label: "Square coaster", w: 98.65, h: 98.65, template: "data/templates/coaster-square.json", engravedOnly: true, product: "coaster" },
-    { id: "coaster-rounded", label: "Rounded square coaster", w: 100, h: 100, template: "data/templates/coaster-rounded-square.json", engravedOnly: true, product: "coaster" },
+    { id: "clock305", code: "CLK", label: "Clock 305 mm", w: 305, h: 305, template: "data/templates/clock-305.json", frame: true, recess: true, engravedOnly: true },
+    { id: "bookmark", code: "BM", label: "Bookmark", w: 50.3, h: 168.91, template: "data/templates/bookmark.json", engravedOnly: true, product: "bookmark" },
+    { id: "coaster-round", code: "CR", label: "Round coaster", w: 100, h: 100, template: "data/templates/coaster-round.json", engravedOnly: true, product: "coaster" },
+    { id: "coaster-square", code: "CS", label: "Square coaster", w: 98.65, h: 98.65, template: "data/templates/coaster-square.json", engravedOnly: true, product: "coaster" },
+    { id: "coaster-rounded", code: "CRS", label: "Rounded square coaster", w: 100, h: 100, template: "data/templates/coaster-rounded-square.json", engravedOnly: true, product: "coaster" },
   ],
 
   // Width of the optional frame glued on top round the edge of single
