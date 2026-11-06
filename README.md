@@ -373,6 +373,17 @@ history off the website. The `name` in `wrangler.jsonc` must match the
 Worker's name in the Cloudflare dashboard. Changes go live by merging a pull
 request into `main` (Cloudflare shows a preview link first).
 
+### Three branches
+
+| Branch | What it is |
+|---|---|
+| `main` | The live site at turnermadeuk.co.uk. Merging into it publishes. |
+| `staging` | Finished changes waiting to go live. Cloudflare builds a preview of it (once branch previews are on) so you can try them. |
+| working branches | Where each change is made, then merged into `staging` by pull request. |
+
+To go live: open a pull request from `staging` into `main` and merge it.
+Everything waiting in `staging` goes live together.
+
 ## Publishing on GitHub Pages
 
 The site is plain HTML, CSS and JavaScript with no build step.
