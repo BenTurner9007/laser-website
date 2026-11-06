@@ -174,6 +174,17 @@ The cutting file then holds that many boards side by side, the wood order
 covers them all, and the Etsy guide adds a Quantity option. Set in
 `pricing.fixed` and the sizes' `engravedOnly` / `product` in `js/config.js`.
 
+
+**Band prices** (A4, A3, A4 round and the clock): instead of wood + markup,
+customers see a fixed price for their board size and layer band (up to 15,
+16–25, 26–40 layers), from the price run in `docs/etsy-price-run.xlsx`.
+Direct orders use the 40% bands and Etsy mode the 55% bands, so direct is about
+10% cheaper. Prices are for 3 mm poplar; other woods scale by how much more
+that wood costs for the design. Frames add a fixed price on engraved boards; a
+3D frame on a layered board is 3 × the band price (measured at 2–3 times).
+Drawn shapes and designs over 40 layers are priced individually (wood + markup).
+Edit the prices in `pricing.bands` and `pricing.framePrices` in `js/config.js`.
+
 ## Etsy mode
 
 Etsy doesn't allow a sale that starts on Etsy to be finished elsewhere, so

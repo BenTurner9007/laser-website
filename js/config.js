@@ -138,6 +138,29 @@ export const CONFIG = {
       bookmark: { price: 8 },
       coaster: { price: 10, maxQty: 4, discountPerExtra: 0.05 },
     },
+    // Band prices: a fixed price per board size and layer band, shown to
+    // customers instead of wood + markup. Each is [direct order, Etsy] for
+    // 3 mm poplar; other woods and thicknesses scale by how much more that
+    // wood costs for the design. From the price run (docs/etsy-price-run.xlsx):
+    // the highest price seen in each band + 15% headroom; direct at 40% markup,
+    // Etsy at 55%. Layer bands are etsy.guide.layerBands (up to 15, 16–25,
+    // 26–40). Sizes not listed here (drawn shapes) and designs over 40 layers
+    // are priced individually (wood + markup).
+    bands: {
+      a4p: { engraved: [4.99, 4.99], layered: [[22.99, 25.99], [44.99, 49.99], [44.99, 49.99]] },
+      a4l: { engraved: [4.99, 4.99], layered: [[22.99, 25.99], [44.99, 49.99], [44.99, 49.99]] },
+      a3p: { engraved: [7.99, 8.99], layered: [[44.99, 49.99], [88.99, 98.99], [88.99, 98.99]] },
+      a3l: { engraved: [7.99, 8.99], layered: [[44.99, 49.99], [73.99, 81.99], [88.99, 98.99]] },
+      "circle-a4": { engraved: [4.99, 4.99], layered: [[14.99, 16.99], [22.99, 25.99], [29.99, 32.99]] },
+      clock305: { engraved: [5.99, 6.99] },
+    },
+    // Frames: engraved boards add a fixed [direct, Etsy] price per size; a 3D
+    // frame on a layered board multiplies the band price (a ring on every
+    // layer: the price run measured 2–3 times the board).
+    framePrices: {
+      engraved: { a4p: [3.99, 3.99], a4l: [3.99, 3.99], a3p: [7.99, 8.99], a3l: [7.99, 8.99], "circle-a4": [1.99, 1.99], clock305: [2.99, 3.99] },
+      layered3dMultiplier: 3,
+    },
     etsyNote: "An estimate of the Etsy price. Choose the options below when you buy on Etsy.",
     showInEtsyMode: true, // show the estimate in Etsy mode too (with etsyMarkup)
   },
