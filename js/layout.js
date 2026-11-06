@@ -687,8 +687,12 @@ export async function buildLayout(o, onProgress) {
   // it, each part of a label is engraved on whichever layer is on top there.
   // Customer text with a clear box is always raised.
   const raisedBoxes = [];
+  // Every name, marker and text box keeps the hiking route, filled water,
+  // roads, tracks and paths off it (always, not only with "clear space").
+  const textBoxes = [];
   const clearBehind = (box, pad = 0.5) => {
     const b = { x0: box.x0 - pad, x1: box.x1 + pad, y0: box.y0 - pad, y1: box.y1 + pad };
+    textBoxes.push(b);
     if (o.labelBoxes) labelBoxes.push(b);
     if (o.labels3d && o.style !== "engraved") raisedBoxes.push(b);
   };
@@ -721,6 +725,7 @@ export async function buildLayout(o, onProgress) {
     taken.push(box);
     if (t.clear) {
       labelBoxes.push(box);
+      textBoxes.push(box);
       if (o.style !== "engraved") raisedBoxes.push(box);
     } else clearBehind(text);
     texts.push({ ...t, x: cx, y: cy });
@@ -887,12 +892,28 @@ export async function buildLayout(o, onProgress) {
     recess = { widthMm: rw, heightMm: rh, layers: k, depthMm: +(k * t).toFixed(1), short: k * t < depthMm };
   }
 
+  // Engraved shapes (route, filled water) with gaps where labels sit.
+  const boxPoly = (b) => [[[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1], [b.x0, b.y0]]];
+  const cutLabelGaps = (polys) => {
+    if (!polys.length || !textBoxes.length) return polys;
+    const all = polys.flatMap((p) => p[0]);
+    const xs = all.map((p) => p[0]), ys = all.map((p) => p[1]);
+    const bb = { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+    const near = textBoxes.filter((b) => b.x0 < bb.x1 && b.x1 > bb.x0 && b.y0 < bb.y1 && b.y1 > bb.y0);
+    if (!near.length) return polys;
+    try {
+      return tidy(polygonClipping.difference(polys, ...near.map(boxPoly)), ENGRAVE_MIN_MM2);
+    } catch {
+      return polys; // geometry library hiccup: keep the shape rather than lose it
+    }
+  };
+
   // Hiking route: a band along the line, solid or dashed.
   let routeOnBoard = false;
   if (o.route?.lines?.length) {
     const band = routeBand(o.route.lines.map((l) => l.map(toMm)), o.route.widthMm, o.route.style);
     routeOnBoard = clip("intersection", band, mapRegion, ENGRAVE_MIN_MM2).length > 0;
-    marks.push(band);
+    marks.push(cutLabelGaps(band)); // the route stops short of names and markers
   }
 
   // Each part of every mark is engraved on whichever layer is on top at that
@@ -1010,10 +1031,10 @@ export async function buildLayout(o, onProgress) {
   // is on top (not under the layer above, not past its edge).
   const lakeEngrave = lakes
     .map((l) => {
-      if (o.style === "engraved") return { layer: 0, polys: l.polys };
+      if (o.style === "engraved") return { layer: 0, polys: cutLabelGaps(l.polys) };
       let polys = l.layer > 0 ? clip("intersection", l.polys, layers[l.layer].polys, ENGRAVE_MIN_MM2) : l.polys;
       if (layers[l.layer + 1] && polys.length) polys = clip("difference", polys, layers[l.layer + 1].polys, ENGRAVE_MIN_MM2);
-      return { layer: l.layer, polys };
+      return { layer: l.layer, polys: cutLabelGaps(polys) };
     })
     .filter((l) => l.polys.length);
 
@@ -1021,7 +1042,7 @@ export async function buildLayout(o, onProgress) {
   // each stretch runs over, instead of score lines.
   const riverEngrave = [];
   // Roads, paths and water stay off clear boxes and off raised (3D) labels.
-  const clearBoxes = [...labelBoxes, ...raisedBoxes];
+  const clearBoxes = [...labelBoxes, ...raisedBoxes, ...textBoxes];
   if (lineKinds.length) {
     // Water stays inside the map region (not on a coaster's plain border).
     // (and inside the frame, if there is one)

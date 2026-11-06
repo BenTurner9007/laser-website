@@ -46,6 +46,10 @@ link each listing to its own page with `?etsy=1`, e.g. `your-site/clocks/?etsy=1
    add: lake and reservoir shores, rivers and canals, streams and
    becks, and coastline (shown on the map as they choose; the data ships with
    the site, so nothing outside is needed).
+   **Labels always come first**: the hiking route, filled rivers and lakes,
+   roads, tracks, paths and streams stop at a small clear margin round every
+   name, peak marker, special place and text box (contour lines are cleared
+   only with "clear space", on engraved boards).
    **3D labels** (layered maps, off by default): each name, special place and
    text box is engraved on a flat patch built up from the layers below to the
    highest ground under it, so it sits on top instead of being split across
