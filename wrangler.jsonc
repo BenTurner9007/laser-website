@@ -5,6 +5,14 @@
 {
   "name": "laser-website",
   "compatibility_date": "2026-11-01",
+  // The site's addresses: connected (with HTTPS) on every deploy. The domain
+  // is registered on this Cloudflare account. workers_dev also keeps the free
+  // laser-website.<account>.workers.dev address as a backup.
+  "routes": [
+    { "pattern": "turnermadeuk.co.uk", "custom_domain": true },
+    { "pattern": "www.turnermadeuk.co.uk", "custom_domain": true }
+  ],
+  "workers_dev": true,
   "assets": {
     "directory": "./",
     // /clocks serves clocks/index.html, and so on.
