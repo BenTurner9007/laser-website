@@ -1452,10 +1452,14 @@ function quote() {
   // Coasters and bookmarks have a standard price; other boards a band price
   // (size and layer band) where there is one, else wood + markup.
   const band = fp ? null : bandPrice(materials, vat, P);
-  const board = fp ? fp.each * fp.qty : band ? band.board : materials * (1 + markup);
+  let board = fp ? fp.each * fp.qty : band ? band.board : materials * (1 + markup);
+  // Minimum price for the size (e.g. £50 for A4), before frames and extras.
+  const minimum = fp ? 0 : P.minimums?.[lastResult.sizeId] || 0;
+  const atMinimum = board < minimum;
+  if (atMinimum) board = minimum;
   const extras = [...(band?.frame ? [["Frame", band.frame]] : []), ...extrasFor(lastResult.places.length, lastResult.routeOnBoard, lastResult.texts.length)];
   const total = Math.round((board + extras.reduce((n, [, v]) => n + v, 0)) * 100) / 100;
-  return { material: m, thickness: t, cheapest, costEx: cheapest.cost, costInc: cheapest.cost * vat, materials, board, band, extras, total, markup, includeVat: P.includeVat, fixed: fp };
+  return { material: m, thickness: t, cheapest, costEx: cheapest.cost, costInc: cheapest.cost * vat, materials, board, band, atMinimum, extras, total, markup, includeVat: P.includeVat, fixed: fp };
 }
 // For the request email: what to order and what to charge (the shop's eyes only).
 function shopLines() {
@@ -1473,7 +1477,7 @@ function shopLines() {
         (q.fixed
           ? `${copiesLabel(q.fixed)} at ${money(q.fixed.each)} each (${money(q.board)}; standard price, materials ${money(q.materials)})`
           : q.band
-            ? `band price ${money(q.board)} (${q.band.label}${q.band.factor > 1.001 ? `, ×${q.band.factor.toFixed(2)} for this wood` : ""}; materials ${money(q.materials)}${q.includeVat ? " inc VAT" : ""})`
+            ? `${q.atMinimum ? "minimum price" : "band price"} ${money(q.board)} (${q.band.label}${q.band.factor > 1.001 ? `, ×${q.band.factor.toFixed(2)} for this wood` : ""}; materials ${money(q.materials)}${q.includeVat ? " inc VAT" : ""})`
             : `materials ${money(q.materials)}${q.includeVat ? " inc VAT" : ""} + ${Math.round(q.markup * 100)}% (${money(q.board)}; priced individually)`) +
         q.extras.map(([t, v]) => ` + ${t.toLowerCase()} ${money(v)}`).join(""),
     ];
@@ -1503,7 +1507,7 @@ function renderPrice() {
       el.innerHTML =
         `<p class="price-total">${money(total)} <small>for ${fp ? `${copiesLabel(fp)}, ` : ""}${escapeHtml(m.name.replace(/ \(.*\)$/, ""))}, ${t.mm} mm</small></p>` +
         (extras.length || (fp && fp.qty > 1) || q.band || !fp
-          ? `<ul><li><span>${fp ? `${copiesLabel(fp).replace(/^./, (c) => c.toUpperCase())}${fp.qty > 1 ? ` at ${money(fp.each)} each` : ""}` : q.band ? escapeHtml(q.band.label) : "Map board (priced individually)"}</span><span>${money(board)}</span></li>${extras.map(([txt, v]) => `<li><span>${txt}</span><span>${money(v)}</span></li>`).join("")}</ul>`
+          ? `<ul><li><span>${fp ? `${copiesLabel(fp).replace(/^./, (c) => c.toUpperCase())}${fp.qty > 1 ? ` at ${money(fp.each)} each` : ""}` : q.band ? escapeHtml(q.band.label) : "Map board (priced individually)"}${q.atMinimum ? " (minimum price)" : ""}</span><span>${money(board)}</span></li>${extras.map(([txt, v]) => `<li><span>${txt}</span><span>${money(v)}</span></li>`).join("")}</ul>`
           : "") +
         ((ETSY ? PRICING.etsyNote : PRICING.note) ? `<p class="price-note">${escapeHtml(ETSY ? PRICING.etsyNote : PRICING.note)}</p>` : "");
     } catch (err) {

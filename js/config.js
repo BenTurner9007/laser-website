@@ -154,6 +154,8 @@ export const CONFIG = {
       "circle-a4": { engraved: [4.99, 4.99], layered: [[14.99, 16.99], [22.99, 25.99], [29.99, 32.99]] },
       clock305: { engraved: [5.99, 6.99] },
     },
+    // Minimum board price by size (direct and Etsy), before frames and extras.
+    minimums: { a4p: 50, a4l: 50, a3p: 75, a3l: 75 },
     // Frames: engraved boards add a fixed [direct, Etsy] price per size; a 3D
     // frame on a layered board multiplies the band price (a ring on every
     // layer: the price run measured 2–3 times the board).

@@ -183,7 +183,10 @@ Direct orders use the 40% bands and Etsy mode the 55% bands, so direct is about
 that wood costs for the design. Frames add a fixed price on engraved boards; a
 3D frame on a layered board is 3 × the band price (measured at 2–3 times).
 Drawn shapes and designs over 40 layers are priced individually (wood + markup).
-Edit the prices in `pricing.bands` and `pricing.framePrices` in `js/config.js`.
+**Minimum board prices**: A4 £50, A3 £75 (direct and Etsy, before frames and
+extras; shown as "minimum price").
+Edit the prices in `pricing.bands`, `pricing.minimums` and `pricing.framePrices`
+in `js/config.js`.
 
 ## Etsy mode
 
