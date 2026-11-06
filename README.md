@@ -363,6 +363,16 @@ Edit [`js/config.js`](js/config.js):
 - **Always check a request before cutting**: it comes from a customer's browser,
   so treat it like any customer-supplied file.
 
+## Publishing on Cloudflare (live site)
+
+The live site is a Cloudflare Worker with static files, connected to this
+repository: every push to `main` publishes it (deploy command
+`npx wrangler deploy`). `wrangler.jsonc` says to publish the repository as a
+static site; `.assetsignore` keeps the build scripts, docs, README and git
+history off the website. The `name` in `wrangler.jsonc` must match the
+Worker's name in the Cloudflare dashboard. Changes go live by merging a pull
+request into `main` (Cloudflare shows a preview link first).
+
 ## Publishing on GitHub Pages
 
 The site is plain HTML, CSS and JavaScript with no build step.

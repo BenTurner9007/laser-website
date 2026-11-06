@@ -1,0 +1,12 @@
+# Not published to the website (see wrangler.jsonc)
+.git
+.github
+.gitignore
+.assetsignore
+wrangler.jsonc
+node_modules
+scripts
+docs
+README.md
+*.py
+*.mjs

@@ -1,0 +1,13 @@
+// Cloudflare settings: publish this repository as a static site (no server
+// code). Cloudflare runs `npx wrangler deploy` on every push to the
+// production branch (main). "name" must match the Worker's name in the
+// Cloudflare dashboard. Files listed in .assetsignore are not published.
+{
+  "name": "laser-website",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./",
+    // /clocks serves clocks/index.html, and so on.
+    "html_handling": "auto-trailing-slash"
+  }
+}
