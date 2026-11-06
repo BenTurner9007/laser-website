@@ -50,6 +50,20 @@ export const CONFIG = {
     },
   },
 
+  // The site's pages, each with its own address and its own board sizes.
+  // The maps page is index.html; the others are built from it by
+  // scripts/build-pages.py into their own folders (clocks/, coasters/, bookmarks/).
+  pages: {
+    maps: { nav: "Maps", path: "./", title: "Contour Map Designer", tagline: "Laser-cut contour maps of the hills you love",
+      sizes: ["a4p", "a4l", "a3p", "a3l", "circle-a4", "custom"] },
+    clocks: { nav: "Clocks", path: "clocks/", title: "Contour Clock Designer", tagline: "A wall clock engraved with the hills you love",
+      sizes: ["clock305"] },
+    coasters: { nav: "Coasters", path: "coasters/", title: "Contour Coaster Designer", tagline: "Engraved coasters of your favourite hills, singly or in sets",
+      sizes: ["coaster-round", "coaster-square", "coaster-rounded"] },
+    bookmarks: { nav: "Bookmarks", path: "bookmarks/", title: "Contour Bookmark Designer", tagline: "An engraved bookmark of the hills you love",
+      sizes: ["bookmark"] },
+  },
+
   // Board sizes offered to customers, in millimetres.
   sizes: [
     // frame: true offers the optional frame on single engraved boards (frameMm below).

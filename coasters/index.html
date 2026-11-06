@@ -1,0 +1,327 @@
+<!doctype html>
+<!-- Built from index.html by scripts/build-pages.py: edit index.html, then run the script. -->
+<html lang="en-GB">
+<head>
+  <base href="../">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contour Coaster Designer</title>
+  <link rel="icon" type="image/png" href="images/icon.png">
+  <meta name="description" content="Design laser-engraved contour map coasters of any hills in Great Britain or Ireland, singly or in sets.">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="vendor/maplibre-gl.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="coasters">
+  <header class="site-header">
+    <div class="brand">
+      <img class="brand-logo" src="images/logo.jpg" width="430" height="205" alt="TurnerMadeUK">
+      <div>
+        <h1 id="brand-name" class="visually-hidden">Contour Map Designer</h1>
+        <p class="brand-title">Contour Coaster Designer</p>
+        <p id="brand-tagline" class="tagline"></p>
+      </div>
+    </div>
+    <nav class="site-nav" id="site-nav" aria-label="Products"></nav>
+    <p id="owner-badge" class="owner-badge" hidden>Owner mode · <button type="button" id="owner-exit" class="link-btn">turn off</button></p>
+  </header>
+
+  <main class="layout">
+    <section class="map-wrap" aria-label="Map">
+      <div id="map"></div>
+      <div id="frame" class="frame" aria-hidden="true">
+        <div id="frame-overlay" class="frame-overlay"></div>
+        <div id="frame-border" class="frame-border" hidden></div>
+        <span class="frame-size" id="frame-size"></span>
+        <span class="frame-scale" id="frame-scale"></span>
+      </div>
+      <p class="map-hint">Drag and zoom the map. Whatever sits inside the frame becomes your design.</p>
+    </section>
+
+    <aside class="panel">
+      <ol class="steps">
+        <li class="step">
+          <h2><span class="num">01</span> <span id="step1-title">Find your hills</span></h2>
+          <div class="seg world-switch" role="tablist" aria-label="World">
+            <a role="tab" data-body="earth" href="?">Earth</a>
+            <a role="tab" data-body="moon" href="?body=moon">Moon</a>
+            <a role="tab" data-body="mars" href="?body=mars">Mars</a>
+          </div>
+          <div class="chips" id="sites" hidden></div>
+          <label class="field" id="hill-search-field">
+            <span>Search a fell, Munro or peak</span>
+            <input id="hill-search" type="search" list="hill-names" placeholder="e.g. Helvellyn" autocomplete="off">
+            <datalist id="hill-names"></datalist>
+          </label>
+          <div class="chips" id="regions"></div>
+        </li>
+
+        <li class="step">
+          <h2><span class="num">02</span> Pick a board size</h2>
+          <div class="chips" id="sizes" role="radiogroup" aria-label="Board size"></div>
+          <div id="shape-panel" class="route-panel" hidden>
+            <p id="shape-help"><b>Click round the area you want on the map.</b> Click the first point again, or Finish, to close the shape. <span id="shape-points"></span></p>
+            <div class="row">
+              <button id="shape-undo" class="btn" type="button">Undo point</button>
+              <button id="shape-done" class="btn primary" type="button">Finish</button>
+              <button id="shape-cancel" class="link-btn" type="button">Cancel</button>
+            </div>
+          </div>
+          <div id="shape-row" class="row shape-row" hidden>
+            <label class="field small"><span>Longest side</span><select id="shape-size"></select></label>
+            <button id="shape-redraw" class="btn" type="button">Redraw shape</button>
+          </div>
+          <p id="shape-status" class="status" role="status"></p>
+        </li>
+
+        <li class="step">
+          <h2><span class="num">03</span> Style it</h2>
+          <div class="seg" role="radiogroup" aria-label="Design style">
+            <label><input type="radio" name="style" value="layered" checked><span>Layered (stacked boards)</span></label>
+            <label><input type="radio" name="style" value="engraved"><span>Single engraved board</span></label>
+          </div>
+          <div id="frame-row" hidden>
+            <label class="check"><input type="checkbox" id="frame-on"> <span id="frame-label">Add a 5 mm frame</span></label>
+            <p class="field-note" id="frame-note"></p>
+          </div>
+          <label class="check"><input type="checkbox" id="contours-on" checked> Contour lines</label>
+          <p class="field-note contour-note">Untick for a flat board with just roads, water and names.</p>
+          <div class="row" id="contour-row">
+            <label class="field small">
+              <span>Contour every</span>
+              <select id="interval">
+                <option value="10">10 m</option>
+                <option value="20">20 m</option>
+                <option value="25">25 m</option>
+                <option value="50" selected>50 m</option>
+                <option value="75">75 m</option>
+                <option value="100">100 m</option>
+                <option value="150">150 m</option>
+                <option value="200">200 m</option>
+                <option value="250">250 m</option>
+                <option value="500">500 m</option>
+                <option value="1000">1 km</option>
+              </select>
+            </label>
+            <label class="field small">
+              <span>Smoothing</span>
+              <select id="smoothing">
+                <option value="0">None (sharp)</option>
+                <option value="1" selected>Light</option>
+                <option value="2">Medium</option>
+                <option value="3">Strong</option>
+              </select>
+            </label>
+          </div>
+          <fieldset class="lists">
+            <legend>Show water (laser-scored lines)</legend>
+            <div id="water-kinds"></div>
+            <p id="water-note" class="field-note"></p>
+          </fieldset>
+          <fieldset class="lists">
+            <legend>Show roads &amp; paths (laser-scored lines)</legend>
+            <div id="road-kinds"></div>
+            <p id="road-note" class="field-note"></p>
+          </fieldset>
+          <fieldset class="lists">
+            <legend>Labels</legend>
+            <div class="row">
+              <label class="field small">
+                <span>Peak names</span>
+                <select id="label-mode">
+                  <option value="none">Off</option>
+                  <option value="name">Name</option>
+                  <option value="name-height" selected>Name &amp; height</option>
+                </select>
+              </label>
+              <label class="field small">
+                <span>Peak text size</span>
+                <select id="font-mm">
+                  <option value="2.5">Small</option>
+                  <option value="3.5" selected>Medium</option>
+                  <option value="5">Large</option>
+                </select>
+              </label>
+            </div>
+            <div class="row" id="place-label-row">
+              <label class="field small">
+                <span>Place names</span>
+                <select id="place-names">
+                  <option value="none" selected>Off</option>
+                  <option value="c">Cities</option>
+                  <option value="ct">Cities &amp; towns</option>
+                  <option value="ctv">+ villages</option>
+                </select>
+              </label>
+              <label class="field small">
+                <span>Place text size</span>
+                <select id="place-font-mm">
+                  <option value="2.5">Small</option>
+                  <option value="3.5" selected>Medium</option>
+                  <option value="5">Large</option>
+                  <option value="7">Extra large</option>
+                </select>
+              </label>
+            </div>
+          </fieldset>
+          <label class="check label-box" id="labels-3d-row"><input type="checkbox" id="labels-3d"> 3D labels <span class="field-note-inline">(layered boards: each name sits on top on a raised flat patch, held up by the layers below)</span></label>
+          <label class="check label-box"><input type="checkbox" id="label-boxes"> Clear space behind names, text and special places <span class="field-note-inline">(no contours, roads or water through them; on layered boards, no roads or water)</span></label>
+        </li>
+
+        <li class="step">
+          <h2><span class="num">04</span> Mark a special place <span class="optional">optional</span></h2>
+          <p class="step-note">Commemorate somewhere that matters: a proposal spot, a favourite summit, the cottage you stay at. Add a marker, drag it into place on the map, then pick a shape and add your words.</p>
+          <div id="places" class="places"></div>
+          <div class="row places-actions">
+            <button id="add-place" class="btn" type="button">+ Add a special place</button>
+            <label class="field small place-size"><span>Marker size</span><select id="place-size"></select></label>
+          </div>
+        </li>
+
+        <li class="step">
+          <h2><span class="num">05</span> Add your own text <span class="optional">optional</span></h2>
+          <p class="step-note">A name, a date or a few words, engraved in the same lettering as the peak names. Type it here, then drag the box on the map to where you want it.</p>
+          <div id="texts" class="places"></div>
+          <div class="row places-actions">
+            <button id="add-text" class="btn" type="button">+ Add text</button>
+          </div>
+        </li>
+
+        <li class="step">
+          <h2><span class="num">06</span> Add a hiking route <span class="optional">optional</span></h2>
+          <p class="step-note">Draw a walk on the map, or upload a GPX, KML or GeoJSON file from your GPS or walking app (OS Maps, Strava, Komoot, AllTrails…). It’s engraved as a line that follows the hills across the layers.</p>
+          <div class="row route-actions">
+            <button id="route-draw" class="btn" type="button">Draw on map</button>
+            <label class="btn file-btn" tabindex="0">Upload a file<input id="route-file" type="file" accept=".gpx,.kml,.geojson,.json" hidden></label>
+          </div>
+          <div id="route-drawing" class="route-panel" hidden>
+            <p><b>Click or tap along your route on the map.</b> <span id="route-points"></span></p>
+            <div class="row">
+              <button id="route-undo" class="btn" type="button">Undo point</button>
+              <button id="route-done" class="btn dark" type="button">Finish route</button>
+            </div>
+          </div>
+          <div id="route-info" class="route-panel" hidden>
+            <p id="route-summary"></p>
+            <div class="row">
+              <label class="field small"><span>Line</span>
+                <select id="route-style"><option value="solid">Solid</option><option value="dashed">Dashed</option></select>
+              </label>
+              <label class="field small"><span>Thickness</span>
+                <select id="route-width"><option value="0.8">Fine 0.8 mm</option><option value="1.2">Medium 1.2 mm</option><option value="2">Bold 2 mm</option></select>
+              </label>
+            </div>
+            <div class="row route-actions">
+              <button id="route-fit" class="btn" type="button">Fit frame to route</button>
+              <button id="route-clear" class="link-btn" type="button">Remove route</button>
+            </div>
+          </div>
+          <p id="route-status" class="status" role="status"></p>
+        </li>
+
+        <li class="step send">
+          <h2><span class="num">07</span> Preview and send</h2>
+          <button id="generate" class="btn primary" type="button">Create my layout</button>
+          <p id="status" class="status" role="status"></p>
+        </li>
+      </ol>
+    </aside>
+  </main>
+
+  <dialog id="result" class="result">
+    <form method="dialog" class="result-close"><button class="btn ghost" aria-label="Close">✕</button></form>
+    <h2>Your layout</h2>
+    <div class="result-grid">
+      <div>
+        <div class="view-tabs" role="tablist" aria-label="Preview">
+          <button type="button" role="tab" class="tab" id="tab-3d" aria-selected="true" aria-controls="viewer">3D view</button>
+          <button type="button" role="tab" class="tab" id="tab-plan" aria-selected="false" aria-controls="preview">Flat plan</button>
+        </div>
+        <div id="viewer" class="viewer" role="tabpanel" aria-labelledby="tab-3d">
+          <p class="viewer-hint">Drag to turn · scroll or pinch to zoom</p>
+          <button type="button" class="viewer-flip" id="viewer-flip">See the back</button>
+        </div>
+        <div id="preview" class="preview" role="tabpanel" aria-labelledby="tab-plan" hidden></div>
+        <p id="scale-note" class="scale-note"></p>
+        <ul id="stats" class="stats"></ul>
+        <div class="row">
+          <button id="copy-link" class="btn" type="button">Copy share link</button>
+          <button id="download" class="btn owner-only" type="button" hidden>Download SVG (owner)</button>
+        </div>
+        <p id="owner-note" class="status owner-only" hidden></p>
+        <div class="owner-only cost" hidden>
+          <button id="cost-btn" class="btn" type="button">Work out material cost</button>
+          <div id="cost-table"></div>
+        </div>
+      </div>
+      <form id="order" class="order">
+        <h3 id="order-title">Send it to us</h3>
+        <p id="etsy-intro" class="step-note" hidden>Happy with it? Save your design to get a short code, then buy on Etsy and paste the code into the personalisation box. You pay on Etsy as usual.</p>
+        <label class="field" id="name-field"><span>Your name</span><input name="name" required autocomplete="name"></label>
+        <label class="field" id="email-field"><span>Email</span><input name="email" type="email" required autocomplete="email"></label>
+        <div class="row">
+          <label class="field small"><span>Material</span>
+            <select name="material" id="material"></select>
+          </label>
+          <label class="field small"><span>Layer thickness</span><select name="thickness" id="thickness"></select></label>
+        </div>
+        <label class="field" id="qty-row" hidden><span>How many coasters? (all the same design)</span><select name="qty" id="qty"></select></label>
+        <label class="field"><span>Anything else? (title, engraving, frame, gift message)</span><textarea name="notes" rows="3"></textarea></label>
+        <div id="price" class="price" hidden aria-live="polite"></div>
+        <!-- Spam trap: people never see or tick this; bots that fill everything in get rejected. -->
+        <input type="checkbox" name="botcheck" class="visually-hidden" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <div id="etsy-guide" class="etsy-guide" hidden></div>
+        <button class="btn primary" type="submit" id="send-request">Send request</button>
+        <p class="field-note">By sending a request you agree to our <a href="terms.html" target="_blank">terms</a>. We only use your details to make and send your map. <a href="privacy.html" target="_blank">Privacy notice</a></p>
+        <p id="order-status" class="status" role="status"></p>
+        <div id="etsy-done" class="etsy-done" hidden>
+          <p class="etsy-label">Your design code</p>
+          <p class="etsy-code" id="etsy-code"></p>
+          <p class="etsy-order" id="etsy-order"></p>
+          <button class="btn" type="button" id="etsy-copy">Copy code</button>
+          <p class="etsy-help" id="etsy-help"></p>
+          <a class="btn primary etsy-buy" id="etsy-buy" target="_blank" rel="noopener">Back to Etsy to buy</a>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <footer class="site-footer">
+    <p>Hill names and heights: <a href="https://www.hill-bagging.co.uk/dobih">The Database of British and Irish Hills</a> v18.6, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.
+    Elevation: <a href="https://registry.opendata.aws/terrain-tiles/">AWS Terrain Tiles</a> (<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">sources</a>); contains Environment Agency information © Environment Agency and/or database right.
+    Other hill names, water, roads, paths and place names © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, via <a href="https://overturemaps.org">Overture Maps</a>, available under the <a href="https://opendatacommons.org/licenses/odbl/">Open Database Licence</a>.
+    · <a href="licences.html">Data licences</a> · <a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a></p>
+  </footer>
+
+  <script src="vendor/maplibre-gl.js"></script>
+  <script src="vendor/maplibre-contour.min.js"></script>
+  <script src="vendor/d3-array.min.js"></script>
+  <script src="vendor/d3-contour.min.js"></script>
+  <script src="vendor/polygon-clipping.umd.min.js"></script>
+  <script src="vendor/opentype.min.js"></script>
+  <script>
+    // Cache-busting: the site's scripts and styles load with ?v=<when this page
+    // was published>, so after an update a browser never mixes the new page with
+    // old cached scripts. (No build step: the version comes from the server's
+    // Last-Modified date for this page.)
+    (function () {
+      var v = String(Date.parse(document.lastModified) || Date.now());
+      var imports = { three: "./vendor/three.module.min.js" };
+      ["app", "config", "layout", "viewer3d", "shapes", "route", "water", "text", "pieces", "nest"].forEach(function (m) {
+        imports["./js/" + m + ".js"] = "./js/" + m + ".js?v=" + v;
+      });
+      var map = document.createElement("script");
+      map.type = "importmap";
+      map.textContent = JSON.stringify({ imports: imports });
+      document.currentScript.after(map);
+      var app = document.createElement("script");
+      app.type = "module";
+      app.src = "js/app.js?v=" + v;
+      map.after(app);
+      document.querySelectorAll('link[rel="stylesheet"][href^="css/"]').forEach(function (l) {
+        l.href = l.getAttribute("href") + "?v=" + v;
+      });
+    })();
+  </script>
+</body>
+</html>

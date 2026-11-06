@@ -6,11 +6,25 @@ import { SHAPES, DEFAULT_SHAPE, PLACE_SIZES, shapeIcon } from "./shapes.js";
 import { parseRouteFile, encodeRoute, decodeRoute, routeLengthKm } from "./route.js";
 import { WATER_KINDS, ROAD_KINDS, fetchWater, fetchRoads } from "./water.js";
 
+// Which product page this is (body data-page): it only offers its own sizes.
+const PAGE = CONFIG.pages?.[document.body.dataset.page] ? document.body.dataset.page : "maps";
+const PAGE_INFO = CONFIG.pages?.[PAGE] || { title: "Contour Map Designer", sizes: CONFIG.sizes.map((s) => s.id) };
+// A link for a board made on another page (e.g. an older link to a clock on
+// the maps page) goes to that page, with the same design.
+{
+  const tpl = new URLSearchParams(location.search).get("tpl");
+  const home = tpl && !PAGE_INFO.sizes.includes(tpl) && Object.values(CONFIG.pages || {}).find((p) => p.sizes.includes(tpl));
+  if (home) location.replace(new URL(home.path, document.baseURI).href + location.search);
+}
+CONFIG.sizes = CONFIG.sizes.filter((s) => PAGE_INFO.sizes.includes(s.id));
+
 const $ = (s) => document.querySelector(s);
 const FONT = ["NotoSans-Regular"];
 const FONT_BOLD = ["NotoSans-Bold"];
 // MapLibre needs an absolute glyph URL; the fonts ship with the site.
-const GLYPHS = new URL("fonts/", location.href).href + "{fontstack}/{range}.pbf";
+// Pages in their own folders (clocks/, …) set <base href="../">, so site files
+// resolve against the document's base address, not the page's own.
+const GLYPHS = new URL("fonts/", document.baseURI).href + "{fontstack}/{range}.pbf";
 
 // ---------- State (also round-tripped through the share link) ----------
 const params = new URLSearchParams(location.search);
@@ -81,7 +95,13 @@ const state = {
     widthMm: [0.8, 1.2, 2].includes(+params.get("rw")) ? +params.get("rw") : 1.2,
   },
   // Board template id (e.g. the clock); null for plain rectangles.
-  template: params.get("tpl") === "custom" ? (customShapeFromLink() ? "custom" : null) : CONFIG.sizes.find((s) => s.id === params.get("tpl") && s.template)?.id || null,
+  // A shaped board from the link, else the page's first size if it is shaped
+  // (the clock, coaster and bookmark pages start on their board shape).
+  template:
+    params.get("tpl") === "custom"
+      ? customShapeFromLink() ? "custom" : null
+      : CONFIG.sizes.find((s) => s.id === params.get("tpl") && s.template)?.id ||
+        (!params.get("tpl") && !CONFIG.sizes.some((s) => !s.template && s.w === +params.get("w") && s.h === +params.get("h")) && CONFIG.sizes[0].template && !CONFIG.sizes[0].custom ? CONFIG.sizes[0].id : null),
 };
 // Back plates for the owner's SVG (see backPlates in config.js).
 let logoArt = null;
@@ -253,7 +273,7 @@ const SITES = planets ? planets.sites.filter((s) => s.body === BODY) : [];
 const DEM =
   BODY === "earth"
     ? EARTH_DEM
-    : { url: new URL(`data/planets/${BODY}/`, location.href).href + "{z}/{x}/{y}.png", maxzoom: planets.bodies[BODY].maxzoom, sea: false };
+    : { url: new URL(`data/planets/${BODY}/`, document.baseURI).href + "{z}/{x}/{y}.png", maxzoom: planets.bodies[BODY].maxzoom, sea: false };
 // Each site is built to its own finest zoom. The live map uses the zoom every
 // site has; a layout uses the finest zoom of the site it is in (siteDem).
 const MAP_DEM_MAXZOOM = BODY === "earth" ? 13 : Math.min(...SITES.map((s) => s.maxzoom));
@@ -273,9 +293,14 @@ if (BODY !== "earth") {
 const ETSY = !!CONFIG.etsy?.enabled || params.get("etsy") === "1";
 
 // ---------- Branding ----------
-document.title = `${CONFIG.businessName} – Contour Map Designer`;
-$("#brand-name").textContent = CONFIG.businessName;
-$("#brand-tagline").textContent = CONFIG.tagline;
+document.title = `${CONFIG.businessName} – ${PAGE_INFO.title}`;
+$("#brand-name").textContent = `${CONFIG.businessName} – ${PAGE_INFO.title}`;
+document.querySelector(".brand-title").textContent = PAGE_INFO.title;
+$("#brand-tagline").textContent = PAGE_INFO.tagline || CONFIG.tagline;
+// Links between the product pages (kept in Etsy mode).
+$("#site-nav").innerHTML = Object.entries(CONFIG.pages || {})
+  .map(([id, p]) => `<a href="${p.path}${ETSY ? "?etsy=1" : ""}"${id === PAGE ? ' aria-current="page"' : ""}>${p.nav}</a>`)
+  .join("");
 
 // ---------- Map ----------
 const demSource = new mlcontour.DemSource({ url: DEM.url, encoding: "terrarium", maxzoom: MAP_DEM_MAXZOOM, worker: true });
@@ -699,7 +724,7 @@ document.querySelectorAll(".world-switch a").forEach((a) => {
   const keep = new URLSearchParams({ ...(a.dataset.body !== "earth" ? { body: a.dataset.body } : {}), w: state.w, h: state.h, style: state.style });
   if (state.template) keep.set("tpl", state.template);
   if (params.get("etsy") === "1") keep.set("etsy", "1");
-  a.href = "?" + keep;
+  a.href = location.pathname + "?" + keep; // stay on this page (clocks, coasters, …)
 });
 
 $("#regions").innerHTML = REGIONS.map((r, i) => `<button type="button" class="chip" data-i="${i}">${r.label}</button>`).join("");

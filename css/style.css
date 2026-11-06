@@ -40,6 +40,10 @@ a:hover { color: var(--ink); }
   padding: 18px 28px;
 }
 .brand { display: flex; align-items: center; gap: 14px; }
+.site-nav { display: flex; flex-wrap: wrap; gap: 6px; }
+.site-nav a { padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); text-decoration: none; font-size: .9rem; background: var(--panel); }
+.site-nav a:hover { border-color: var(--accent); }
+.site-nav a[aria-current="page"] { background: var(--ink); border-color: var(--ink); color: #fff; }
 .brand-logo { display: block; width: auto; height: 64px; border-radius: 12px; background: #343434; flex: none; }
 .brand-title { margin: 0; font-family: var(--display); font-size: 1.45rem; font-weight: 600; letter-spacing: -.01em; line-height: 1.1; }
 .visually-hidden {

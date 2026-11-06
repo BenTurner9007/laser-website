@@ -3,6 +3,23 @@
 A website where customers choose an area of the British hills, frame it to a
 board size, and send it as a layout for a laser-cut contour map.
 
+**Four pages, one site**
+
+| Page | Address | Board sizes |
+|---|---|---|
+| Maps | `your-site/` | A4 and A3 (portrait and landscape), A4 round, draw your own shape |
+| Clocks | `your-site/clocks/` | Clock 305 mm |
+| Coasters | `your-site/coasters/` | Round, square and rounded square coasters |
+| Bookmarks | `your-site/bookmarks/` | Bookmark |
+
+A link bar in the header moves between them (keeping Etsy mode). They share
+all the code and data: each page only offers its own sizes (`pages` in
+`js/config.js`). `index.html` is the maps page; the other three are copies
+built from it, so **after editing `index.html`, run
+`python3 scripts/build-pages.py`** to update them. Older links to a clock,
+coaster or bookmark on the main page redirect to the right page. For Etsy,
+link each listing to its own page with `?etsy=1`, e.g. `your-site/clocks/?etsy=1`.
+
 **What customers do**
 
 1. **Find their hills**: search any Wainwright, Munro, Welsh 3000, Ethel or
