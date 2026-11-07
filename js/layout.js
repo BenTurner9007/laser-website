@@ -123,14 +123,15 @@ export async function fetchElevationGrid(bounds, onProgress = () => {}, dem = EA
 
 /**
  * Which grid cells are sea, from fetchSea's tiles (all-sea tiles and the
- * sea rings of tiles the coast crosses). Cells in other tiles inside the
+ * sea rings of tiles the coast crosses), or for large maps from the
+ * simplified land (fetchCoastOverview: { box, land }). Cells in other tiles inside the
  * data's box are land; outside it they are left to the elevation data.
  * Returns { mask: Uint8Array (1 = sea, 0 = land, 2 = not known), sea: any
  * sea, land: any land } or null when the map has no sea.
  */
 function seaMask(seaData, b, z, gw, gh) {
-  const { tile, full, part, box } = seaData;
-  if (!full.length && !part.length) return null;
+  const { tile, full = [], part = [], box, land } = seaData;
+  if (!land && !full.length && !part.length) return null;
   const fx0 = lngToX(b.west, z), fy0 = latToY(b.north, z);
   const kx = gw / (lngToX(b.east, z) - fx0), ky = gh / (latToY(b.south, z) - fy0);
   const at = ([lng, lat]) => [(lngToX(lng, z) - fx0) * kx, (latToY(lat, z) - fy0) * ky];
@@ -142,6 +143,17 @@ function seaMask(seaData, b, z, gw, gh) {
   for (const [x, y] of full) {
     const [ax, ay] = at([x * tile, (y + 1) * tile]), [bx, by] = at([(x + 1) * tile, y * tile]);
     ctx.fillRect(ax, ay, bx - ax, by - ay);
+  }
+  if (land) {
+    // The simplified coastline (large maps): the sea is the box less the land.
+    const [ax, ay] = at([box[0], box[3]]), [bx, by] = at([box[2], box[1]]);
+    ctx.beginPath();
+    ctx.rect(ax, ay, bx - ax, by - ay);
+    for (const r of land) {
+      r.forEach((p, i) => (i ? ctx.lineTo(...at(p)) : ctx.moveTo(...at(p))));
+      ctx.closePath();
+    }
+    ctx.fill("evenodd");
   }
   for (const { rings } of part) {
     ctx.beginPath();

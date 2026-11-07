@@ -4,7 +4,7 @@ import { buildLayout, DEM_URL, EARTH_DEM } from "./layout.js";
 import { createViewer } from "./viewer3d.js";
 import { SHAPES, DEFAULT_SHAPE, PLACE_SIZES, shapeIcon } from "./shapes.js";
 import { parseRouteFile, encodeRoute, decodeRoute, routeLengthKm } from "./route.js";
-import { WATER_KINDS, ROAD_KINDS, fetchWater, fetchSea, fetchRoads } from "./water.js";
+import { WATER_KINDS, ROAD_KINDS, fetchWater, fetchSea, fetchRoads, fetchCoastOverview } from "./water.js";
 
 // Which product page this is (body data-page): it only offers its own sizes.
 const PAGE = CONFIG.pages?.[document.body.dataset.page] ? document.body.dataset.page : "maps";
@@ -948,8 +948,15 @@ $("#generate").addEventListener("click", async () => {
         waterFailed = true;
       }
     }
-    // The sea, so the land stops at the true coastline (Earth only).
-    const sea = siteDem(b).sea && !tooBig ? await fetchSea(b).catch(() => null) : null;
+    // The sea, so the land stops at the true coastline (Earth only). Large
+    // maps use the simplified coastline, and still show it if it is chosen.
+    let sea = null;
+    if (siteDem(b).sea && !tooBig) sea = await fetchSea(b).catch(() => null);
+    else if (siteDem(b).sea) {
+      const overview = await fetchCoastOverview().catch(() => null);
+      sea = overview && { box: overview.box, land: overview.land };
+      if (overview && state.water.has("coast")) water = { coast: overview.coast };
+    }
     // Rebuilding a customer's link keeps their reference, so files match emails
     // (it is also engraved on the back).
     const ref = (fromLink && sharedRef) || makeRef();
@@ -1042,7 +1049,7 @@ function renderStats() {
   if (m.style === "layered") items.push(["Stack height", `≈ ${stackHeight()} mm`]);
   let html = items.map(([k, v]) => `<li>${k}: <b>${escapeHtml(v)}</b></li>`).join("");
   if (lastResult.tooBig && (state.water.size || state.roads.size)) {
-    html += `<li class="status">Rivers, lakes, roads and the detailed coastline are left off maps this large – they would be far too fine to see. Zoom in (to about 200 km across or less) to include them.</li>`;
+    html += `<li class="status">Rivers, lakes and roads are left off maps this large, and the coastline is simplified – they would be far too fine to see. Zoom in (to about 200 km across or less) to include them.</li>`;
   } else if (lastResult.waterFailed) {
     html += `<li class="status error">Couldn’t load rivers, lakes or roads just now, so this layout has none. Close this and try again.</li>`;
   }
@@ -1981,7 +1988,7 @@ const DETAIL_MAX_TILES = 600;
 function detailTiles(b) {
   return (Math.floor(b.east / 0.1) - Math.floor(b.west / 0.1) + 1) * (Math.floor(b.north / 0.1) - Math.floor(b.south / 0.1) + 1);
 }
-let waterTimer;
+let waterTimer, waterCall = 0;
 
 async function showWater() {
   const note = $("#water-note");
@@ -1995,14 +2002,26 @@ async function showWater() {
   const c = map.getContainer();
   const nw = map.unproject([0, 0]), se = map.unproject([c.clientWidth, c.clientHeight]);
   const view = { west: nw.lng, north: nw.lat, east: se.lng, south: se.lat };
+  const call = ++waterCall; // a later call (the map moved again) wins
   if (groundWidthMetres(view) > WATER_MAX_METRES) {
+    // Zoomed out: the simplified coastline only (rivers would be a tangle).
     map.getSource("water").setData(empty);
     note.textContent = "Zoom in to see rivers and lakes on the map.";
+    if (!state.water.has("coast")) return;
+    try {
+      const { coast } = await fetchCoastOverview();
+      if (call !== waterCall) return;
+      map.getSource("water").setData({
+        type: "FeatureCollection",
+        features: coast.map((l) => ({ type: "Feature", properties: { kind: "coast" }, geometry: { type: "LineString", coordinates: l } })),
+      });
+    } catch {}
     return;
   }
   note.textContent = "Loading rivers and lakes…";
   try {
     const water = await waterFor(view);
+    if (call !== waterCall) return;
     const features = Object.entries(water).filter(([kind]) => !kind.endsWith("fill")).flatMap(([kind, lines]) =>
       lines.map((l) => ({ type: "Feature", properties: { kind }, geometry: { type: "LineString", coordinates: l } }))
     );
