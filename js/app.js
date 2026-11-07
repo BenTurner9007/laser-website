@@ -233,7 +233,7 @@ let pinnedBounds = null;
 let lastResult = null;
 
 // ---------- World: Earth, or the Moon / Mars famous-places collection ----------
-const BODY = ["moon", "mars"].includes(params.get("body")) ? params.get("body") : "earth";
+const BODY = CONFIG.worlds && ["moon", "mars"].includes(params.get("body")) ? params.get("body") : "earth";
 // Plywood offered and its sheet prices (data/materials.json, built from the
 // supplier's price list by scripts/build-materials.py).
 const MATERIALS = await fetch("data/materials.json").then((r) => r.json());
@@ -723,6 +723,7 @@ if (BODY !== "earth") {
     `${WORLD.credit}. Heights are measured from ${WORLD.the}'s reference sphere, so many are negative. ` +
     `Data courtesy of NASA, JAXA and the USGS Astrogeology Science Center. <a href="licences.html">Data licences</a> · <a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a>`;
 }
+$(".world-switch").hidden = !CONFIG.worlds; // Moon and Mars are switched off for now
 document.querySelectorAll(".world-switch a").forEach((a) => {
   a.setAttribute("aria-selected", a.dataset.body === BODY);
   // Keep the board size and style when hopping between worlds.
@@ -732,7 +733,7 @@ document.querySelectorAll(".world-switch a").forEach((a) => {
   a.href = location.pathname + "?" + keep; // stay on this page (clocks, coasters, …)
 });
 
-$("#regions").innerHTML = REGIONS.map((r, i) => `<button type="button" class="chip" data-i="${i}">${r.label}</button>`).join("");
+$("#regions").innerHTML = REGIONS.map((r, i) => `<button type="button" class="chip${r.phone ? "" : " not-phone"}" data-i="${i}">${r.label}</button>`).join("");
 $("#regions").addEventListener("click", (e) => {
   const r = REGIONS[e.target.dataset.i];
   if (r) map.flyTo({ center: [r.at[0], r.at[1]], zoom: r.at[2] });
@@ -2315,4 +2316,53 @@ showPlaceNames();
 // "Copy share link") opens the layout straight away, not just the map.
 if (params.has("ref") && state.sharedBounds) {
   onStyleReady(() => setTimeout(() => $("#generate").click(), 400));
+}
+
+// ---------- Phones: the steps as swipeable cards under the map ----------
+// On narrow screens (see style.css) the steps sit side by side in a strip you
+// swipe through, with tabs above, so the map stays in view while you change
+// options. On bigger screens the tabs are hidden and the steps stack as usual.
+{
+  const strip = $(".steps");
+  const tabs = $("#step-tabs");
+  const shown = () => [...strip.children].filter((li) => !li.hidden);
+  const name = (li) => li.querySelector("h2").cloneNode(true);
+  const renderTabs = () => {
+    const steps = shown();
+    tabs.innerHTML = "";
+    steps.forEach((li, i) => {
+      const h = name(li);
+      h.querySelector(".optional")?.remove();
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "step-tab";
+      b.innerHTML = `<span class="num">${i + 1}</span> ${escapeHtml(h.textContent.replace(/^\s*\d+\s*/, "").trim())}`;
+      b.addEventListener("click", () => strip.scrollTo({ left: li.offsetLeft, behavior: "smooth" }));
+      tabs.append(b);
+    });
+    markTab();
+  };
+  const markTab = () => {
+    const steps = shown();
+    const i = Math.min(steps.length - 1, Math.max(0, Math.round(strip.scrollLeft / (strip.clientWidth || 1))));
+    [...tabs.children].forEach((b, j) => {
+      const on = j === i;
+      if (on && !b.hasAttribute("aria-current")) tabs.scrollTo({ left: b.offsetLeft - (tabs.clientWidth - b.offsetWidth) / 2, behavior: "smooth" });
+      if (on) b.setAttribute("aria-current", "step");
+      else b.removeAttribute("aria-current");
+    });
+  };
+  let raf = 0;
+  strip.addEventListener("scroll", () => {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(markTab);
+  }, { passive: true });
+  renderTabs();
+  // Steps can be hidden or shown later (e.g. on other worlds): keep the tabs in step.
+  new MutationObserver(renderTabs).observe(strip, { subtree: false, childList: true, attributes: true, attributeFilter: ["hidden"] });
+  // The credits sit at the foot of the last card on phones (the page doesn't scroll there).
+  const credits = document.createElement("div");
+  credits.className = "phone-credits";
+  credits.innerHTML = $(".site-footer").innerHTML;
+  strip.lastElementChild.append(credits);
 }

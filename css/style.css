@@ -333,20 +333,83 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 }
 .site-footer p { margin: 0; }
 
+/* Step tabs and credits in the last card: phones only (below). */
+.step-tabs, .phone-credits { display: none; }
+
+/* Phones: the map fills the top of the screen and never scrolls away; the
+   steps are cards in a strip below it, swiped sideways (or picked from the
+   tabs), each scrolling on its own. */
 @media (max-width: 820px) {
   .map-hint { display: none; }
-  body { display: block; height: auto; }
-  .site-header { padding: 14px 16px; }
-  .brand-logo { height: 52px; }
-  .brand-title { font-size: 1.2rem; }
-  .layout { display: block; padding: 0 16px 16px; }
-  .map-wrap { height: 62vh; margin-bottom: 12px; }
+  body { height: 100vh; height: 100dvh; overflow: hidden; overscroll-behavior: none; }
+  .site-header { flex-wrap: nowrap; gap: 10px; padding: 8px 12px; }
+  .brand { gap: 8px; min-width: 0; flex: none; }
+  .brand-logo { height: 34px; border-radius: 8px; }
+  .brand-title, .tagline { display: none; } /* the logo says who we are; room for the product links */
+  .site-nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+  .site-nav::-webkit-scrollbar { display: none; }
+  .site-nav a { padding: 5px 9px; font-size: .78rem; white-space: nowrap; }
+  .site-nav { gap: 4px; }
+  .owner-badge { display: none; }
+  .layout { display: flex; flex-direction: column; gap: 8px; padding: 0 10px 8px; }
+  .map-wrap { flex: 1 1 auto; min-height: 180px; border-radius: 14px; }
   .frame-size { top: 8px; left: 8px; }
   .frame-scale { top: auto; bottom: 8px; right: 8px; }
+  .not-phone { display: none; }
+
+  .panel { flex: 0 0 auto; height: 46%; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+  .step-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: none; padding: 1px; }
+  .step-tabs::-webkit-scrollbar { display: none; }
+  .step-tab {
+    flex: none;
+    font: inherit;
+    font-size: .82rem;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .step-tab .num { font-size: .78rem; }
+  .step-tab[aria-current] { background: var(--ink); border-color: var(--ink); color: var(--panel); }
+  .step-tab[aria-current] .num { color: #e08a55; }
+  .steps {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    flex-direction: row;
+    gap: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .steps::-webkit-scrollbar { display: none; }
+  .step {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding: 14px 16px;
+  }
+  .step > h2 { display: none; } /* the tab above names the step */
+  .phone-credits { display: block; margin-top: 16px; font-size: 11px; color: #c9bfb1; }
+  .phone-credits p { margin: 0; }
+  .phone-credits a { color: #e8d9bf; }
+  .site-footer { display: none; }
+
   .result-grid { grid-template-columns: 1fr; }
   .viewer { height: 52vh; }
   .result { padding: 16px; }
-  .site-footer { padding: 0 16px 12px; }
+}
+/* Short screens (phones held sideways): a little less panel. */
+@media (max-width: 820px) and (max-height: 560px) {
+  .panel { height: 52%; }
+  .site-header { padding: 4px 12px; }
 }
 
 /* Step 4: special places */
