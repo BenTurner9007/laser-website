@@ -662,7 +662,7 @@ onStyleReady(() => {
 
 // ---------- Step 1: search and regions ----------
 let hillIndex = [];
-fetch(WORLD.features)
+const hillsReady = fetch(WORLD.features)
   .then((r) => r.json())
   .then((gj) => {
     hillIndex = gj.features;
@@ -671,7 +671,8 @@ fetch(WORLD.features)
       .sort((a, b) => a.properties.name.localeCompare(b.properties.name))
       .map((f) => `<option value="${escapeHtml(f.properties.name)} (${f.properties.h} m)"></option>`);
     $("#hill-names").innerHTML = opts.join("");
-  });
+  })
+  .catch(() => {});
 
 $("#hill-search").addEventListener("change", (e) => {
   const q = e.target.value.trim().toLowerCase();
@@ -928,6 +929,8 @@ function shareLink(b, ref) {
 $("#generate").addEventListener("click", async () => {
   const btn = $("#generate");
   btn.disabled = true;
+  // Hill and place names must be loaded, or the layout would lack labels.
+  await Promise.all([hillsReady, townsReady]);
   const fromLink = pinnedMatchesFrame();
   const b = fromLink ? pinnedBounds : frameBounds();
   try {
@@ -2271,3 +2274,9 @@ async function showPlaceNames() {
   onStyleReady(() => map.getSource("towns").setData({ type: "FeatureCollection", features }));
 }
 showPlaceNames();
+
+// A link to a design (from a request email, an Etsy saved-design email or
+// "Copy share link") opens the layout straight away, not just the map.
+if (params.has("ref") && state.sharedBounds) {
+  onStyleReady(() => setTimeout(() => $("#generate").click(), 400));
+}
