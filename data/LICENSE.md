@@ -6,6 +6,7 @@ including commercially, as long as you follow the licence for each part.
 ## OpenStreetMap data: Open Database Licence (ODbL) 1.0
 
 - `water/`: rivers, lakes, streams, coastline, lake areas and the sea
+- `coast.json`: a simplified coastline, for large maps
 - `roads/`: roads, tracks and paths
 - `places.json`: city, town and village names
 - `hills.geojson`: the hills with the list "osm" (other named peaks, added by
@@ -13,7 +14,7 @@ including commercially, as long as you follow the licence for each part.
 
 These are derived databases of OpenStreetMap data, made from the
 [Overture Maps](https://overturemaps.org) release 2026-10-21.0 by the scripts
-in `scripts/` (`build-water.py`, `build-roads.py`, `build-places.py`), which
+in `scripts/` (`build-water.py`, `build-coast.py`, `build-roads.py`, `build-places.py`), which
 show exactly how they were made.
 
 © OpenStreetMap contributors. Made available under the

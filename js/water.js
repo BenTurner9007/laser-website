@@ -90,3 +90,41 @@ export const fetchWater = tileSet("data/water/");
 export const fetchSea = (bounds) => fetchWater.sea(bounds);
 /** Road lines inside bounds for the given kinds (ids from ROAD_KINDS). */
 export const fetchRoads = tileSet("data/roads/");
+
+/**
+ * A simplified coastline of Great Britain and Ireland (data/coast.json, built
+ * by scripts/build-coast.py), for maps too large for the tiles:
+ * { box: [w, s, e, n], land: rings of [lng, lat] (fill even-odd within box),
+ *   coast: lines of [lng, lat] (the rings less any edges along box) }.
+ */
+let coastOverview = null;
+export function fetchCoastOverview() {
+  return (coastOverview ??= fetch(new URL("data/coast.json", document.baseURI))
+    .then((r) => {
+      if (!r.ok) throw new Error(`coast.json ${r.status}`);
+      return r.json();
+    })
+    .then((j) => {
+      const land = decodeRoute(j.land);
+      const [w, s, e, n] = j.box;
+      const onEdge = ([x, y]) => Math.abs(x - w) < 1e-4 || Math.abs(x - e) < 1e-4 || Math.abs(y - s) < 1e-4 || Math.abs(y - n) < 1e-4;
+      const coast = [];
+      for (const ring of land) {
+        let cur = [];
+        for (let i = 0; i < ring.length; i++) {
+          // A step between two points on the box edge is the edge, not coast.
+          if (cur.length && onEdge(ring[i]) && onEdge(ring[i - 1])) {
+            if (cur.length > 1) coast.push(cur);
+            cur = [];
+          }
+          cur.push(ring[i]);
+        }
+        if (cur.length > 1) coast.push(cur);
+      }
+      return { box: j.box, land, coast };
+    })
+    .catch((err) => {
+      coastOverview = null; // try again next time
+      throw err;
+    }));
+}
