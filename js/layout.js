@@ -31,6 +31,8 @@ export const COLOURS = {
   sheet: "#999999", // sheet edges, for reference only
 };
 const NUMBER_MM = 4; // assembly number size
+const COAST_LAND_M = 1; // land is kept at least this high, so it stays above the sea
+const COAST_LEVEL_M = 0.5; // layered: the coastline layer (all the land)
 const MAX_LEVELS = 150; // layouts with more contour layers than this are refused
 
 const MAX_GRID_PX = 1400; // longest side of the elevation grid
@@ -117,6 +119,50 @@ export async function fetchElevationGrid(bounds, onProgress = () => {}, dem = EA
   // Moon/Mars: anything outside the built tiles becomes a flat floor.
   if (!dem.sea) for (let i = 0; i < values.length; i++) if (Number.isNaN(values[i])) values[i] = n ? sum / n : 0;
   return { values, width: gw, height: gh, zoom: z };
+}
+
+/**
+ * Which grid cells are sea, from fetchSea's tiles (all-sea tiles and the
+ * sea rings of tiles the coast crosses). Cells in other tiles inside the
+ * data's box are land; outside it they are left to the elevation data.
+ * Returns { mask: Uint8Array (1 = sea, 0 = land, 2 = not known), sea: any
+ * sea, land: any land } or null when the map has no sea.
+ */
+function seaMask(seaData, b, z, gw, gh) {
+  const { tile, full, part, box } = seaData;
+  if (!full.length && !part.length) return null;
+  const fx0 = lngToX(b.west, z), fy0 = latToY(b.north, z);
+  const kx = gw / (lngToX(b.east, z) - fx0), ky = gh / (latToY(b.south, z) - fy0);
+  const at = ([lng, lat]) => [(lngToX(lng, z) - fx0) * kx, (latToY(lat, z) - fy0) * ky];
+  const canvas = document.createElement("canvas");
+  canvas.width = gw;
+  canvas.height = gh;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.fillStyle = "#fff";
+  for (const [x, y] of full) {
+    const [ax, ay] = at([x * tile, (y + 1) * tile]), [bx, by] = at([(x + 1) * tile, y * tile]);
+    ctx.fillRect(ax, ay, bx - ax, by - ay);
+  }
+  for (const { rings } of part) {
+    ctx.beginPath();
+    for (const r of rings) {
+      r.forEach((p, i) => (i ? ctx.lineTo(...at(p)) : ctx.moveTo(...at(p))));
+      ctx.closePath();
+    }
+    ctx.fill("evenodd");
+  }
+  const px = ctx.getImageData(0, 0, gw, gh).data;
+  const mask = new Uint8Array(gw * gh);
+  let nSea = 0;
+  let nLand = 0;
+  for (let i = 0; i < mask.length; i++) if (px[i * 4 + 3] >= 128) (mask[i] = 1), nSea++;
+  if (box) {
+    // Outside the box: not known (0 m there is still flattened as before).
+    const [ax, ay] = at([box[0], box[3]]), [bx, by] = at([box[2], box[1]]);
+    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) if (x + 0.5 < ax || x + 0.5 > bx || y + 0.5 < ay || y + 0.5 > by) mask[y * gw + x] = 2;
+  }
+  for (let i = 0; i < mask.length; i++) if (!mask[i]) nLand++;
+  return nSea ? { mask, sea: true, land: nLand > 0 } : null;
 }
 
 /** Separable box blur, repeated, approximating a Gaussian. */
@@ -564,6 +610,7 @@ const esc = (s) =>
  *   clear: a padded box behind with no lines, raised flat to the top layer on layered maps
  * @param {{lines:number[][][], widthMm:number, style:"solid"|"dashed"}} [o.route]  hiking route, lines of [lng, lat]
  * @param {Object<string, number[][][]>} [o.water]  lines of [lng, lat] by kind (see WATER_KINDS)
+ * @param {object} [o.sea]  the sea from fetchSea (Earth): land stops at the true coastline
  * @param {Object<string, number[][][]>} [o.roads]  lines of [lng, lat] by kind (see ROAD_KINDS)
  * @param {Array<{name:string, kind:"c"|"t"|"v", lng:number, lat:number}>} [o.towns]  place names to label
  * @param {number} [o.townFontMm]  place name text size
@@ -586,10 +633,15 @@ export async function buildLayout(o, onProgress) {
   const radius = Math.round(o.smoothing * Math.max(1, gw / 350));
   // Earth data first has seams removed (thin false ridges or trenches).
   const raw = dem.sea ? removeSeams(grid.values, gw, gh).values : grid.values;
+  // The true coastline (OpenStreetMap): the elevation data's 0 m line wanders
+  // out to sea, so the sea is set to 0 m and the land kept above it.
+  const sea = o.sea ? seaMask(o.sea, o.bounds, zoom, gw, gh) : null;
+  if (sea) for (let i = 0; i < raw.length; i++) if (sea.mask[i] === 1) raw[i] = 0;
   const values = smooth(raw, gw, gh, radius);
   // The blur's running sums leave rounding noise (±1e-13) on flat sea; snap it
   // back to 0 so no contour is traced through the noise.
   if (dem.sea) for (let i = 0; i < values.length; i++) if (values[i] < 1e-6) values[i] = 0;
+  if (sea) for (let i = 0; i < values.length; i++) values[i] = sea.mask[i] === 1 ? 0 : sea.mask[i] === 2 ? values[i] : Math.max(values[i], COAST_LAND_M);
 
   let minE = Infinity, maxE = -Infinity;
   for (const v of values) { if (v < minE) minE = v; if (v > maxE) maxE = v; }
@@ -597,6 +649,10 @@ export async function buildLayout(o, onProgress) {
   // No contours: a flat board, so no levels (and no contour lines).
   const levels = [];
   if (o.contours !== false) for (let t = Math.floor(minE / o.interval + 1) * o.interval; t <= maxE; t += o.interval) levels.push(t);
+  // Layered boards with sea and land: the first layer is all the land, cut
+  // along the coastline, so the sea is the bare base board.
+  const coastLayer = sea?.sea && sea.land && o.contours !== false && o.style !== "engraved" && !(levels[0] <= COAST_LEVEL_M);
+  if (coastLayer) levels.unshift(COAST_LEVEL_M);
   // Hundreds of layers would freeze the page (and can't sensibly be made).
   if (levels.length > MAX_LEVELS) {
     const need = (maxE - minE) / MAX_LEVELS;
@@ -615,7 +671,7 @@ export async function buildLayout(o, onProgress) {
     contours.map((c) => {
       let polys = cleanPolygons(c, sx, sy);
       if (tpl) polys = clip("intersection", polys, tpl.mapRegion);
-      return { elevation: c.value, d: polygonsToPath(polys), polys };
+      return { elevation: c.value, d: polygonsToPath(polys), polys, ...(coastLayer && c.value === COAST_LEVEL_M ? { coast: true } : {}) };
     })
   );
   while (layers.length > 1 && !layers[layers.length - 1].polys.length) layers.pop();
@@ -1182,7 +1238,7 @@ export async function buildLayout(o, onProgress) {
     const c = o.back?.credits || o.plates?.credits || {};
     const kinds = new Set(water.map((w) => w.group));
     const anyWater = kinds.has("water") || lakeEngrave.length || riverEngrave.length;
-    const osm = [osmPeaksPlaced && "hill names", anyWater && "rivers and lakes", kinds.has("roads") && "roads and paths", townsPlaced && "place names"].filter(Boolean);
+    const osm = [osmPeaksPlaced && "hill names", anyWater && "rivers and lakes", !anyWater && sea && "coastline", kinds.has("roads") && "roads and paths", townsPlaced && "place names"].filter(Boolean);
     return [
       c.elevation,
       listedPeaksPlaced && c.names,
@@ -1363,7 +1419,7 @@ export async function buildLayout(o, onProgress) {
         assembled += `<g inkscape:groupmode="layer" inkscape:label="Board${extra ? ` ${k + 1} of ${extra + 1}` : ""}"${k ? ` transform="translate(${k * (W + 10)} 0)"` : ""}>\n${board}</g>\n`;
     } else {
       layers.forEach((l, i) => {
-        const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.elevation} m)`;
+        const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.coast ? "coastline" : `${l.elevation} m`})`;
         assembled += `<g inkscape:groupmode="layer" inkscape:label="${name}" id="layer-${i}">\n`;
         for (const p of pieces[i]) assembled += `<g id="piece-${p.id}" inkscape:label="Piece ${p.id}">\n${pieceContent(p)}</g>\n`;
         assembled += "</g>\n";

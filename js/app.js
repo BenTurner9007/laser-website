@@ -4,7 +4,7 @@ import { buildLayout, DEM_URL, EARTH_DEM } from "./layout.js";
 import { createViewer } from "./viewer3d.js";
 import { SHAPES, DEFAULT_SHAPE, PLACE_SIZES, shapeIcon } from "./shapes.js";
 import { parseRouteFile, encodeRoute, decodeRoute, routeLengthKm } from "./route.js";
-import { WATER_KINDS, ROAD_KINDS, fetchWater, fetchRoads } from "./water.js";
+import { WATER_KINDS, ROAD_KINDS, fetchWater, fetchSea, fetchRoads } from "./water.js";
 
 // Which product page this is (body data-page): it only offers its own sizes.
 const PAGE = CONFIG.pages?.[document.body.dataset.page] ? document.body.dataset.page : "maps";
@@ -662,7 +662,7 @@ onStyleReady(() => {
 
 // ---------- Step 1: search and regions ----------
 let hillIndex = [];
-fetch(WORLD.features)
+const hillsReady = fetch(WORLD.features)
   .then((r) => r.json())
   .then((gj) => {
     hillIndex = gj.features;
@@ -671,7 +671,8 @@ fetch(WORLD.features)
       .sort((a, b) => a.properties.name.localeCompare(b.properties.name))
       .map((f) => `<option value="${escapeHtml(f.properties.name)} (${f.properties.h} m)"></option>`);
     $("#hill-names").innerHTML = opts.join("");
-  });
+  })
+  .catch(() => {});
 
 $("#hill-search").addEventListener("change", (e) => {
   const q = e.target.value.trim().toLowerCase();
@@ -928,6 +929,8 @@ function shareLink(b, ref) {
 $("#generate").addEventListener("click", async () => {
   const btn = $("#generate");
   btn.disabled = true;
+  // Hill and place names must be loaded, or the layout would lack labels.
+  await Promise.all([hillsReady, townsReady]);
   const fromLink = pinnedMatchesFrame();
   const b = fromLink ? pinnedBounds : frameBounds();
   try {
@@ -939,6 +942,8 @@ $("#generate").addEventListener("click", async () => {
     } catch {
       waterFailed = true;
     }
+    // The sea, so the land stops at the true coastline (Earth only).
+    const sea = siteDem(b).sea ? await fetchSea(b).catch(() => null) : null;
     // Rebuilding a customer's link keeps their reference, so files match emails
     // (it is also engraved on the back).
     const ref = (fromLink && sharedRef) || makeRef();
@@ -968,6 +973,7 @@ $("#generate").addEventListener("click", async () => {
         placeMm: state.placeMm,
         route: state.route.lines.length ? state.route : null,
         water,
+        sea,
         roads,
         guides: true,
         plates: await backPlates(),
@@ -2271,3 +2277,9 @@ async function showPlaceNames() {
   onStyleReady(() => map.getSource("towns").setData({ type: "FeatureCollection", features }));
 }
 showPlaceNames();
+
+// A link to a design (from a request email, an Etsy saved-design email or
+// "Copy share link") opens the layout straight away, not just the map.
+if (params.has("ref") && state.sharedBounds) {
+  onStyleReady(() => setTimeout(() => $("#generate").click(), 400));
+}

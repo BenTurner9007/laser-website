@@ -33,7 +33,7 @@ function tileSet(base) {
     });
   const loadIndex = () =>
     (index ??= json(base + "index.json")
-      .then((j) => ({ tile: j.tile, keys: new Set(j.tiles) }))
+      .then((j) => ({ tile: j.tile, keys: new Set(j.tiles), sea: j.sea || {}, box: j.box }))
       .catch((err) => {
         index = null; // try again next time
         throw err;
@@ -52,7 +52,7 @@ function tileSet(base) {
     }
     return tiles.get(key);
   };
-  return async (bounds, kinds) => {
+  const fetchKinds = async (bounds, kinds) => {
     const out = Object.fromEntries(kinds.map((k) => [k, []]));
     if (!kinds.length) return out;
     const { tile, keys } = await loadIndex();
@@ -65,9 +65,28 @@ function tileSet(base) {
     for (const t of await Promise.all(wanted)) for (const k of kinds) if (t[k]) out[k].push(...t[k]);
     return out;
   };
+  // The sea in bounds, tile by tile (see scripts/build-water.py seafill):
+  // { tile, full: [[x, y], ...] all-sea tiles, part: [{x, y, rings}, ...]
+  // tiles the coast crosses (rings filled even-odd within their tile) }.
+  // Other tiles inside box (west, south, east, north) are land; outside it
+  // the sea is not known.
+  fetchKinds.sea = async (bounds) => {
+    const { tile, keys, sea, box } = await loadIndex();
+    const full = [], jobs = [];
+    for (let x = Math.floor(bounds.west / tile); x <= Math.floor(bounds.east / tile); x++) {
+      for (let y = Math.floor(bounds.south / tile); y <= Math.floor(bounds.north / tile); y++) {
+        if ((sea[y] || []).some(([a, b]) => x >= a && x <= b)) full.push([x, y]);
+        else if (keys.has(`${x}_${y}`)) jobs.push(loadTile(`${x}_${y}`).then((t) => (t.seafill ? { x, y, rings: t.seafill } : null)));
+      }
+    }
+    return { tile, box, full, part: (await Promise.all(jobs)).filter(Boolean) };
+  };
+  return fetchKinds;
 }
 
 /** Water lines inside bounds for the given kinds (ids from WATER_KINDS). */
 export const fetchWater = tileSet("data/water/");
+/** The sea inside bounds (Great Britain and Ireland), for the true coastline. */
+export const fetchSea = (bounds) => fetchWater.sea(bounds);
 /** Road lines inside bounds for the given kinds (ids from ROAD_KINDS). */
 export const fetchRoads = tileSet("data/roads/");

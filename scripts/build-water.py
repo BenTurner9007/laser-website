@@ -19,8 +19,13 @@ and two kinds of area, cut to the tile, as rings (fill even-odd; islands are
 holes), filled in by the laser:
   lakefill   lakes, tarns, ponds and reservoirs
   riverfill  the water area of wide rivers and canals
+plus the sea, so layouts stop the land at the true coastline:
+  seafill    the sea in tiles the coastline crosses (same ring format)
+  index.json "sea": tiles that are all sea, as {row: [[first, last], ...]}
+             (tile y -> runs of tile x); "box": the area covered
 
   python3 scripts/build-water.py lakefill   # add just lakefill to existing tiles
+  python3 scripts/build-water.py seafill    # add just the sea to existing tiles
 """
 
 import io
@@ -251,6 +256,59 @@ def lakefill():
     (OUT / "index.json").write_text(json.dumps(index, separators=(",", ":")))
 
 
+def seafill(raw=None):
+    """Add the sea (seafill rings, and the all-sea tiles in index.json)."""
+    subtypes, classes, geoms = raw or read_raw()
+    ocean = [g for sub, cls, g in zip(subtypes, classes, geoms) if g is not None and not g.is_empty and classify(sub, cls, g.geom_type) == "ocean"]
+    sea = shapely.make_valid(shapely.simplify(shapely.union_all(shapely.make_valid(shapely.buffer(ocean, 0))), SIMPLIFY_DEG, preserve_topology=True))
+    shapely.prepare(sea)
+    index = json.loads((OUT / "index.json").read_text())
+    keys = set(index["tiles"])
+    for f in OUT.glob("*_*.json"):  # drop old copies
+        body = json.loads(f.read_text())
+        if "seafill" in body:
+            del body["seafill"]
+            f.write_text(json.dumps(body, separators=(",", ":")))
+    full = defaultdict(list)
+    n = 0
+    x0, y0 = math.floor(UK[0] / TILE), math.floor(UK[1] / TILE)
+    x1, y1 = math.floor(UK[2] / TILE), math.floor(UK[3] / TILE)
+    for ty in range(y0, y1 + 1):
+        for tx in range(x0, x1 + 1):
+            box = shapely.box(tx * TILE, ty * TILE, (tx + 1) * TILE, (ty + 1) * TILE)
+            if not shapely.intersects(sea, box):
+                continue
+            if shapely.contains(sea, box):
+                runs = full[ty]
+                if runs and runs[-1][1] == tx - 1:
+                    runs[-1][1] = tx
+                else:
+                    runs.append([tx, tx])
+                continue
+            rings = []
+            for part in shapely.get_parts(shapely.intersection(sea, box)):
+                if part.geom_type != "Polygon" or part.is_empty:
+                    continue
+                for ring in [part.exterior, *part.interiors]:
+                    e = encode_line(shapely.get_coordinates(ring).tolist())
+                    if e:
+                        rings.append(e)
+            if not rings:
+                continue
+            f = OUT / f"{tx}_{ty}.json"
+            body = json.loads(f.read_text()) if f.exists() else {}
+            body["seafill"] = ",".join(rings)
+            f.write_text(json.dumps(body, separators=(",", ":")))
+            keys.add(f"{tx}_{ty}")
+            n += 1
+        print(f"row {ty}: {n} coast tiles", flush=True) if ty % 10 == 0 else None
+    index["tiles"] = sorted(keys)
+    index["sea"] = {str(y): r for y, r in sorted(full.items())}
+    index["box"] = list(UK)  # outside this, the site goes by the elevation data
+    (OUT / "index.json").write_text(json.dumps(index, separators=(",", ":")))
+    print(f"seafill: {n} coast tiles, {sum(b - a + 1 for r in full.values() for a, b in r)} all-sea tiles", flush=True)
+
+
 def build():
     t = pq.read_table(RAW)
     subtypes, classes = t.column("subtype").to_pylist(), t.column("class").to_pylist()
@@ -318,7 +376,8 @@ def build():
     index = {"tile": TILE, "source": f"Overture Maps {RELEASE} (OpenStreetMap, ODbL)", "tiles": sorted(f"{x}_{y}" for x, y in tiles)}
     (OUT / "index.json").write_text(json.dumps(index, separators=(",", ":")))
     print(f"{len(tiles)} tiles, {total / 1e6:.1f} MB", flush=True)
+    seafill((subtypes, classes, geoms))
 
 
 if __name__ == "__main__":
-    {"download": download, "build": build, "lakefill": lakefill}[sys.argv[1] if len(sys.argv) > 1 else "build"]()
+    {"download": download, "build": build, "lakefill": lakefill, "seafill": seafill}[sys.argv[1] if len(sys.argv) > 1 else "build"]()
