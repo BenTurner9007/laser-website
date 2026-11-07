@@ -491,7 +491,7 @@ python3 scripts/build-roads.py build      # about 4 minutes
 
 ### Updating the water data
 
-`data/water/` holds about 5,700 small tiles (66 MB in all) covering the UK and
+`data/water/` holds about 5,300 small tiles (66 MB in all) covering the UK and
 Ireland, including the sea along the coast, so layouts cut the land at the true
 coastline. They come from [Overture Maps](https://overturemaps.org), a cleaned-up
 copy of OpenStreetMap. To refresh them (OpenStreetMap is edited all the time):
