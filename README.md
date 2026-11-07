@@ -94,21 +94,23 @@ link each listing to its own page with `?etsy=1`, e.g. `your-site/clocks/?etsy=1
     (`#5B`), and inside each glue outline is the id of the piece that goes
     there (`6A`). Both sit under the piece above, so they're hidden once glued.
     Labels turn sideways or shrink (to ~1.6 mm) to fit thin pieces
-  - pieces with nothing on top can't hide their id, so it's in its own colour
-    (magenta) for you to engrave lightly or switch off. Any piece too small for
-    even a tiny number (a few mm across) is listed in the SVG metadata as
-    `unnumberedPieces`; match those by shape against their glue outline
-  - colours: **red** = cut, **blue** = glue outline, **black** = engrave
-    (names, markers, special places, route, clock numbers), **green** = water
-    score lines, **teal** = road and path score lines, **orange** = hidden assembly numbers, **magenta** = visible ids, **grey** = sheet edges (reference only).
-    Give each its own LightBurn layer; orange and green suit a quick light pass
+  - pieces with nothing on top can't hide their id, so they carry none. They,
+    and any piece too small for even a tiny number (a few mm across), are
+    listed in the SVG metadata as `unnumberedPieces`; match those by shape
+    against their glue outline
+  - **three colours**, one per laser operation: **red** = cut through,
+    **black** = engrave (contours, glue outlines, water and road score lines,
+    path dots, names, markers, special places, route, clock numbers, assembly
+    numbers, back engraving), **blue** = fill in solid (lakes, tarns, wide
+    rivers and canals). In LightBurn set black to *Fill+Line* (it fills the
+    lettering and traces the lines) and blue to *Fill*
   - all pieces sit in register (as assembled), so the file also shows the
     whole model
 - **Cut sheets in the same file** (layered maps): to the right of the
   assembled model, the same pieces are laid flat on your sheets (600 × 400 mm
   by default, two per row), packed biggest-first and rotated to fit, with
   small pieces tucked into gaps and holes. Each sheet is its own layer
-  (`Sheet 1 of 4`) with a grey edge for reference (don't cut it), and the
+  (`Sheet 1 of 4`), and the
   metadata lists the pieces on each sheet. Pieces are at least 2 mm apart
   with a 5 mm border; a piece bigger than a sheet gets its own sheet marked
   `OVERSIZE`. Cut one sheet at a time: the assembled model is a reference
