@@ -189,12 +189,13 @@ if (customShape) {
 }
 
 // "west,south,east,north": real coordinates, west < east, south < north, and
-// no bigger than about 5° across (larger areas can't be built sensibly).
+// no bigger than 40° across: room for all of Great Britain and Ireland on any
+// board shape (the elevation grid is capped, so big areas build quickly).
 function parseBounds(text) {
   const b = (text || "").split(",").map(Number);
   if (b.length !== 4 || !b.every(Number.isFinite)) return null;
   const [w, s, e, n] = b;
-  const ok = w >= -180 && e <= 180 && s >= -85 && n <= 85 && w < e && s < n && e - w <= 5 && n - s <= 5;
+  const ok = w >= -180 && e <= 180 && s >= -85 && n <= 85 && w < e && s < n && e - w <= 40 && n - s <= 40;
   return ok ? b : null;
 }
 
@@ -936,14 +937,19 @@ $("#generate").addEventListener("click", async () => {
   try {
     setStatus("Fetching elevation data…");
     // Water tiles ship with the site; if one fails to load, carry on without water.
+    // Very large maps (most of a country) leave them out: thousands of tiles to
+    // fetch, and far too fine to show at that scale.
+    const tooBig = detailTiles(b) > DETAIL_MAX_TILES;
     let water = null, roads = null, waterFailed = false;
-    try {
-      [water, roads] = await Promise.all([waterFor(b), roadsFor(b)]);
-    } catch {
-      waterFailed = true;
+    if (!tooBig) {
+      try {
+        [water, roads] = await Promise.all([waterFor(b), roadsFor(b)]);
+      } catch {
+        waterFailed = true;
+      }
     }
     // The sea, so the land stops at the true coastline (Earth only).
-    const sea = siteDem(b).sea ? await fetchSea(b).catch(() => null) : null;
+    const sea = siteDem(b).sea && !tooBig ? await fetchSea(b).catch(() => null) : null;
     // Rebuilding a customer's link keeps their reference, so files match emails
     // (it is also engraved on the back).
     const ref = (fromLink && sharedRef) || makeRef();
@@ -982,7 +988,7 @@ $("#generate").addEventListener("click", async () => {
       },
       (f) => setStatus(`Fetching elevation data… ${Math.round(f * 100)}%`)
     );
-    lastResult = { ...result, bounds: b, link: shareLink(b, ref), ref, waterFailed, sizeId: currentSize()?.id };
+    lastResult = { ...result, bounds: b, link: shareLink(b, ref), ref, waterFailed, tooBig, sizeId: currentSize()?.id };
     showResult();
     setStatus("");
   } catch (err) {
@@ -1030,12 +1036,14 @@ function renderStats() {
     ...(state.places.length ? [["Special places", lastResult.places.length]] : []),
     ...(wantedTexts() ? [["Your text", lastResult.texts.length]] : []),
     ...(state.route.lines.length ? [["Route", `${routeLengthKm(state.route.lines).toFixed(1)} km`]] : []),
-    ...(state.water.size && !lastResult.waterFailed ? [["Water", waterLabel()]] : []),
-    ...(state.roads.size && !lastResult.waterFailed ? [["Roads", roadLabel()]] : []),
+    ...(state.water.size && !lastResult.waterFailed && !lastResult.tooBig ? [["Water", waterLabel()]] : []),
+    ...(state.roads.size && !lastResult.waterFailed && !lastResult.tooBig ? [["Roads", roadLabel()]] : []),
   ];
   if (m.style === "layered") items.push(["Stack height", `≈ ${stackHeight()} mm`]);
   let html = items.map(([k, v]) => `<li>${k}: <b>${escapeHtml(v)}</b></li>`).join("");
-  if (lastResult.waterFailed) {
+  if (lastResult.tooBig && (state.water.size || state.roads.size)) {
+    html += `<li class="status">Rivers, lakes, roads and the detailed coastline are left off maps this large – they would be far too fine to see. Zoom in (to about 200 km across or less) to include them.</li>`;
+  } else if (lastResult.waterFailed) {
     html += `<li class="status error">Couldn’t load rivers, lakes or roads just now, so this layout has none. Close this and try again.</li>`;
   }
   if (state.route.lines.length && !lastResult.routeOnBoard) {
@@ -1277,8 +1285,8 @@ $("#order").addEventListener("submit", async (e) => {
       (p) => `Special place: ${SHAPES[p.shape].label} "${p.label || "(no label)"}" at ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)} (${p.sizeMm} mm marker)`
     ),
     ...lastResult.texts.map((t) => `Text: "${t.text.replace(/\n/g, " / ")}", ${t.sizeMm} mm${t.clear ? ", clear box" : ""}, at ${t.lat.toFixed(5)}, ${t.lng.toFixed(5)}`),
-    ...(state.water.size && !lastResult.waterFailed ? [`Water: ${waterLabel()}`] : []),
-    ...(state.roads.size && !lastResult.waterFailed ? [`Roads: ${roadLabel()}`] : []),
+    ...(state.water.size && !lastResult.waterFailed && !lastResult.tooBig ? [`Water: ${waterLabel()}`] : []),
+    ...(state.roads.size && !lastResult.waterFailed && !lastResult.tooBig ? [`Roads: ${roadLabel()}`] : []),
     ...(lastResult.routeOnBoard
       ? [`Route: ${routeLengthKm(state.route.lines).toFixed(1)} km, ${state.route.style} line, ${state.route.widthMm} mm (included in the design link)`]
       : []),
@@ -1967,6 +1975,12 @@ async function waterFor(bounds) {
 }
 
 const WATER_MAX_METRES = 40000;
+// Layouts covering more 0.1° data tiles than this leave out water and roads
+// (about 200 km across).
+const DETAIL_MAX_TILES = 600;
+function detailTiles(b) {
+  return (Math.floor(b.east / 0.1) - Math.floor(b.west / 0.1) + 1) * (Math.floor(b.north / 0.1) - Math.floor(b.south / 0.1) + 1);
+}
 let waterTimer;
 
 async function showWater() {
