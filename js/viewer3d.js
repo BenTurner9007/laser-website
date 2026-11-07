@@ -260,10 +260,11 @@ export function createViewer(container) {
     for (const w of result.water || []) {
       const y = (style === "engraved" ? 1 : w.layer + 1) * boardT + 0.05;
       if (w.dotted) {
-        const d = (w.previewDotMm || 1) * 0.7; // a little under the flat plan's dot
+        // Each dot is a segment across it: centre and width (see layout.js dotted).
         const dots = new THREE.InstancedMesh(dotGeo, dotMat, w.lines.length);
-        w.lines.forEach((l, i) => {
-          placeDot.makeScale(d, 1, d).setPosition(l[0][0] - W / 2, y - 0.02, l[0][1] - H / 2);
+        w.lines.forEach(([[ax, az], [bx, bz]], i) => {
+          const d = Math.hypot(bx - ax, bz - az) || 1;
+          placeDot.makeScale(d, 1, d).setPosition((ax + bx) / 2 - W / 2, y - 0.02, (az + bz) / 2 - H / 2);
           dots.setMatrixAt(i, placeDot);
         });
         model.add(dots);

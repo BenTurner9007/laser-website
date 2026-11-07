@@ -16,10 +16,10 @@ export const ROAD_KINDS = [
   { id: "major", label: "Motorways & A roads", on: false, widthMm: 1.0 },
   { id: "minor", label: "B roads & minor roads", on: false, widthMm: 0.6 },
   { id: "lanes", label: "Lanes & streets", on: false, widthMm: 0.4 },
-  // Dotted: a short score mark every dotMm along the line. previewDotMm is
-  // how big each dot is drawn in the previews, so they read as dots on screen.
-  { id: "tracks", label: "Tracks", on: false, widthMm: 0.35, dotMm: 2, previewDotMm: 1.1 },
-  { id: "paths", label: "Footpaths & bridleways", on: false, widthMm: 0.3, dotMm: 2.5, previewDotMm: 0.9 },
+  // Dotted: a filled dot dotSizeMm across every dotMm along the line,
+  // engraved (and shown in the previews) at that size.
+  { id: "tracks", label: "Tracks", on: false, widthMm: 0.35, dotMm: 3, dotSizeMm: 1.2 },
+  { id: "paths", label: "Footpaths & bridleways", on: false, widthMm: 0.3, dotMm: 3, dotSizeMm: 0.9 },
 ];
 
 /** A loader for one tile set: fetch(bounds, kinds) -> { kind: lines }. */
