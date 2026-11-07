@@ -1236,16 +1236,21 @@ $("#download").addEventListener("click", () => {
     try {
       // Assembled model plus the pieces laid flat on cutting sheets.
       const copies = fixedProduct()?.qty || 1;
-      if (lastResult.svgCopies !== copies) lastResult.svg = null;
-      lastResult.svgCopies = copies;
-      lastResult.svg ??= lastResult.buildSvg(CONFIG.sheet, { ref: lastResult.ref, copies });
+      // Cut sheets the size of the wood to order (the cheapest sheet the
+      // supplier sells in the chosen wood, as in the price and the request
+      // email), so the file has exactly the sheets the order says.
+      const c = quote().cheapest;
+      const s = c ? { ...CONFIG.sheet, w: c.w, h: c.h } : CONFIG.sheet;
+      const key = `${copies} ${s.w}x${s.h}`;
+      if (lastResult.svgKey !== key) lastResult.svg = null;
+      lastResult.svgKey = key;
+      lastResult.svg ??= lastResult.buildSvg(s, { ref: lastResult.ref, copies });
       const { text, sheets, oversize } = lastResult.svg;
       const blob = new Blob([text], { type: "image/svg+xml" });
       const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `contour-layout-${lastResult.ref}.svg` });
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
       if (sheets) {
-        const s = CONFIG.sheet;
         $("#owner-note").textContent =
           `Includes ${sheets} cutting sheet${sheets > 1 ? "s" : ""} of ${s.w} × ${s.h} mm` +
           (oversize ? ` – ${oversize} piece${oversize > 1 ? "s are" : " is"} bigger than a sheet (marked OVERSIZE).` : ".");
