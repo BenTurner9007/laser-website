@@ -4,7 +4,7 @@ import { buildLayout, DEM_URL, EARTH_DEM } from "./layout.js";
 import { createViewer } from "./viewer3d.js";
 import { SHAPES, DEFAULT_SHAPE, PLACE_SIZES, shapeIcon } from "./shapes.js";
 import { parseRouteFile, encodeRoute, decodeRoute, routeLengthKm } from "./route.js";
-import { WATER_KINDS, ROAD_KINDS, fetchWater, fetchRoads } from "./water.js";
+import { WATER_KINDS, ROAD_KINDS, fetchWater, fetchSea, fetchRoads } from "./water.js";
 
 // Which product page this is (body data-page): it only offers its own sizes.
 const PAGE = CONFIG.pages?.[document.body.dataset.page] ? document.body.dataset.page : "maps";
@@ -942,6 +942,8 @@ $("#generate").addEventListener("click", async () => {
     } catch {
       waterFailed = true;
     }
+    // The sea, so the land stops at the true coastline (Earth only).
+    const sea = siteDem(b).sea ? await fetchSea(b).catch(() => null) : null;
     // Rebuilding a customer's link keeps their reference, so files match emails
     // (it is also engraved on the back).
     const ref = (fromLink && sharedRef) || makeRef();
@@ -971,6 +973,7 @@ $("#generate").addEventListener("click", async () => {
         placeMm: state.placeMm,
         route: state.route.lines.length ? state.route : null,
         water,
+        sea,
         roads,
         guides: true,
         plates: await backPlates(),

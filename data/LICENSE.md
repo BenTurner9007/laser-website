@@ -5,7 +5,7 @@ including commercially, as long as you follow the licence for each part.
 
 ## OpenStreetMap data: Open Database Licence (ODbL) 1.0
 
-- `water/`: rivers, lakes, streams, coastline and lake areas
+- `water/`: rivers, lakes, streams, coastline, lake areas and the sea
 - `roads/`: roads, tracks and paths
 - `places.json`: city, town and village names
 - `hills.geojson`: the hills with the list "osm" (other named peaks, added by
