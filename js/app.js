@@ -675,15 +675,60 @@ const hillsReady = fetch(WORLD.features)
   })
   .catch(() => {});
 
-$("#hill-search").addEventListener("change", (e) => {
-  const q = e.target.value.trim().toLowerCase();
+// Search: a hill from our lists, a UK postcode (full, "LA22 9QZ", or just the
+// district, "LA22"; looked up at postcodes.io), or a city, town or village.
+const POSTCODE = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
+const OUTCODE = /^[A-Z]{1,2}\d[A-Z\d]?$/i;
+const EIRCODE = /^[ACDEFHKNPRTVWXY]\d[\dW]\s*[\dACDEFHKNPRTVWXY]{4}$/i;
+async function findPostcode(q) {
+  const code = q.replace(/\s+/g, "").toUpperCase();
+  const full = POSTCODE.test(code);
+  const url = `https://api.postcodes.io/${full ? "postcodes" : "outcodes"}/${encodeURIComponent(code)}`;
+  const r = await fetch(url);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`postcodes.io ${r.status}`);
+  const { result } = await r.json();
+  if (!result || !Number.isFinite(result.longitude) || !Number.isFinite(result.latitude)) return null;
+  return { name: full ? result.postcode : result.outcode, at: [result.longitude, result.latitude], zoom: full ? 13 : 11.5 };
+}
+let searchCall = 0;
+$("#hill-search").addEventListener("change", async (e) => {
+  const raw = e.target.value.trim();
+  const q = raw.toLowerCase();
+  const note = $("#search-note");
+  note.textContent = "";
+  note.classList.remove("error");
   if (!q) return;
+  const call = ++searchCall;
+  const fail = (msg) => {
+    if (call !== searchCall) return;
+    note.textContent = msg;
+    note.classList.add("error");
+  };
+  const go = (at, zoom) => call === searchCall && map.flyTo({ center: at, zoom });
+  if (BODY === "earth" && (POSTCODE.test(raw) || OUTCODE.test(raw))) {
+    note.textContent = "Looking up the postcode…";
+    try {
+      const hit = await findPostcode(raw);
+      if (call !== searchCall) return;
+      note.textContent = "";
+      if (hit) return go(hit.at, hit.zoom);
+      return fail(`Couldn’t find the postcode “${raw}”. Check it, or search a town or hill instead.`);
+    } catch {
+      return fail("Couldn’t look up postcodes just now. Search a town or hill instead, or try again.");
+    }
+  }
+  if (BODY === "earth" && EIRCODE.test(raw)) return fail("Irish Eircodes can’t be searched yet. Search a nearby town or hill instead.");
   const hit =
     hillIndex.find((f) => `${f.properties.name} (${f.properties.h} m)`.toLowerCase() === q) ||
-    hillIndex.find((f) => f.properties.name.toLowerCase() === q) ||
-    hillIndex.find((f) => f.properties.name.toLowerCase().includes(q));
-  if (hit) map.flyTo({ center: hit.geometry.coordinates, zoom: Math.max(map.getZoom(), 12) });
-  else setStatus(`No hill called “${e.target.value}” in our lists – try panning the map instead.`, "error");
+    hillIndex.find((f) => f.properties.name.toLowerCase() === q);
+  if (hit) return go(hit.geometry.coordinates, Math.max(map.getZoom(), 12));
+  // Towns and villages (biggest first, as listed), then partial hill names.
+  const town = BODY === "earth" ? townIndex.find(([name]) => name.toLowerCase() === q) || townIndex.find(([name]) => name.toLowerCase().startsWith(q)) : null;
+  if (town) return go([town[2], town[3]], { c: 11, t: 12, v: 13 }[town[1]] || 12);
+  const part = hillIndex.find((f) => f.properties.name.toLowerCase().includes(q));
+  if (part) return go(part.geometry.coordinates, Math.max(map.getZoom(), 12));
+  fail(`Couldn’t find “${raw}”. Try a hill, a town or village, or a UK postcode.`);
 });
 
 // Contour spacing: the select, the map's contour lines and the layout.
