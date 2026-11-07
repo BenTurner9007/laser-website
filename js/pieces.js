@@ -48,7 +48,7 @@ function pieceAt(pieces, pt) {
 
 /**
  * @param {Array<{polys:number[][][][]}>} layers  layer 0 = base board
- * @param {Array<{layer:number, polys:number[][][][]}>} engrave
+ * @param {Array<{layer:number, polys:number[][][][], fill?:boolean}>} engrave  fill: filled-in areas (water)
  * @param {Array<{layer:number, group:string, lines:number[][][]}>} water  score lines (water, roads)
  */
 export function splitIntoPieces(layers, engrave = [], water = []) {
@@ -61,6 +61,7 @@ export function splitIntoPieces(layers, engrave = [], water = []) {
       area: area(poly[0]),
       children: [],
       engrave: [],
+      fill: [], // areas filled in by the laser (lakes, wide rivers)
       lines: {}, // score lines by group ("water", "roads")
       numbers: [], // hidden: own id and ids of the pieces on top
       visibleNumbers: [], // own id when nothing sits on top
@@ -79,7 +80,7 @@ export function splitIntoPieces(layers, engrave = [], water = []) {
   for (const e of engrave) {
     for (const poly of e.polys) {
       const p = pieceAt(byLayer[e.layer] || [], poly[0][0]) || byLayer[e.layer]?.find((x) => inBox(x.bbox, poly[0][0]));
-      if (p) p.engrave.push(poly);
+      if (p) (e.fill ? p.fill : p.engrave).push(poly);
     }
   }
   for (const w of water) {

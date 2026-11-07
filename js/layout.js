@@ -19,16 +19,22 @@ export const DEM_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/
 export const EARTH_DEM = { url: DEM_URL, maxzoom: 15, sea: true };
 const TILE = 256;
 
-// Laser colour conventions (LightBurn / most laser software map colour to operation).
+// Laser colours: three only, one per laser operation (LightBurn and most
+// laser software give each colour its own layer).
+//   cut      red: cut right through
+//   engrave  black: lines (contours, glue outlines, water and road score lines,
+//            paths) and lettering, markers and assembly numbers
+//   fill     blue: areas filled in solid (lakes, tarns, wide rivers, canals)
+export const LASER = { cut: "#ff0000", engrave: "#000000", fill: "#0000ff" };
+// What each kind of mark is, in the file.
 export const COLOURS = {
-  cut: "#ff0000",
-  guide: "#0000ff",
-  engrave: "#000000",
-  water: "#00e000",
-  roads: "#00a0a0", // road score lines
-  number: "#ff8000", // assembly numbers, hidden under the piece above
-  numberVisible: "#ff00ff", // ids of pieces with nothing on top (would show)
-  sheet: "#999999", // sheet edges, for reference only
+  cut: LASER.cut,
+  guide: LASER.engrave, // glue outlines (hidden under the piece above), contours on engraved boards
+  engrave: LASER.engrave,
+  fill: LASER.fill,
+  water: LASER.engrave, // score lines: streams, lake shores, coastline
+  roads: LASER.engrave, // road score lines and path dots
+  number: LASER.engrave, // assembly numbers, hidden under the piece above
 };
 const NUMBER_MM = 4; // assembly number size
 const COAST_LAND_M = 1; // land is kept at least this high, so it stays above the sea
@@ -1105,7 +1111,8 @@ export async function buildLayout(o, onProgress) {
     for (const [layer, polys] of [...byLayer].sort((a, c) => a[0] - c[0])) engrave.push({ layer, polys });
   }
   const engravePath = (i) =>
-    [...engrave, ...lakeEngrave, ...riverEngrave].filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.engrave)).join("");
+    engrave.filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.engrave)).join("") +
+    [...lakeEngrave, ...riverEngrave].filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.fill)).join("");
 
   // Water: lake shores, rivers, streams and coastline as score lines, each
   // stretch on whichever layer is on top there (looked up in a layer mask,
@@ -1209,20 +1216,21 @@ export async function buildLayout(o, onProgress) {
   // Layered: each layer is a group of its separate pieces, so they can be
   // nested on sheets; each piece carries its glue guides, engraving and numbers.
   let piecesCache = null;
-  const waterFill = [...lakeEngrave, ...riverEngrave]; // filled water, engraved
+  const waterFill = [...lakeEngrave, ...riverEngrave].map((e) => ({ ...e, fill: true })); // filled in solid
   const getPieces = () => (piecesCache ??= numberPieces(splitIntoPieces(layers, [...engrave, ...waterFill], water), NUMBER_MM));
   const pieceContent = (p) =>
     line(polygonsToPath([p.poly]), COLOURS.cut) + "\n" +
     (o.guides && p.children.length ? line(polygonsToPath(p.children.map((c) => c.poly)), COLOURS.guide) + "\n" : "") +
     fillEach(p.engrave, COLOURS.engrave) +
+    fillEach(p.fill || [], COLOURS.fill) +
     scorePath(p.lines.water, "water") +
     scorePath(p.lines.roads, "roads") +
-    fill(p.numbers, COLOURS.number) +
-    fill(p.visibleNumbers, COLOURS.numberVisible);
+    fill(p.numbers, COLOURS.number);
+  // Pieces with nothing on top would show their id, so it is left off (match
+  // them by shape against their glue outline, like unnumberedPieces).
   const legend =
-    `<!-- Red = cut, blue = glue guide, black = engrave, green = water score lines, teal = road score lines, ` +
-    `orange = assembly numbers (hidden once glued), magenta = numbers on pieces with nothing on top, ` +
-    `grey = sheet edges (don't cut). Top left: the assembled model for reference. To the right: the same pieces ` +
+    `<!-- Three colours: red = cut through, black = engrave (lines, lettering, glue outlines, assembly numbers), ` +
+    `blue = fill in solid (lakes and rivers). Top left: the assembled model for reference. To the right: the same pieces ` +
     `laid flat on cutting sheets, one layer per sheet; cut one sheet at a time. The "Back" layers below the model are engraved on the ` +
     `back of each piece (logo, map details, credits, reference) after turning it over left to right. -->\n`;
   const svgOpen = (w, h, metaObj) =>
@@ -1461,7 +1469,6 @@ export async function buildLayout(o, onProgress) {
       const sx = x0 + (k % COLS) * (cellW + GAP), sy = Math.floor(k / COLS) * (cellH + GAP);
       const title = `Sheet ${k + 1} of ${sheets.length}${s.oversize ? " (OVERSIZE)" : ""}`;
       sheetsSvg += `<g inkscape:groupmode="layer" inkscape:label="${title}" id="sheet-${k + 1}" transform="translate(${sx} ${sy})">\n`;
-      sheetsSvg += `<rect width="${s.w}" height="${s.h}" fill="none" stroke="${COLOURS.sheet}" stroke-width="0.1" inkscape:label="Sheet edge (don't cut)"/>\n`;
       for (const pl of s.placements) {
         const t = `translate(${pl.tx.toFixed(2)} ${pl.ty.toFixed(2)})${pl.deg ? ` rotate(${pl.deg})` : ""}`;
         sheetsSvg += `<g id="sheet-${k + 1}-piece-${pl.piece.id}" inkscape:label="Piece ${pl.piece.id}" transform="${t}">\n${pieceContent(pl.piece)}</g>\n`;
@@ -1491,8 +1498,8 @@ export async function buildLayout(o, onProgress) {
     const fileMeta = {
       ...meta,
       pieces: pieces?.flat().length,
-      // Pieces too small to carry their number; match these by shape.
-      unnumberedPieces: pieces?.flat().filter((p) => p.noOwnLabel).map((p) => p.id),
+      // Pieces with no number (too small, or nothing on top to hide it); match these by shape.
+      unnumberedPieces: pieces?.flat().filter((p) => p.noOwnLabel || p.visibleNumbers.length).map((p) => p.id),
       sheetMm: sheet && sheets.length ? [sheet.w, sheet.h] : undefined,
       backPlates: plates.map((p) => ({ id: p.id, mm: [p.poly[0][2][0], p.poly[0][2][1]] })),
       sheets: sheets.map((s, k) => ({ sheet: k + 1, oversize: s.oversize || undefined, pieces: s.placements.map((pl) => pl.piece.id).sort(byLayer) })),
