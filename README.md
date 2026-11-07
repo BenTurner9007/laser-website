@@ -443,6 +443,7 @@ js/water.js           loads rivers, lakes and coastline from data/water/
 data/places.json      UK city, town and village names (built by scripts/build-places.py)
 data/roads/           UK road and path tiles, 0.1° each (built by scripts/build-roads.py)
 data/water/           UK water tiles, 0.1° each (built by scripts/build-water.py)
+data/coast.json       simplified coastline for large maps (scripts/build-coast.py)
 data/planets/         Moon and Mars elevation tiles, places and features (built by scripts/build-planets.py)
 data/materials.json   plywood, thicknesses and sheet prices (built by scripts/build-materials.py)
 data/templates/       board shapes: clock, bookmark, coasters (built by scripts/build-templates.py)
