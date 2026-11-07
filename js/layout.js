@@ -33,7 +33,8 @@ export const COLOURS = {
   engrave: LASER.engrave,
   fill: LASER.fill,
   water: LASER.engrave, // score lines: streams, lake shores, coastline
-  roads: LASER.engrave, // road score lines and path dots
+  roads: LASER.engrave, // road score lines
+  dots: LASER.engrave, // track and path dots (filled)
   number: LASER.engrave, // assembly numbers, hidden under the piece above
 };
 const NUMBER_MM = 4; // assembly number size
@@ -311,6 +312,14 @@ function cleanPolygons(mp, sx, sy) {
   }
   return out;
 }
+/** SVG path of filled circles, one per dot segment (see dotted). */
+const dotCircles = (segs) =>
+  segs
+    .map(([[ax, ay], [bx, by]]) => {
+      const r = Math.hypot(bx - ax, by - ay) / 2, cx = (ax + bx) / 2, cy = (ay + by) / 2;
+      return `M${(cx - r).toFixed(2)} ${cy.toFixed(2)}a${r.toFixed(2)} ${r.toFixed(2)} 0 1 0 ${(2 * r).toFixed(2)} 0a${r.toFixed(2)} ${r.toFixed(2)} 0 1 0 ${(-2 * r).toFixed(2)} 0Z`;
+    })
+    .join("");
 
 // --- Board templates (clock, bookmark, coasters; see scripts/build-templates.py) ---
 // polygon-clipping repeats each ring's first point at the end; drop it and tiny bits.
@@ -514,8 +523,9 @@ function safeBand(lines, widthMm) {
  * Dotted lines (tracks, footpaths): a short mark every `spacing` mm along
  * each line, as tiny line segments, so the laser scores a row of dots.
  */
-const DOT_MM = 0.15;
-function dotted(lines, spacing) {
+// Dotted lines: each dot is kept as a short segment through its centre,
+// as long as the dot is wide, and drawn as a filled circle (dotCircles).
+function dotted(lines, spacing, size) {
   const out = [];
   for (const l of lines) {
     let next = spacing / 2; // distance along the line to the next dot
@@ -524,9 +534,10 @@ function dotted(lines, spacing) {
       const [x0, y0] = l[i - 1], [x1, y1] = l[i];
       const len = Math.hypot(x1 - x0, y1 - y0);
       if (!len) continue;
+      const dx = ((x1 - x0) / len) * (size / 2), dy = ((y1 - y0) / len) * (size / 2);
       while (next <= at + len) {
-        const t = (next - at) / len, u = Math.min(1, t + DOT_MM / len);
-        out.push([[x0 + (x1 - x0) * t, y0 + (y1 - y0) * t], [x0 + (x1 - x0) * u, y0 + (y1 - y0) * u]]);
+        const t = (next - at) / len, cx = x0 + (x1 - x0) * t, cy = y0 + (y1 - y0) * t;
+        out.push([[cx - dx, cy - dy], [cx + dx, cy + dy]]);
         next += spacing;
       }
       at += len;
@@ -734,9 +745,9 @@ export async function buildLayout(o, onProgress) {
   // (the customer chose them), then peaks, highest first. Each label tries
   // spots round its marker and takes the first that is clear and on the map;
   // if none is, the name is left off (and counted) rather than overprinted.
-  // Lake areas (lakes, tarns, ponds, reservoirs) in mm. They are filled in
-  // by the laser, so names keep off them.
-  // Wide rivers and canals have an area too (riverfill), filled the same way.
+  // Lake areas (lakes, tarns, ponds, reservoirs) in mm, filled in by the
+  // laser. Wide rivers and canals have an area too (riverfill), filled the
+  // same way. Names may sit over them: the fill is cut away behind names.
   let lakeShapes = [];
   const areaRings = [...(o.water?.lakes ? o.water.lakefill || [] : []), ...(o.water?.rivers ? o.water.riverfill || [] : [])];
   if (areaRings.length) {
@@ -745,36 +756,6 @@ export async function buildLayout(o, onProgress) {
     lakeShapes = rings.length ? tidy(polygonClipping.xor(...rings.map((r) => [[r]])), 0.5) : [];
     if (tpl && lakeShapes.length) lakeShapes = clip("intersection", lakeShapes, tpl.mapRegion, 0.5);
   }
-  const lakeBoxes = lakeShapes.map((p) => boxOf(p[0]));
-  // River and canal lines are filled bands too, so names keep off them.
-  const riverKind = WATER_KINDS.find((k) => k.id === "rivers");
-  const riverLines = (o.water?.rivers || []).map((l) => l.map(toMm)).filter((l) => l.length > 1);
-  const riverBoxes = riverLines.map((l) => boxOf(l));
-  const nearRiver = (q) => {
-    const pad = (riverKind?.widthMm || 1) / 2 + 0.4;
-    const x0 = q.x0 - pad, x1 = q.x1 + pad, y0 = q.y0 - pad, y1 = q.y1 + pad;
-    return riverLines.some((l, i) => {
-      const b = riverBoxes[i];
-      if (x0 > b.x1 || x1 < b.x0 || y0 > b.y1 || y1 < b.y0) return false;
-      for (let j = 1; j < l.length; j++) {
-        const [ax, ay] = l[j - 1], [bx, by] = l[j];
-        const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 0.4));
-        for (let t = 0; t <= n; t++) {
-          const x = ax + ((bx - ax) * t) / n, y = ay + ((by - ay) * t) / n;
-          if (x > x0 && x < x1 && y > y0 && y < y1) return true;
-        }
-      }
-      return false;
-    });
-  };
-  const onWater = (q) =>
-    nearRiver(q) ||
-    lakeShapes.some((poly, i) => {
-      const b = lakeBoxes[i];
-      if (q.x0 > b.x1 || q.x1 < b.x0 || q.y0 > b.y1 || q.y1 < b.y0) return false;
-      for (let a = 0; a <= 4; a++) for (let c = 0; c <= 2; c++) if (inPolys([poly], [q.x0 + ((q.x1 - q.x0) * a) / 4, q.y0 + ((q.y1 - q.y0) * c) / 2])) return true;
-      return poly[0].some(([x, y]) => x > q.x0 && x < q.x1 && y > q.y0 && y < q.y1);
-    });
 
   const taken = []; // boxes {x0, y0, x1, y1} in mm: markers, text, template engraving
   const GAP = 0.6; // mm kept between labels
@@ -796,7 +777,9 @@ export async function buildLayout(o, onProgress) {
     for (const k of order) {
       const [x0, y0] = spots[k];
       const box = { x0, y0, x1: x0 + w, y1: y0 + h };
-      if (onMap(box) && !hits(box) && !onWater(box)) {
+      // Names may sit over lakes and rivers: the water fill is cut away
+      // behind every name (see cutLabelGaps), so they stay readable.
+      if (onMap(box) && !hits(box)) {
         taken.push(box);
         return { box, rings: textRings(text, x0, y0 + asc, size, { weight }).rings };
       }
@@ -915,17 +898,20 @@ export async function buildLayout(o, onProgress) {
       const [x, y] = p.at;
       const box = { x0: x - m, y0: y - m, x1: x + m, y1: y + m * 0.8 };
       if (hits(box)) continue;
+      // The marker only goes on with its name: a triangle with no name is
+      // left off too (its box is held while the name looks for a spot).
       taken.push(box);
+      const text = o.labelMode === "name-height" ? `${p.name} ${p.h} m` : p.name;
+      const r = placeText(text, o.fontMm, "regular", x, y - m * 0.1, m, m * 0.9, prefer(x));
+      if (!r) {
+        taken.splice(taken.indexOf(box), 1);
+        labelsLeftOff++;
+        continue;
+      }
       clearBehind(box, 0.3);
       peaksPlaced++;
       if (p.osm) osmPeaksPlaced++; else listedPeaksPlaced++;
       marks.push([[[[x - m, y + m * 0.8], [x, y - m], [x + m, y + m * 0.8]]]]); // one polygon, one ring
-      const text = o.labelMode === "name-height" ? `${p.name} ${p.h} m` : p.name;
-      const r = placeText(text, o.fontMm, "regular", x, y - m * 0.1, m, m * 0.9, prefer(x));
-      if (!r) {
-        labelsLeftOff++;
-        continue;
-      }
       marks.push(solid(r.rings));
       clearBehind(r.box); // just round the text (caps to descenders), plus a little padding
     }
@@ -1188,9 +1174,9 @@ export async function buildLayout(o, onProgress) {
           continue;
         }
         water.push({
-          layer, group: kind.group, kind: kind.id, widthMm: kind.widthMm,
-          lines: kind.dotMm ? dotted(runs, kind.dotMm) : runs,
-          ...(kind.dotMm ? { dotted: true, previewDotMm: kind.previewDotMm } : {}),
+          layer, group: kind.dotMm ? "dots" : kind.group, kind: kind.id, widthMm: kind.widthMm,
+          lines: kind.dotMm ? dotted(runs, kind.dotMm, kind.dotSizeMm) : runs,
+          ...(kind.dotMm ? { dotted: true } : {}),
         });
       }
     }
@@ -1199,9 +1185,12 @@ export async function buildLayout(o, onProgress) {
   const contourLines = layers.slice(1).flatMap((l) => l.polys.flat().map((r) => [...r, r[0]]));
   const contourPath = linesToPathOf(labelBoxes.length ? linesOutsideBoxes(contourLines, labelBoxes) : contourLines);
   const linesToPath = (lines) => lines.map((l) => "M" + l.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join("L")).join("");
-  const scorePath = (lines, group) => (lines?.length ? `<path d="${linesToPath(lines)}" fill="none" stroke="${COLOURS[group]}" stroke-width="0.1"/>\n` : "");
+  const scorePath = (lines, group) =>
+    !lines?.length ? ""
+    : group === "dots" ? `<path d="${dotCircles(lines)}" fill="${COLOURS.dots}"/>\n` // filled dots (tracks, paths)
+    : `<path d="${linesToPath(lines)}" fill="none" stroke="${COLOURS[group]}" stroke-width="0.1"/>\n`;
   const waterPath = (i) =>
-    ["water", "roads"].map((g) => scorePath(water.filter((w) => w.layer === i && w.group === g).flatMap((w) => w.lines), g)).join("");
+    ["water", "roads", "dots"].map((g) => scorePath(water.filter((w) => w.layer === i && w.group === g).flatMap((w) => w.lines), g)).join("");
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
@@ -1225,6 +1214,7 @@ export async function buildLayout(o, onProgress) {
     fillEach(p.fill || [], COLOURS.fill) +
     scorePath(p.lines.water, "water") +
     scorePath(p.lines.roads, "roads") +
+    scorePath(p.lines.dots, "dots") +
     fill(p.numbers, COLOURS.number);
   // Pieces with nothing on top would show their id, so it is left off (match
   // them by shape against their glue outline, like unnumberedPieces).
@@ -1258,7 +1248,7 @@ export async function buildLayout(o, onProgress) {
     const c = o.back?.credits || o.plates?.credits || {};
     const kinds = new Set(water.map((w) => w.group));
     const anyWater = kinds.has("water") || lakeEngrave.length || riverEngrave.length;
-    const osm = [osmPeaksPlaced && "hill names", anyWater && "rivers and lakes", !anyWater && sea && "coastline", kinds.has("roads") && "roads and paths", townsPlaced && "place names"].filter(Boolean);
+    const osm = [osmPeaksPlaced && "hill names", anyWater && "rivers and lakes", !anyWater && sea && "coastline", (kinds.has("roads") || kinds.has("dots")) && "roads and paths", townsPlaced && "place names"].filter(Boolean);
     return [
       c.elevation,
       listedPeaksPlaced && c.names,
@@ -1534,10 +1524,9 @@ export async function buildLayout(o, onProgress) {
   for (const l of waterFill) preview += `<path d="${polygonsToPath(l.polys)}" fill="#111" fill-rule="evenodd"/>`;
   for (const w of water) {
     const road = w.group === "roads";
-    // Dotted kinds (tracks, footpaths) are rows of tiny marks: drawn as black
-    // dots, a little larger than they will burn, so they read clearly as dots.
+    // Dotted kinds (tracks, footpaths): black dots, at the size they burn.
     if (w.dotted) {
-      preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="#1a1a1a" stroke-width="${w.previewDotMm}" stroke-linecap="round"/>`;
+      preview += `<path d="${dotCircles(w.lines)}" fill="#1a1a1a"/>`;
       continue;
     }
     preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="${road ? "#2a1d14" : "#1f3f5c"}" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
