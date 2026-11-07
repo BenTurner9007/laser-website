@@ -120,6 +120,54 @@ export async function fetchElevationGrid(bounds, onProgress = () => {}, dem = EA
 }
 
 /** Separable box blur, repeated, approximating a Gaussian. */
+/**
+ * Remove seams in the elevation data: dead-straight strips (along one column
+ * or row of the grid, a few pixels wide) whose heights disagree sharply with
+ * the ground either side, such as the false trench along 5° W in Scotland
+ * where the free terrain tiles' sources were stitched together. A pixel is
+ * "off" when it differs by more than `limit` metres from the median of its
+ * row (or column) neighbours; only columns (or rows) where that happens over a
+ * long stretch are treated as seams, and their off pixels take the median.
+ * Real ridges, crags and valleys never run exactly along a column for long, so
+ * they are kept.
+ */
+function removeSeams(values, w, h, limit = 20, half = 4) {
+  const out = Float32Array.from(values);
+  const win = new Float32Array(half * 2 + 1);
+  const median = (n) => win.subarray(0, n).sort()[n >> 1];
+  const rowMed = (x, y) => {
+    let n = 0;
+    for (let k = Math.max(0, x - half); k <= Math.min(w - 1, x + half); k++) win[n++] = values[y * w + k];
+    return median(n);
+  };
+  const colMed = (x, y) => {
+    let n = 0;
+    for (let k = Math.max(0, y - half); k <= Math.min(h - 1, y + half); k++) win[n++] = values[k * w + x];
+    return median(n);
+  };
+  // Pass 1: how many "off" pixels each column (vs its row) and row (vs its column) has.
+  const offH = new Uint8Array(w * h), offV = new Uint8Array(w * h);
+  const perCol = new Uint32Array(w), perRow = new Uint32Array(h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const v = values[y * w + x];
+      if (Math.abs(v - rowMed(x, y)) > limit) { offH[y * w + x] = 1; perCol[x]++; }
+      if (Math.abs(v - colMed(x, y)) > limit) { offV[y * w + x] = 1; perRow[y]++; }
+    }
+  }
+  // Pass 2: fix off pixels in seam columns / rows (off along a fifth of their length).
+  let fixed = 0;
+  const seamCol = (x) => perCol[x] > h * 0.2, seamRow = (y) => perRow[y] > w * 0.2;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (offH[i] && seamCol(x)) { out[i] = rowMed(x, y); fixed++; }
+      else if (offV[i] && seamRow(y)) { out[i] = colMed(x, y); fixed++; }
+    }
+  }
+  return { values: out, fixed };
+}
+
 function smooth(values, w, h, radius, passes = 2) {
   if (radius < 1) return values;
   let src = Float64Array.from(values);
@@ -536,7 +584,9 @@ export async function buildLayout(o, onProgress) {
   const [grid] = await Promise.all([fetchElevationGrid(o.bounds, onProgress, dem), loadFonts()]);
   const { width: gw, height: gh, zoom } = grid;
   const radius = Math.round(o.smoothing * Math.max(1, gw / 350));
-  const values = smooth(grid.values, gw, gh, radius);
+  // Earth data first has seams removed (thin false ridges or trenches).
+  const raw = dem.sea ? removeSeams(grid.values, gw, gh).values : grid.values;
+  const values = smooth(raw, gw, gh, radius);
   // The blur's running sums leave rounding noise (±1e-13) on flat sea; snap it
   // back to 0 so no contour is traced through the noise.
   if (dem.sea) for (let i = 0; i < values.length; i++) if (values[i] < 1e-6) values[i] = 0;
@@ -687,8 +737,12 @@ export async function buildLayout(o, onProgress) {
   // it, each part of a label is engraved on whichever layer is on top there.
   // Customer text with a clear box is always raised.
   const raisedBoxes = [];
+  // Every name, marker and text box keeps the hiking route, filled water,
+  // roads, tracks and paths off it (always, not only with "clear space").
+  const textBoxes = [];
   const clearBehind = (box, pad = 0.5) => {
     const b = { x0: box.x0 - pad, x1: box.x1 + pad, y0: box.y0 - pad, y1: box.y1 + pad };
+    textBoxes.push(b);
     if (o.labelBoxes) labelBoxes.push(b);
     if (o.labels3d && o.style !== "engraved") raisedBoxes.push(b);
   };
@@ -721,6 +775,7 @@ export async function buildLayout(o, onProgress) {
     taken.push(box);
     if (t.clear) {
       labelBoxes.push(box);
+      textBoxes.push(box);
       if (o.style !== "engraved") raisedBoxes.push(box);
     } else clearBehind(text);
     texts.push({ ...t, x: cx, y: cy });
@@ -887,12 +942,28 @@ export async function buildLayout(o, onProgress) {
     recess = { widthMm: rw, heightMm: rh, layers: k, depthMm: +(k * t).toFixed(1), short: k * t < depthMm };
   }
 
+  // Engraved shapes (route, filled water) with gaps where labels sit.
+  const boxPoly = (b) => [[[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1], [b.x0, b.y0]]];
+  const cutLabelGaps = (polys) => {
+    if (!polys.length || !textBoxes.length) return polys;
+    const all = polys.flatMap((p) => p[0]);
+    const xs = all.map((p) => p[0]), ys = all.map((p) => p[1]);
+    const bb = { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+    const near = textBoxes.filter((b) => b.x0 < bb.x1 && b.x1 > bb.x0 && b.y0 < bb.y1 && b.y1 > bb.y0);
+    if (!near.length) return polys;
+    try {
+      return tidy(polygonClipping.difference(polys, ...near.map(boxPoly)), ENGRAVE_MIN_MM2);
+    } catch {
+      return polys; // geometry library hiccup: keep the shape rather than lose it
+    }
+  };
+
   // Hiking route: a band along the line, solid or dashed.
   let routeOnBoard = false;
   if (o.route?.lines?.length) {
     const band = routeBand(o.route.lines.map((l) => l.map(toMm)), o.route.widthMm, o.route.style);
     routeOnBoard = clip("intersection", band, mapRegion, ENGRAVE_MIN_MM2).length > 0;
-    marks.push(band);
+    marks.push(cutLabelGaps(band)); // the route stops short of names and markers
   }
 
   // Each part of every mark is engraved on whichever layer is on top at that
@@ -1010,10 +1081,10 @@ export async function buildLayout(o, onProgress) {
   // is on top (not under the layer above, not past its edge).
   const lakeEngrave = lakes
     .map((l) => {
-      if (o.style === "engraved") return { layer: 0, polys: l.polys };
+      if (o.style === "engraved") return { layer: 0, polys: cutLabelGaps(l.polys) };
       let polys = l.layer > 0 ? clip("intersection", l.polys, layers[l.layer].polys, ENGRAVE_MIN_MM2) : l.polys;
       if (layers[l.layer + 1] && polys.length) polys = clip("difference", polys, layers[l.layer + 1].polys, ENGRAVE_MIN_MM2);
-      return { layer: l.layer, polys };
+      return { layer: l.layer, polys: cutLabelGaps(polys) };
     })
     .filter((l) => l.polys.length);
 
@@ -1021,7 +1092,7 @@ export async function buildLayout(o, onProgress) {
   // each stretch runs over, instead of score lines.
   const riverEngrave = [];
   // Roads, paths and water stay off clear boxes and off raised (3D) labels.
-  const clearBoxes = [...labelBoxes, ...raisedBoxes];
+  const clearBoxes = [...labelBoxes, ...raisedBoxes, ...textBoxes];
   if (lineKinds.length) {
     // Water stays inside the map region (not on a coaster's plain border).
     // (and inside the frame, if there is one)

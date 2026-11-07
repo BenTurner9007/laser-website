@@ -46,6 +46,10 @@ link each listing to its own page with `?etsy=1`, e.g. `your-site/clocks/?etsy=1
    add: lake and reservoir shores, rivers and canals, streams and
    becks, and coastline (shown on the map as they choose; the data ships with
    the site, so nothing outside is needed).
+   **Labels always come first**: the hiking route, filled rivers and lakes,
+   roads, tracks, paths and streams stop at a small clear margin round every
+   name, peak marker, special place and text box (contour lines are cleared
+   only with "clear space", on engraved boards).
    **3D labels** (layered maps, off by default): each name, special place and
    text box is engraved on a flat patch built up from the layers below to the
    highest ground under it, so it sits on top instead of being split across
@@ -173,6 +177,20 @@ off every coaster in the set (1 for £10, 2 for £19, 3 for £27, 4 for £34).
 The cutting file then holds that many boards side by side, the wood order
 covers them all, and the Etsy guide adds a Quantity option. Set in
 `pricing.fixed` and the sizes' `engravedOnly` / `product` in `js/config.js`.
+
+
+**Band prices** (A4, A3, A4 round and the clock): instead of wood + markup,
+customers see a fixed price for their board size and layer band (up to 15,
+16–25, 26–40 layers), from the price run in `docs/etsy-price-run.xlsx`.
+Direct orders use the 40% bands and Etsy mode the 55% bands, so direct is about
+10% cheaper. Prices are for 3 mm poplar; other woods scale by how much more
+that wood costs for the design. Frames add a fixed price on engraved boards; a
+3D frame on a layered board is 3 × the band price (measured at 2–3 times).
+Drawn shapes and designs over 40 layers are priced individually (wood + markup).
+**Minimum board prices**: A4 £50, A3 £75 (direct and Etsy, before frames and
+extras; shown as "minimum price").
+Edit the prices in `pricing.bands`, `pricing.minimums` and `pricing.framePrices`
+in `js/config.js`.
 
 ## Etsy mode
 
@@ -372,6 +390,17 @@ static site; `.assetsignore` keeps the build scripts, docs, README and git
 history off the website. The `name` in `wrangler.jsonc` must match the
 Worker's name in the Cloudflare dashboard. Changes go live by merging a pull
 request into `main` (Cloudflare shows a preview link first).
+
+### Three branches
+
+| Branch | What it is |
+|---|---|
+| `main` | The live site at turnermadeuk.co.uk. Merging into it publishes. |
+| `staging` | Finished changes waiting to go live. Cloudflare builds a preview of it (once branch previews are on) so you can try them. |
+| working branches | Where each change is made, then merged into `staging` by pull request. |
+
+To go live: open a pull request from `staging` into `main` and merge it.
+Everything waiting in `staging` goes live together.
 
 ## Publishing on GitHub Pages
 

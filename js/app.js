@@ -276,7 +276,10 @@ const DEM =
     : { url: new URL(`data/planets/${BODY}/`, document.baseURI).href + "{z}/{x}/{y}.png", maxzoom: planets.bodies[BODY].maxzoom, sea: false };
 // Each site is built to its own finest zoom. The live map uses the zoom every
 // site has; a layout uses the finest zoom of the site it is in (siteDem).
-const MAP_DEM_MAXZOOM = BODY === "earth" ? 13 : Math.min(...SITES.map((s) => s.maxzoom));
+// The map uses z12 elevation on Earth: finer zooms carry seams in places
+// (e.g. a false trench along 5° W in Scotland) that show as stripes.
+// Layouts still use the finest data, with seams removed (removeSeams in layout.js).
+const MAP_DEM_MAXZOOM = BODY === "earth" ? 12 : Math.min(...SITES.map((s) => s.maxzoom));
 const siteDem = (b) => {
   if (BODY === "earth") return DEM;
   const inside = SITES.filter((s) => b.east > s.box[0] && b.west < s.box[2] && b.north > s.box[1] && b.south < s.box[3]);
@@ -1405,6 +1408,39 @@ function fixedProduct() {
 const fixedEach = (f, qty) => Math.round(f.price * (1 - (f.discountPerExtra || 0) * (qty - 1)) * 100) / 100;
 const copiesLabel = (fp) => `${fp.qty} ${fp.kind}${fp.qty > 1 ? "s" : ""}`;
 
+// The band price of the current layout: [direct, Etsy] by size and layer band
+// for 3 mm poplar, scaled for other woods by what this design's wood costs in
+// them, plus the frame. Null when there's no band (drawn shapes, over 40 layers).
+const POPLAR = MATERIALS.materials.find((x) => /^Poplar plywood \(AB/.test(x.name))?.thicknesses.find((x) => x.mm === 3);
+const up99 = (v) => Math.ceil(v) - 0.01; // £12.30 -> £12.99
+function bandPrice(materials, vat, P) {
+  const m = lastResult.meta, sizeId = lastResult.sizeId, i = ETSY ? 1 : 0;
+  const entry = P.bands?.[sizeId];
+  if (!entry) return null;
+  const layered = m.style !== "engraved";
+  const bands = CONFIG.etsy?.guide?.layerBands || [{ upTo: 15 }, { upTo: 25 }, { upTo: 40 }];
+  const bi = layered ? bands.findIndex((b) => m.layers <= b.upTo) : -1;
+  const base = layered ? entry.layered?.[bi]?.[i] : entry.engraved?.[i];
+  if (base == null) return null;
+  // Other woods: scale by this design's wood cost against 3 mm poplar.
+  let factor = 1;
+  if (POPLAR) {
+    const pop = lastResult.buildCost(POPLAR.sheets, CONFIG.sheet, 1).options.filter((x) => x.cost != null);
+    const popCost = pop.length ? Math.min(...pop.map((x) => x.cost)) * (P.includeVat ? vat : 1) : 0;
+    if (popCost > 0) factor = Math.max(1, materials / popCost);
+  }
+  const scale = (v) => (factor > 1.001 ? up99(v * factor) : v);
+  let board = scale(base);
+  let frame = 0;
+  if (m.frameMm) {
+    if (layered) board = up99(scale(base * (P.framePrices?.layered3dMultiplier || 3)));
+    else frame = scale(P.framePrices?.engraved?.[sizeId]?.[i] || 0);
+  }
+  const size = CONFIG.sizes.find((s) => s.id === sizeId);
+  const label = `${size?.label.replace(/ \(.*\)$/, "") || "Board"}, ${layered ? bands[bi]?.label || `${m.layers} layers` : "engraved"}${layered && m.frameMm ? ", 3D frame" : ""}`;
+  return { board, frame, label, factor };
+}
+
 function quote() {
   const P = CONFIG.pricing || { markup: 0.4, includeVat: true };
   const m = materialByName($("#material").value);
@@ -1416,11 +1452,17 @@ function quote() {
   const vat = 1 + MATERIALS.vat;
   const materials = cheapest.cost * (P.includeVat ? vat : 1);
   const markup = ETSY && P.etsyMarkup != null ? P.etsyMarkup : P.markup; // Etsy mode covers Etsy's fees
-  // Coasters and bookmarks have a standard price instead of materials + markup.
-  const board = fp ? fp.each * fp.qty : materials * (1 + markup);
-  const extras = extrasFor(lastResult.places.length, lastResult.routeOnBoard, lastResult.texts.length);
+  // Coasters and bookmarks have a standard price; other boards a band price
+  // (size and layer band) where there is one, else wood + markup.
+  const band = fp ? null : bandPrice(materials, vat, P);
+  let board = fp ? fp.each * fp.qty : band ? band.board : materials * (1 + markup);
+  // Minimum price for the size (e.g. £50 for A4), before frames and extras.
+  const minimum = fp ? 0 : P.minimums?.[lastResult.sizeId] || 0;
+  const atMinimum = board < minimum;
+  if (atMinimum) board = minimum;
+  const extras = [...(band?.frame ? [["Frame", band.frame]] : []), ...extrasFor(lastResult.places.length, lastResult.routeOnBoard, lastResult.texts.length)];
   const total = Math.round((board + extras.reduce((n, [, v]) => n + v, 0)) * 100) / 100;
-  return { material: m, thickness: t, cheapest, costEx: cheapest.cost, costInc: cheapest.cost * vat, materials, board, extras, total, markup, includeVat: P.includeVat, fixed: fp };
+  return { material: m, thickness: t, cheapest, costEx: cheapest.cost, costInc: cheapest.cost * vat, materials, board, band, atMinimum, extras, total, markup, includeVat: P.includeVat, fixed: fp };
 }
 // For the request email: what to order and what to charge (the shop's eyes only).
 function shopLines() {
@@ -1437,7 +1479,9 @@ function shopLines() {
       `Price to charge${ETSY ? " on Etsy" : ""}: ${money(q.total)} = ` +
         (q.fixed
           ? `${copiesLabel(q.fixed)} at ${money(q.fixed.each)} each (${money(q.board)}; standard price, materials ${money(q.materials)})`
-          : `materials ${money(q.materials)}${q.includeVat ? " inc VAT" : ""} + ${Math.round(q.markup * 100)}% (${money(q.board)})`) +
+          : q.band
+            ? `${q.atMinimum ? "minimum price" : "band price"} ${money(q.board)} (${q.band.label}${q.band.factor > 1.001 ? `, ×${q.band.factor.toFixed(2)} for this wood` : ""}; materials ${money(q.materials)}${q.includeVat ? " inc VAT" : ""})`
+            : `materials ${money(q.materials)}${q.includeVat ? " inc VAT" : ""} + ${Math.round(q.markup * 100)}% (${money(q.board)}; priced individually)`) +
         q.extras.map(([t, v]) => ` + ${t.toLowerCase()} ${money(v)}`).join(""),
     ];
   } catch (err) {
@@ -1465,8 +1509,8 @@ function renderPrice() {
       lastPrice = { total, board, extras, sheets: `${cheapest.sheets} × ${cheapest.w} × ${cheapest.h} ${cheapest.code}` };
       el.innerHTML =
         `<p class="price-total">${money(total)} <small>for ${fp ? `${copiesLabel(fp)}, ` : ""}${escapeHtml(m.name.replace(/ \(.*\)$/, ""))}, ${t.mm} mm</small></p>` +
-        (extras.length || (fp && fp.qty > 1)
-          ? `<ul><li><span>${fp ? `${copiesLabel(fp).replace(/^./, (c) => c.toUpperCase())}${fp.qty > 1 ? ` at ${money(fp.each)} each` : ""}` : "Map board"}</span><span>${money(board)}</span></li>${extras.map(([txt, v]) => `<li><span>${txt}</span><span>${money(v)}</span></li>`).join("")}</ul>`
+        (extras.length || (fp && fp.qty > 1) || q.band || !fp
+          ? `<ul><li><span>${fp ? `${copiesLabel(fp).replace(/^./, (c) => c.toUpperCase())}${fp.qty > 1 ? ` at ${money(fp.each)} each` : ""}` : q.band ? escapeHtml(q.band.label) : "Map board (priced individually)"}${q.atMinimum ? " (minimum price)" : ""}</span><span>${money(board)}</span></li>${extras.map(([txt, v]) => `<li><span>${txt}</span><span>${money(v)}</span></li>`).join("")}</ul>`
           : "") +
         ((ETSY ? PRICING.etsyNote : PRICING.note) ? `<p class="price-note">${escapeHtml(ETSY ? PRICING.etsyNote : PRICING.note)}</p>` : "");
     } catch (err) {
