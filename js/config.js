@@ -2,6 +2,9 @@
 export const CONFIG = {
   businessName: "TurnerMadeUK",
   tagline: "Laser-cut contour maps of the hills you love",
+  // Moon and Mars (the Earth / Moon / Mars switch in step 1). false hides the
+  // switch and ignores ?body= links; set true to offer them again.
+  worlds: false,
 
   // Where layout requests are emailed when no form endpoint is set.
   orderEmail: "bturner9007@gmail.com",
@@ -177,17 +180,18 @@ export const CONFIG = {
 };
 
 // Quick-jump regions: [lng, lat, zoom].
+// phone: also shown on phones (the others only on bigger screens, to keep it short).
 export const REGIONS = [
-  { label: "Lake District", at: [-3.1, 54.48, 10.6] },
-  { label: "Eryri / Snowdonia", at: [-3.98, 53.08, 11] },
-  { label: "Peak District", at: [-1.85, 53.38, 10.6] },
-  { label: "Yorkshire Dales", at: [-2.2, 54.22, 10.4] },
-  { label: "Ben Nevis & Glen Coe", at: [-5.0, 56.74, 10.6] },
+  { label: "Lake District", phone: true, at: [-3.1, 54.48, 10.6] },
+  { label: "Eryri / Snowdonia", phone: true, at: [-3.98, 53.08, 11] },
+  { label: "Peak District", phone: true, at: [-1.85, 53.38, 10.6] },
+  { label: "Yorkshire Dales", phone: true, at: [-2.2, 54.22, 10.4] },
+  { label: "Ben Nevis & Glen Coe", phone: true, at: [-5.0, 56.74, 10.6] },
   { label: "Cairngorms", at: [-3.67, 57.08, 10.6] },
   { label: "Skye Cuillin", at: [-6.23, 57.22, 11] },
-  { label: "Brecon Beacons", at: [-3.44, 51.88, 10.8] },
+  { label: "Brecon Beacons", phone: true, at: [-3.44, 51.88, 10.8] },
   { label: "Dartmoor", at: [-3.95, 50.6, 10.8] },
-  { label: "Mourne Mountains", at: [-5.98, 54.18, 11] },
+  { label: "Mourne Mountains", phone: true, at: [-5.98, 54.18, 11] },
   { label: "Wicklow Mountains", at: [-6.35, 53.06, 10.6] },
   { label: "MacGillycuddy's Reeks", at: [-9.74, 52.0, 11] },
   { label: "Connemara", at: [-9.82, 53.5, 10.8] },
