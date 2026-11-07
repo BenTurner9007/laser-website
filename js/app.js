@@ -276,7 +276,10 @@ const DEM =
     : { url: new URL(`data/planets/${BODY}/`, document.baseURI).href + "{z}/{x}/{y}.png", maxzoom: planets.bodies[BODY].maxzoom, sea: false };
 // Each site is built to its own finest zoom. The live map uses the zoom every
 // site has; a layout uses the finest zoom of the site it is in (siteDem).
-const MAP_DEM_MAXZOOM = BODY === "earth" ? 13 : Math.min(...SITES.map((s) => s.maxzoom));
+// The map uses z12 elevation on Earth: finer zooms carry seams in places
+// (e.g. a false trench along 5° W in Scotland) that show as stripes.
+// Layouts still use the finest data, with seams removed (removeSeams in layout.js).
+const MAP_DEM_MAXZOOM = BODY === "earth" ? 12 : Math.min(...SITES.map((s) => s.maxzoom));
 const siteDem = (b) => {
   if (BODY === "earth") return DEM;
   const inside = SITES.filter((s) => b.east > s.box[0] && b.west < s.box[2] && b.north > s.box[1] && b.south < s.box[3]);

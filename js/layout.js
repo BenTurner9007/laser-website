@@ -120,6 +120,54 @@ export async function fetchElevationGrid(bounds, onProgress = () => {}, dem = EA
 }
 
 /** Separable box blur, repeated, approximating a Gaussian. */
+/**
+ * Remove seams in the elevation data: dead-straight strips (along one column
+ * or row of the grid, a few pixels wide) whose heights disagree sharply with
+ * the ground either side, such as the false trench along 5° W in Scotland
+ * where the free terrain tiles' sources were stitched together. A pixel is
+ * "off" when it differs by more than `limit` metres from the median of its
+ * row (or column) neighbours; only columns (or rows) where that happens over a
+ * long stretch are treated as seams, and their off pixels take the median.
+ * Real ridges, crags and valleys never run exactly along a column for long, so
+ * they are kept.
+ */
+function removeSeams(values, w, h, limit = 20, half = 4) {
+  const out = Float32Array.from(values);
+  const win = new Float32Array(half * 2 + 1);
+  const median = (n) => win.subarray(0, n).sort()[n >> 1];
+  const rowMed = (x, y) => {
+    let n = 0;
+    for (let k = Math.max(0, x - half); k <= Math.min(w - 1, x + half); k++) win[n++] = values[y * w + k];
+    return median(n);
+  };
+  const colMed = (x, y) => {
+    let n = 0;
+    for (let k = Math.max(0, y - half); k <= Math.min(h - 1, y + half); k++) win[n++] = values[k * w + x];
+    return median(n);
+  };
+  // Pass 1: how many "off" pixels each column (vs its row) and row (vs its column) has.
+  const offH = new Uint8Array(w * h), offV = new Uint8Array(w * h);
+  const perCol = new Uint32Array(w), perRow = new Uint32Array(h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const v = values[y * w + x];
+      if (Math.abs(v - rowMed(x, y)) > limit) { offH[y * w + x] = 1; perCol[x]++; }
+      if (Math.abs(v - colMed(x, y)) > limit) { offV[y * w + x] = 1; perRow[y]++; }
+    }
+  }
+  // Pass 2: fix off pixels in seam columns / rows (off along a fifth of their length).
+  let fixed = 0;
+  const seamCol = (x) => perCol[x] > h * 0.2, seamRow = (y) => perRow[y] > w * 0.2;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (offH[i] && seamCol(x)) { out[i] = rowMed(x, y); fixed++; }
+      else if (offV[i] && seamRow(y)) { out[i] = colMed(x, y); fixed++; }
+    }
+  }
+  return { values: out, fixed };
+}
+
 function smooth(values, w, h, radius, passes = 2) {
   if (radius < 1) return values;
   let src = Float64Array.from(values);
@@ -536,7 +584,9 @@ export async function buildLayout(o, onProgress) {
   const [grid] = await Promise.all([fetchElevationGrid(o.bounds, onProgress, dem), loadFonts()]);
   const { width: gw, height: gh, zoom } = grid;
   const radius = Math.round(o.smoothing * Math.max(1, gw / 350));
-  const values = smooth(grid.values, gw, gh, radius);
+  // Earth data first has seams removed (thin false ridges or trenches).
+  const raw = dem.sea ? removeSeams(grid.values, gw, gh).values : grid.values;
+  const values = smooth(raw, gw, gh, radius);
   // The blur's running sums leave rounding noise (±1e-13) on flat sea; snap it
   // back to 0 so no contour is traced through the noise.
   if (dem.sea) for (let i = 0; i < values.length; i++) if (values[i] < 1e-6) values[i] = 0;
