@@ -1177,6 +1177,7 @@ export async function buildLayout(o, onProgress) {
           layer, group: kind.dotMm ? "dots" : kind.group, kind: kind.id, widthMm: kind.widthMm,
           lines: kind.dotMm ? dotted(runs, kind.dotMm, kind.dotSizeMm) : runs,
           ...(kind.dotMm ? { dotted: true } : {}),
+          ...(kind.previewColour ? { previewColour: kind.previewColour } : {}),
         });
       }
     }
@@ -1529,7 +1530,7 @@ export async function buildLayout(o, onProgress) {
       preview += `<path d="${dotCircles(w.lines)}" fill="#1a1a1a"/>`;
       continue;
     }
-    preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="${road ? "#2a1d14" : "#1f3f5c"}" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    preview += `<path d="${linesToPath(w.lines)}" fill="none" stroke="${w.previewColour || (road ? "#2a1d14" : "#1f3f5c")}" stroke-width="${w.widthMm}" stroke-linecap="round" stroke-linejoin="round"/>`;
   }
   preview += fillEach(allMarks, COLOURS.engrave);
   // The frame lies on top of everything round the edge.

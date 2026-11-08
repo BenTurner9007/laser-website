@@ -17,10 +17,12 @@ export const ROAD_KINDS = [
   { id: "minor", label: "B roads & minor roads", on: false, widthMm: 0.6 },
   { id: "lanes", label: "Lanes & streets", on: false, widthMm: 0.4 },
   { id: "service", label: "Farm & access roads", on: false, widthMm: 0.35 },
-  // Dotted: a filled dot dotSizeMm across every dotMm along the line,
-  // engraved (and shown in the previews) at that size.
-  { id: "tracks", label: "Tracks", on: false, widthMm: 0.35, dotMm: 3, dotSizeMm: 1.2 },
-  { id: "paths", label: "Footpaths & bridleways", on: false, widthMm: 0.3, dotMm: 3, dotSizeMm: 0.9 },
+  // Solid lines, shown red in the previews (previewColour) so they stand out
+  // from contours and roads. Engraved like any other line (black in the SVG,
+  // where red means cut). A kind can be dotted instead: give it dotMm (dot
+  // spacing) and dotSizeMm (dot width).
+  { id: "tracks", label: "Tracks", on: false, widthMm: 0.4, previewColour: "#a8231a" },
+  { id: "paths", label: "Footpaths & bridleways", on: false, widthMm: 0.35, previewColour: "#d0352b" },
 ];
 
 /** A loader for one tile set: fetch(bounds, kinds) -> { kind: lines }. */
