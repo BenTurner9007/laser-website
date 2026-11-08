@@ -3,6 +3,8 @@
 Usage:
   pip install pyarrow shapely requests
   python3 scripts/build-roads.py download   # UK roads -> scripts/source/uk_roads.parquet
+  python3 scripts/build-roads.py download-extra  # service and unclassified-unknown roads
+                                                 # -> scripts/source/uk_roads_extra.parquet
   python3 scripts/build-roads.py build      # -> data/roads/{x}_{y}.json + data/roads/index.json
 
 Same approach and tile format as scripts/build-water.py: `download` reads
@@ -10,10 +12,11 @@ only the UK row groups of the Overture "transportation/segment" theme (the
 global set is ~70 GB), and each 0.1° tile holds polyline-encoded lines by kind:
   major   motorways, trunk and primary roads (A roads)
   minor   secondary and tertiary roads (B roads and the like)
-  lanes   unclassified roads, residential streets
+  lanes   unclassified roads, residential streets, roads of unknown type
+  service farm and access roads, private lanes, alleys (not drives or car parks)
   tracks  farm and forest tracks
   paths   footpaths, bridleways and other paths
-Service roads (drives, car parks), rail and ferries are left out.
+Driveways, car park aisles, rail and ferries are left out.
 """
 
 import importlib.util
@@ -31,6 +34,7 @@ import shapely
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "scripts/source/uk_roads.parquet"  # not committed (large)
+RAW_EXTRA = ROOT / "scripts/source/uk_roads_extra.parquet"  # service and unknown roads
 OUT = ROOT / "data/roads"
 
 # Share the HTTP range reader, polyline encoder and settings with the water build.
@@ -43,18 +47,24 @@ SIMPLIFY_DEG = 0.00003  # ~3 m
 KINDS = {
     "motorway": "major", "trunk": "major", "primary": "major",
     "secondary": "minor", "tertiary": "minor",
-    "unclassified": "lanes", "residential": "lanes", "living_street": "lanes",
+    "unclassified": "lanes", "residential": "lanes", "living_street": "lanes", "unknown": "lanes",
+    "service": "service",
     "track": "tracks",
     "footway": "paths", "path": "paths", "bridleway": "paths", "steps": "paths", "cycleway": "paths", "pedestrian": "paths",
 }
 
 
-def download():
+EXTRA = ["service", "unknown"]  # fetched by download-extra
+SKIP_SUBCLASS = ["driveway", "parking_aisle"]  # too small to be worth engraving
+
+
+def download(classes=None, out=RAW):
+    classes = classes or [c for c in KINDS if c not in EXTRA]
     prefix = f"{RELEASE}/theme=transportation/type=segment/"
     listing = requests.get(f"{BUCKET}/?list-type=2&prefix={prefix}", verify=CA, timeout=60).text
     keys = re.findall(r"<Key>([^<]*)</Key>", listing)
     writer = None
-    RAW.parent.mkdir(parents=True, exist_ok=True)
+    out.parent.mkdir(parents=True, exist_ok=True)
     for key in keys:
         f = water.HttpFile(f"{BUCKET}/{key}")
         pf = pq.ParquetFile(f)
@@ -64,7 +74,7 @@ def download():
             st = lambda p: md.row_group(g).column(idx[p]).statistics  # noqa: E731
             if not water.overlaps_uk(st("bbox.xmin").min, st("bbox.xmax").max, st("bbox.ymin").min, st("bbox.ymax").max):
                 continue
-            t = pf.read_row_group(g, columns=["subtype", "class", "geometry", "bbox"])
+            t = pf.read_row_group(g, columns=["subtype", "class", "subclass", "geometry", "bbox"])
             bb = t.column("bbox")
             fld = lambda name: pc.struct_field(bb, name)  # noqa: E731
             keep = pc.and_(
@@ -72,10 +82,11 @@ def download():
                 pc.and_(pc.greater_equal(fld("ymax"), UK[1]), pc.less_equal(fld("ymin"), UK[3])),
             )
             keep = pc.and_(keep, pc.equal(t.column("subtype"), "road"))
-            keep = pc.and_(keep, pc.is_in(t.column("class"), value_set=__import__("pyarrow").array(list(KINDS))))
-            t = t.filter(keep).drop(["bbox", "subtype"])
+            keep = pc.and_(keep, pc.is_in(t.column("class"), value_set=__import__("pyarrow").array(classes)))
+            keep = pc.and_(keep, pc.invert(pc.fill_null(pc.is_in(t.column("subclass"), value_set=__import__("pyarrow").array(SKIP_SUBCLASS)), False)))
+            t = t.filter(keep).drop(["bbox", "subtype", "subclass"])
             if t.num_rows:
-                writer = writer or pq.ParquetWriter(RAW, t.schema, compression="zstd")
+                writer = writer or pq.ParquetWriter(out, t.schema, compression="zstd")
                 writer.write_table(t)
         if f.fetched > 2_000_000:
             print(f"{key.rsplit('/', 1)[-1][:10]}: {f.fetched // 1_000_000} MB", flush=True)
@@ -83,9 +94,14 @@ def download():
 
 
 def build():
-    t = pq.read_table(RAW)
-    classes = t.column("class").to_pylist()
-    geoms = shapely.from_wkb(t.column("geometry").to_numpy(zero_copy_only=False))
+    classes, geoms = [], []
+    for raw in [RAW, RAW_EXTRA]:
+        if not raw.exists():
+            print(f"{raw.name} not found: skipped (run download / download-extra)", flush=True)
+            continue
+        t = pq.read_table(raw)
+        classes += t.column("class").to_pylist()
+        geoms += list(shapely.from_wkb(t.column("geometry").to_numpy(zero_copy_only=False)))
     print(f"{len(geoms)} road segments read", flush=True)
     by_kind = defaultdict(list)
     for cls, g in zip(classes, geoms):
@@ -129,4 +145,8 @@ def build():
 
 
 if __name__ == "__main__":
-    {"download": download, "build": build}[sys.argv[1] if len(sys.argv) > 1 else "build"]()
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "build"
+    if cmd == "download-extra":
+        download(EXTRA, RAW_EXTRA)
+    else:
+        {"download": download, "build": build}[cmd]()

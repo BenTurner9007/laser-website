@@ -398,8 +398,8 @@ const map = new maplibregl.Map({
         filter,
         layout: { "line-join": "round", "line-cap": "round" },
         paint: {
-          "line-color": ["match", ["get", "kind"], "major", "#8c4a2f", "minor", "#9a6b45", "paths", "#7a2e12", "tracks", "#5e4632", "#6b5a48"],
-          "line-width": ["match", ["get", "kind"], "major", 2.4, "minor", 1.7, "lanes", 1.2, "tracks", 2.6, "paths", 2.4, 1.3],
+          "line-color": ["match", ["get", "kind"], "major", "#8c4a2f", "minor", "#9a6b45", "paths", "#7a2e12", "tracks", "#5e4632", "service", "#7d6a55", "#6b5a48"],
+          "line-width": ["match", ["get", "kind"], "major", 2.4, "minor", 1.7, "lanes", 1.2, "service", 1, "tracks", 2.6, "paths", 2.4, 1.3],
           "line-opacity": 0.85,
           ...(dash ? { "line-dasharray": dash } : {}),
         },
