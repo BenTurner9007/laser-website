@@ -443,6 +443,37 @@ function splitByLayer(lines, mask, step = 0.25) {
 const linesToPathOf = (lines) => lines.map((l) => "M" + l.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join("L")).join("");
 
 /** Cut out the parts of lines (mm) that pass through any of the boxes. */
+/**
+ * The parts of lines that are not "wet": wet(x, y) says whether a point in
+ * mm is over water. Lines are walked in steps of about `step` mm, so a run
+ * stops within a step of the shore.
+ */
+function linesOffWater(lines, wet, step = 0.3) {
+  const out = [];
+  for (const line of lines) {
+    let run = [];
+    const flush = () => {
+      if (run.length > 1) out.push(run);
+      run = [];
+    };
+    for (let i = 0; i < line.length; i++) {
+      if (i === 0) {
+        if (!wet(...line[0])) run.push(line[0]);
+        continue;
+      }
+      const [ax, ay] = line[i - 1], [bx, by] = line[i];
+      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / step));
+      for (let k = 1; k <= n; k++) {
+        const pt = k === n ? line[i] : [ax + ((bx - ax) * k) / n, ay + ((by - ay) * k) / n];
+        if (wet(...pt)) flush();
+        else run.push(pt);
+      }
+    }
+    flush();
+  }
+  return out;
+}
+
 function linesOutsideBoxes(lines, boxes) {
   const out = [];
   for (const line of lines) {
@@ -1154,6 +1185,35 @@ export async function buildLayout(o, onProgress) {
   const riverEngrave = [];
   // Roads, paths and water stay off clear boxes and off raised (3D) labels.
   const clearBoxes = [...labelBoxes, ...raisedBoxes, ...textBoxes];
+  // Where the board is over water: the sea (from the coastline) and the lake
+  // and wide-river areas the laser fills. A point counts as wet only if the
+  // points round it are too, so lines along a shore or a river bank are kept.
+  const wetAt = (() => {
+    const K = 4; // px per mm
+    let lakePx = null, cw = 0;
+    if (lakeShapes.length) {
+      const c = document.createElement("canvas");
+      cw = c.width = Math.ceil(W * K);
+      c.height = Math.ceil(H * K);
+      const g = c.getContext("2d", { willReadFrequently: true });
+      g.scale(K, K);
+      for (const poly of lakeShapes) {
+        g.beginPath();
+        for (const r of poly) r.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+        g.fill("evenodd");
+      }
+      lakePx = g.getImageData(0, 0, c.width, c.height).data;
+    }
+    const seaMaskPx = sea?.mask;
+    if (!lakePx && !seaMaskPx) return null;
+    const one = (x, y) => {
+      if (x < 0 || y < 0 || x >= W || y >= H) return false;
+      if (seaMaskPx && seaMaskPx[Math.min(gh - 1, Math.floor(y / sy)) * gw + Math.min(gw - 1, Math.floor(x / sx))] === 1) return true;
+      return !!lakePx && lakePx[(Math.floor(y * K) * cw + Math.floor(x * K)) * 4 + 3] > 127;
+    };
+    const E = 0.6; // mm: how far inside the water a point must be
+    return (x, y) => one(x, y) && one(x - E, y) && one(x + E, y) && one(x, y - E) && one(x, y + E);
+  })();
   if (lineKinds.length) {
     // Water stays inside the map region (not on a coaster's plain border).
     // (and inside the frame, if there is one)
@@ -1165,7 +1225,10 @@ export async function buildLayout(o, onProgress) {
       !frameMm || (tpl ? Math.hypot(x - W / 2, y - H / 2) < R - edge : x > edge && y > edge && x < W - edge && y < H - edge);
     const mask = (x, y) => (insideFrame(x, y) ? layerAt(x, y) : -1);
     for (const kind of lineKinds) {
-      const lines = trimLines(kind.lines.map((l) => l.map(toMm)), W, H, 1).filter((l) => lineLength(l) >= 2);
+      let lines = trimLines(kind.lines.map((l) => l.map(toMm)), W, H, 1).filter((l) => lineLength(l) >= 2);
+      // River and stream centre lines stop at the shore: none through the sea,
+      // or across the filled lakes and wide rivers they flow through.
+      if ((kind.id === "rivers" || kind.id === "streams") && wetAt) lines = linesOffWater(lines, wetAt).filter((l) => lineLength(l) >= 1);
       const clear = clearBoxes.length ? linesOutsideBoxes(lines, clearBoxes) : lines;
       for (const [layer, runs] of splitByLayer(clear, mask)) {
         if (kind.id === "rivers") {
