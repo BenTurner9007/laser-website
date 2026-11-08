@@ -476,20 +476,23 @@ from Overture Maps (OpenStreetMap), rebuilt with `python3 scripts/build-places.p
 ### Roads and paths
 
 Step 3 also offers **roads & paths** (all off by default): motorways & A
-roads, B & minor roads, lanes & streets, tracks, and footpaths & bridleways.
-They are shown on the map and scored on the layout like water, in teal.
-Tracks and footpaths are **dotted**: in the SVG they are rows of tiny 0.15 mm
-score marks (every 2 mm for tracks, 2.5 mm for footpaths; `dotMm` in
-`js/water.js`), which the laser burns as dots. The flat plan draws them as
-larger black dots, and the 3D view as small flat black dots on the wood, as
-they will look when burnt.
-`data/roads/` holds about 5,200 tiles (146 MB, mostly streets and footpaths)
-from Overture Maps (OpenStreetMap). Service roads, rail and ferries are left
-out. To refresh:
+roads, B & minor roads, lanes & streets, farm & access roads, tracks, and
+footpaths & bridleways. They are shown on the map and engraved on the layout
+as score lines (black in the SVG). Lanes & streets include roads OpenStreetMap
+hasn't classified; farm & access roads are OpenStreetMap "service" roads
+(farm lanes, private and estate roads, alleys), without driveways and car park
+aisles.
+Tracks and footpaths are **dotted**: filled dots (1.2 mm for tracks, 0.9 mm
+for footpaths, every 3 mm; `dotMm` and `dotSizeMm` in `js/water.js`), the same
+in the SVG, the flat plan and the 3D view.
+`data/roads/` holds about 5,200 tiles (179 MB, mostly streets and footpaths)
+from Overture Maps (OpenStreetMap). Driveways, car park aisles, rail and
+ferries are left out. To refresh:
 
 ```
-python3 scripts/build-roads.py download   # UK roads only, ~670 MB
-python3 scripts/build-roads.py build      # about 4 minutes
+python3 scripts/build-roads.py download        # UK roads, ~670 MB
+python3 scripts/build-roads.py download-extra  # farm, access and unclassified roads, ~180 MB
+python3 scripts/build-roads.py build           # a few minutes
 ```
 
 ### Updating the water data
