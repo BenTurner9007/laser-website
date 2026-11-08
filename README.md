@@ -482,9 +482,10 @@ as score lines (black in the SVG). Lanes & streets include roads OpenStreetMap
 hasn't classified; farm & access roads are OpenStreetMap "service" roads
 (farm lanes, private and estate roads, alleys), without driveways and car park
 aisles.
-Tracks and footpaths are **dotted**: filled dots (1.2 mm for tracks, 0.9 mm
-for footpaths, every 3 mm; `dotMm` and `dotSizeMm` in `js/water.js`), the same
-in the SVG, the flat plan and the 3D view.
+Tracks and footpaths are solid lines, shown **red** on the map, the flat plan
+and the 3D view so they stand out (`previewColour` in `js/water.js`). In the
+SVG they are black score lines like the other roads, since red means cut there.
+A kind can be dotted instead by giving it `dotMm` and `dotSizeMm`.
 `data/roads/` holds about 5,200 tiles (179 MB, mostly streets and footpaths)
 from Overture Maps (OpenStreetMap). Driveways, car park aisles, rail and
 ferries are left out. To refresh:

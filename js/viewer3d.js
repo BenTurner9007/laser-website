@@ -276,7 +276,8 @@ export function createViewer(container) {
       }
       const geo = new THREE.BufferGeometry();
       geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-      model.add(new THREE.LineSegments(geo, waterMat));
+      // Tracks and paths in their own colour (red), so they stand out.
+      model.add(new THREE.LineSegments(geo, w.previewColour ? new THREE.LineBasicMaterial({ color: w.previewColour }) : waterMat));
     }
 
     const { mesh: ruler, depthMm } = rulerMesh(W);
