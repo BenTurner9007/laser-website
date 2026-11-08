@@ -1244,7 +1244,9 @@ async function sha256(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+var ownerMode = false; // var: read by renderPrice, which can run before this point
 function setOwnerMode(on) {
+  ownerMode = on;
   for (const el of document.querySelectorAll(".owner-only")) el.hidden = !on;
   $("#owner-badge").hidden = !on;
 }
@@ -1564,7 +1566,9 @@ function shopLines() {
 function renderPrice() {
   const el = $("#price");
   lastPrice = null;
-  if (!PRICING || !lastResult) { el.hidden = true; return; }
+  // Hidden from customers for now (pricing.showToCustomers); owner mode still sees it.
+  const ownerOnly = PRICING?.showToCustomers === false;
+  if (!PRICING || !lastResult || (ownerOnly && !ownerMode)) { el.hidden = true; return; }
   el.hidden = false;
   el.innerHTML = `<p class="price-note">Working out your price…</p>`;
   const token = ++priceToken;
@@ -1583,7 +1587,8 @@ function renderPrice() {
         (extras.length || (fp && fp.qty > 1) || q.band || !fp
           ? `<ul><li><span>${fp ? `${copiesLabel(fp).replace(/^./, (c) => c.toUpperCase())}${fp.qty > 1 ? ` at ${money(fp.each)} each` : ""}` : q.band ? escapeHtml(q.band.label) : "Map board (priced individually)"}${q.atMinimum ? " (minimum price)" : ""}</span><span>${money(board)}</span></li>${extras.map(([txt, v]) => `<li><span>${txt}</span><span>${money(v)}</span></li>`).join("")}</ul>`
           : "") +
-        ((ETSY ? PRICING.etsyNote : PRICING.note) ? `<p class="price-note">${escapeHtml(ETSY ? PRICING.etsyNote : PRICING.note)}</p>` : "");
+        ((ETSY ? PRICING.etsyNote : PRICING.note) ? `<p class="price-note">${escapeHtml(ETSY ? PRICING.etsyNote : PRICING.note)}</p>` : "") +
+        (ownerOnly ? `<p class="price-note"><b>Owner only:</b> customers don't see the price just now (pricing.showToCustomers in config.js).</p>` : "");
     } catch (err) {
       console.error(err);
       el.innerHTML = `<p class="price-note">We couldn't work out a price just now. We'll include it when we reply.</p>`;
