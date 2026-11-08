@@ -230,6 +230,9 @@ function parsePlaces(text) {
 }
 // A shared link's exact area is used for the layout until the map is moved by hand.
 let pinnedBounds = null;
+// While the layout is locked: its area on the ground. The frame stays on it
+// as you zoom and pan round to inspect the detail (see setMapLocked).
+let lockedBounds = null;
 let lastResult = null;
 
 // ---------- World: Earth, or the Moon / Mars famous-places collection ----------
@@ -521,26 +524,43 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-ri
 map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
 
 // Padlock: freeze the map so the framed area can't be nudged by accident.
-// Buttons that move the map on purpose (regions, search, fit to route) still work.
-const MAP_HANDLERS = ["dragPan", "scrollZoom", "boxZoom", "doubleClickZoom", "touchZoomRotate", "keyboard"];
+// Locking the layout fixes its area: the frame then stays on that patch of
+// ground while the map is free to zoom and pan, so you can look closely at
+// the detail without changing the design. Unlocking puts the view back with
+// the frame in its usual place. Buttons that move the layout on purpose
+// (regions, search, fit to route, a new board size) unlock it first.
 let mapLocked = false;
 const LOCK_ICON = {
   open: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 9.6-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
   shut: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="11" width="14" height="10" rx="2" fill="currentColor"/></svg>',
 };
-function setMapLocked(on) {
-  mapLocked = on;
-  for (const h of MAP_HANDLERS) on ? map[h].disable() : map[h].enable();
-  document.querySelectorAll(".maplibregl-ctrl-zoom-in, .maplibregl-ctrl-zoom-out").forEach((b) => (b.disabled = on));
+function setMapLocked(on, bounds = null) {
+  if (on !== mapLocked) {
+    mapLocked = on;
+    if (on) lockedBounds = bounds ? { ...bounds } : frameBounds();
+    else if (lockedBounds) {
+      const b = lockedBounds;
+      lockedBounds = null;
+      fitFrameTo([b.west, b.south, b.east, b.north]);
+    }
+    layoutFrame();
+  }
   const btn = $("#map-lock");
   btn.innerHTML = on ? LOCK_ICON.shut : LOCK_ICON.open;
   btn.setAttribute("aria-pressed", on);
-  btn.title = on ? "Map locked. Click to move it again" : "Lock the map so it can't move";
+  btn.title = on ? "Layout locked: zoom and pan to look closely. Click to unlock and move the layout" : "Lock the layout, then zoom in to inspect it";
   $(".map-wrap").classList.toggle("locked", on);
   $(".map-hint").textContent = on
-    ? "Map locked. Click the padlock (top right) to move it again."
+    ? "Layout locked: zoom and pan to inspect it. Click the padlock to move the layout again."
     : "Drag and zoom the map. Whatever sits inside the frame becomes your design.";
 }
+// Keep the frame on the locked area as the map moves.
+map.on("move", () => lockedBounds && layoutFrame());
+// Moving the layout on purpose: unlock first, so the new spot becomes the design.
+const flyLayout = (opts) => {
+  if (mapLocked) setMapLocked(false);
+  map.flyTo(opts);
+};
 map.addControl({
   onAdd() {
     const box = document.createElement("div");
@@ -574,6 +594,11 @@ function escapeHtml(s) {
 const frameEl = $("#frame");
 function frameRect() {
   const box = $(".map-wrap").getBoundingClientRect();
+  if (lockedBounds) {
+    // Locked: the frame sits on the locked area, wherever the map is looking.
+    const nw = map.project([lockedBounds.west, lockedBounds.north]), se = map.project([lockedBounds.east, lockedBounds.south]);
+    return { x: nw.x, y: nw.y, w: se.x - nw.x, h: se.y - nw.y, cw: box.width, ch: box.height };
+  }
   const margin = box.width < 600 ? 28 : 56;
   const scale = Math.min((box.width - margin * 2) / state.w, (box.height - margin * 2 - 30) / state.h);
   const fw = state.w * scale, fh = state.h * scale;
@@ -612,6 +637,7 @@ async function renderFrameTemplate() {
 }
 
 function frameBounds() {
+  if (lockedBounds) return { ...lockedBounds };
   const r = frameRect();
   const nw = map.unproject([r.x, r.y]);
   const se = map.unproject([r.x + r.w, r.y + r.h]);
@@ -633,6 +659,7 @@ function updateScale() {
 
 // Move the map so [west, south, east, north] fills the frame.
 function fitFrameTo([w, s, e, n], duration = 0) {
+  if (lockedBounds) setMapLocked(false); // moving the layout on purpose unlocks it
   const r = frameRect();
   map.fitBounds(
     [[w, s], [e, n]],
@@ -643,7 +670,7 @@ function fitFrameTo([w, s, e, n], duration = 0) {
 new ResizeObserver(layoutFrame).observe($(".map-wrap"));
 map.on("move", updateScale);
 map.on("movestart", (e) => {
-  if (e.originalEvent) pinnedBounds = null;
+  if (e.originalEvent && !lockedBounds) pinnedBounds = null; // looking round a locked layout keeps it
 });
 // "load" waits for every tile; the style being ready is enough to position the map.
 // (isStyleLoaded() is also false while tiles load, after "style.load" has
@@ -704,7 +731,7 @@ $("#hill-search").addEventListener("change", async (e) => {
     note.textContent = msg;
     note.classList.add("error");
   };
-  const go = (at, zoom) => call === searchCall && map.flyTo({ center: at, zoom });
+  const go = (at, zoom) => call === searchCall && flyLayout({ center: at, zoom });
   if (BODY === "earth" && (POSTCODE.test(raw) || OUTCODE.test(raw))) {
     note.textContent = "Looking up the postcode…";
     try {
@@ -780,7 +807,7 @@ document.querySelectorAll(".world-switch a").forEach((a) => {
 $("#regions").innerHTML = REGIONS.map((r, i) => `<button type="button" class="chip${r.phone ? "" : " not-phone"}" data-i="${i}">${r.label}</button>`).join("");
 $("#regions").addEventListener("click", (e) => {
   const r = REGIONS[e.target.dataset.i];
-  if (r) map.flyTo({ center: [r.at[0], r.at[1]], zoom: r.at[2] });
+  if (r) flyLayout({ center: [r.at[0], r.at[1]], zoom: r.at[2] });
 });
 
 // ---------- Step 2: sizes ----------
@@ -846,6 +873,7 @@ $("#frame-on").addEventListener("change", (e) => {
 });
 
 function setSize(w, h, template = null) {
+  if (mapLocked) setMapLocked(false); // a new board shape starts from the usual view
   pinnedBounds = null; // a shared link's area no longer matches the new frame
   state.w = w;
   state.h = h;
@@ -1943,8 +1971,8 @@ function applyShape(ring, maxMm) {
   const { west, south, east, north } = c.bounds;
   fitFrameTo([west, south, east, north]);
   pinnedBounds = { ...c.bounds }; // exactly the drawn area, until the map is moved by hand
-  setMapLocked(true); // keep the drawn area in place
-  setShapeStatus(`Your board: ${Math.round(c.template.w)} × ${Math.round(c.template.h)} mm. The map is locked so the area stays put.`, "ok");
+  setMapLocked(true, c.bounds); // keep exactly the drawn area
+  setShapeStatus(`Your board: ${Math.round(c.template.w)} × ${Math.round(c.template.h)} mm. The layout is locked so the area stays put: zoom in to look closely, or unlock it to move it.`, "ok");
 }
 map.on("click", (e) => {
   if (!shapeDrawing) return;
