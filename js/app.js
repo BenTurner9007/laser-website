@@ -304,7 +304,7 @@ $("#brand-tagline").textContent = PAGE_INFO.tagline || CONFIG.tagline;
 // Links between the product pages (kept in Etsy mode).
 $("#site-nav").innerHTML = Object.entries(CONFIG.pages || {})
   .map(([id, p]) => `<a href="${p.path}${ETSY ? "?etsy=1" : ""}"${id === PAGE ? ' aria-current="page"' : ""}>${p.nav}</a>`)
-  .join("");
+  .join("") + `<a href="guide.html" class="nav-guide">How to</a>`;
 
 // ---------- Map ----------
 const demSource = new mlcontour.DemSource({ url: DEM.url, encoding: "terrarium", maxzoom: MAP_DEM_MAXZOOM, worker: true });

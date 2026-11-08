@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to design your map – TurnerMadeUK</title>
+  <link rel="icon" type="image/png" href="images/icon.png">
+  <meta name="description" content="A step-by-step guide to designing a laser-cut contour map: what every button does, common pitfalls, and what the designer can and can't do.">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { display: block; height: auto; }
+    .guide { max-width: 860px; margin: 0 auto; padding: 24px 20px 56px; line-height: 1.6; }
+    .guide h1 { font-family: var(--display); font-weight: 600; font-size: 2.1rem; margin: 0 0 6px; line-height: 1.15; }
+    .guide h2 { font-family: var(--display); font-weight: 600; font-size: 1.5rem; margin: 44px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+    .guide h3 { font-family: var(--display); font-weight: 600; font-size: 1.15rem; margin: 26px 0 6px; }
+    .guide .lead { font-size: 1.05rem; color: var(--muted); margin-top: 0; }
+    .guide figure { margin: 14px 0 20px; }
+    .guide figure img { display: block; max-width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line); background: #fff; }
+    .guide figure.narrow img { max-width: 400px; }
+    .guide figure.phone img { max-width: 300px; }
+    .guide figcaption { margin-top: 6px; font-size: .85rem; color: var(--muted); }
+    .guide .pair { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 20px; align-items: start; }
+    .guide .pair figure { margin: 0; }
+    .guide dl { margin: 8px 0 16px; }
+    .guide dt { font-weight: 600; margin-top: 10px; }
+    .guide dd { margin: 2px 0 0 0; }
+    .guide .tip { margin: 14px 0; padding: 12px 16px; border-radius: 12px; background: #f3e2cf; }
+    .guide .toc { padding: 14px 18px; border-radius: 14px; background: var(--panel); }
+    .guide .toc ol { margin: 6px 0 0; padding-left: 1.3em; }
+    .guide .pitfall { margin: 18px 0; padding: 14px 18px; border-radius: 14px; background: var(--panel); }
+    .guide .pitfall h3 { margin-top: 0; }
+    .guide .pitfall p { margin: 6px 0; }
+    .guide .fix { font-weight: 600; }
+    .guide .back-top { font-size: .9rem; }
+    .guide .cta { display: inline-block; margin-top: 8px; padding: 12px 20px; border-radius: 12px; background: var(--accent); color: var(--accent-ink); text-decoration: none; font-weight: 600; }
+    .guide .cta:hover { background: var(--accent-hover); color: var(--accent-ink); }
+    @media (max-width: 700px) {
+      .guide .pair { grid-template-columns: 1fr; }
+      .guide h1 { font-size: 1.7rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="guide">
+    <p><a href="./">← Back to the map designer</a></p>
+    <h1>How to design your map</h1>
+    <p class="lead">Everything the designer does, step by step, with the mistakes that are easy to make and
+    what it can and can't do. Allow ten minutes for your first map.</p>
+
+    <nav class="toc" aria-label="Contents">
+      <b>Contents</b>
+      <ol>
+        <li><a href="#overview">The screen at a glance</a></li>
+        <li><a href="#step1">Find your hills</a></li>
+        <li><a href="#step2">Pick a board size</a></li>
+        <li><a href="#step3">Style it</a></li>
+        <li><a href="#step4">Mark a special place</a></li>
+        <li><a href="#step5">Add your own text</a></li>
+        <li><a href="#step6">Add a hiking route</a></li>
+        <li><a href="#step7">Preview and send</a></li>
+        <li><a href="#phone">On a phone</a></li>
+        <li><a href="#pitfalls">Common pitfalls</a></li>
+        <li><a href="#limits">What the designer can't do</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="overview">1. The screen at a glance</h2>
+    <p>The map is on the left and the steps are on the right. The <b>orange frame</b> in the middle of the
+    map stays still: you move the map underneath it, and whatever sits inside the frame becomes your
+    design. The labels on the frame show the board size and the real distance it covers, with the map
+    scale.</p>
+    <figure>
+      <img src="images/guide/overview.jpg" width="1200" height="771" alt="The designer: a map with an orange frame on the left, and the numbered steps on the right" loading="lazy">
+      <figcaption>The designer, with Grasmere in the frame. The product links at the top right switch between maps, clocks, coasters and bookmarks.</figcaption>
+    </figure>
+    <dl>
+      <dt>Moving the map</dt>
+      <dd>Drag to move, and scroll or pinch to zoom. The <b>+</b> and <b>−</b> buttons zoom too.</dd>
+      <dt>The padlock</dt>
+      <dd>Locks the map so you can't move it by accident while you tick options or drag markers.
+      Tap it again to unlock. Search and the area buttons still work while it's locked.</dd>
+      <dt>What you see on the map</dt>
+      <dd>Contour lines at your chosen spacing, hill names, place names, and the water, roads and paths you
+      tick in step 3, so you can see what will end up on the board before you make it.</dd>
+    </dl>
+
+    <h2 id="step1">2. Find your hills</h2>
+    <div class="pair">
+      <figure><img src="images/guide/step1.jpg" width="400" height="411" alt="Step 1: a search box and buttons for popular areas" loading="lazy"></figure>
+      <div>
+        <dl>
+          <dt>Search box</dt>
+          <dd>Type a <b>hill</b> (e.g. Helvellyn), a <b>town or village</b> (e.g. Keswick) or a <b>UK
+          postcode</b>, full (LA22 9QZ) or just the first half (LA22), then press Enter. The map flies there.
+          Hill names suggest themselves as you type.</dd>
+          <dt>Area buttons</dt>
+          <dd>Jump straight to a popular area, such as the Lake District or Eryri / Snowdonia.</dd>
+        </dl>
+        <p>Then drag and zoom until the hills you want sit inside the frame.</p>
+      </div>
+    </div>
+
+    <h2 id="step2">3. Pick a board size</h2>
+    <div class="pair">
+      <figure><img src="images/guide/step2.jpg" width="400" height="224" alt="Step 2: buttons for A4 and A3 portrait and landscape, draw your own shape, and A4 round" loading="lazy"></figure>
+      <div>
+        <p>The frame on the map changes to the size and shape you pick.</p>
+        <dl>
+          <dt>A4 / A3, portrait or landscape</dt>
+          <dd>Rectangular boards: A4 is 210 × 297 mm, A3 is 297 × 420 mm.</dd>
+          <dt>A4 round</dt>
+          <dd>A circle 210 mm across.</dd>
+          <dt>Draw your own shape</dt>
+          <dd>Outline exactly the area you want, such as a valley, an island or a whole fell round.</dd>
+        </dl>
+      </div>
+    </div>
+    <h3>Drawing your own shape</h3>
+    <div class="pair">
+      <figure><img src="images/guide/step2-drawing.jpg" width="400" height="457" alt="The shape drawing panel with Undo point, Finish and Cancel" loading="lazy"></figure>
+      <div>
+        <p>Click (or tap) round the area on the map, one corner at a time. Click the first point again, or
+        <b>Finish</b>, to close the shape. <b>Undo point</b> takes back the last click. Then choose how
+        long the shape's <b>longest side</b> should be. Use <b>Redraw shape</b> to start again.</p>
+      </div>
+    </div>
+    <figure>
+      <img src="images/guide/map-shape-drawing.jpg" width="900" height="722" alt="A five-sided shape being drawn round Grasmere on the map" loading="lazy">
+      <figcaption>Drawing a shape round Grasmere. Each click adds a corner.</figcaption>
+    </figure>
+    <p>On the <a href="clocks/">clocks</a>, <a href="coasters/">coasters</a> and <a href="bookmarks/">bookmarks</a>
+    pages the frame takes the shape of the product, with the clock face, coaster border or bookmark hole
+    shown on the map.</p>
+
+    <h2 id="step3">4. Style it</h2>
+    <div class="pair">
+      <figure><img src="images/guide/step3.jpg" width="400" height="1087" alt="Step 3: style options for layers, frame, contours, water, roads, labels" loading="lazy"></figure>
+      <div>
+        <dl>
+          <dt>Layered or single engraved board</dt>
+          <dd><b>Layered</b>: the map is cut into stacked boards, one per contour, so the hills stand up in 3D.
+          <b>Single engraved board</b>: one flat board with the contours burnt on as lines. Clocks,
+          coasters and bookmarks are always single engraved boards.</dd>
+          <dt>Frame (5 mm)</dt>
+          <dd>A rim round the edge. On engraved boards it's a separate piece glued on top. On layered
+          boards it's a <b>3D frame</b>, built up level with the highest ground along the edge. Names keep
+          clear of it.</dd>
+          <dt>Contour lines</dt>
+          <dd>Untick for a flat board with just water, roads and names on it.</dd>
+          <dt>Contour every</dt>
+          <dd>The height between contours, and so between layers. Smaller spacing means more layers,
+          more detail and a taller, pricier piece. See <a href="#pitfalls">pitfalls</a> for how to pick it.</dd>
+          <dt>Smoothing</dt>
+          <dd>Rounds off the contours. <b>Light</b> suits most maps; <b>None</b> keeps every crag but
+          can leave tiny, fragile slivers.</dd>
+          <dt>Water</dt>
+          <dd>Lakes, tarns and reservoirs, and wide rivers and canals, are <b>filled in solid</b> by the
+          laser. Streams and the coastline are thin lines.</dd>
+          <dt>Roads &amp; paths</dt>
+          <dd>From motorways down to farm and access roads. Tracks and footpaths come out as rows of dots,
+          so you can tell them from the contours.</dd>
+          <dt>Labels</dt>
+          <dd>Peak names (with or without heights) and place names (cities, towns, villages), each with a
+          text size.</dd>
+          <dt>3D labels</dt>
+          <dd>Layered boards only: each name sits on its own small raised patch, so it's always on top and
+          never split across layers.</dd>
+          <dt>Clear space behind names</dt>
+          <dd>Keeps contour lines away from names, text and special places so they're easier to read.
+          Water, roads, paths and your route always stop short of names anyway.</dd>
+        </dl>
+      </div>
+    </div>
+
+    <h2 id="step4">5. Mark a special place <small>(optional)</small></h2>
+    <div class="pair">
+      <figure><img src="images/guide/step4.jpg" width="400" height="421" alt="Step 4: a special place with shape buttons and a label box" loading="lazy"></figure>
+      <div>
+        <p>Mark somewhere that matters: where you got engaged, a favourite summit, the cottage you stay in.</p>
+        <dl>
+          <dt>+ Add a special place</dt>
+          <dd>Puts a marker in the middle of the frame. <b>Drag it</b> on the map to the exact spot.
+          You can add up to three.</dd>
+          <dt>Shape</dt>
+          <dd>Heart, star, pin, circle, house, cross, diamond or triangle.</dd>
+          <dt>Label</dt>
+          <dd>Optional words beside the marker, in bold.</dd>
+          <dt>Marker size</dt>
+          <dd>How big the markers are on the board.</dd>
+        </dl>
+      </div>
+    </div>
+
+    <h2 id="step5">6. Add your own text <small>(optional)</small></h2>
+    <div class="pair">
+      <figure><img src="images/guide/step5.jpg" width="400" height="450" alt="Step 5: a text box with a size slider and a clear box option" loading="lazy"></figure>
+      <div>
+        <p>A name, a date or a few words, in the same lettering as the peak names. Up to three text boxes,
+        each up to four lines.</p>
+        <dl>
+          <dt>Move it</dt>
+          <dd>Drag the box on the map, or use the round orange <b>grip</b> under it (easiest on a phone).</dd>
+          <dt>Resize it</dt>
+          <dd>Drag the small dark handle at its top right corner, or use the size slider.</dd>
+          <dt>Clear box</dt>
+          <dd>On by default: a clean panel behind your words with nothing showing through.</dd>
+        </dl>
+      </div>
+    </div>
+    <figure>
+      <img src="images/guide/map-place-text.jpg" width="900" height="722" alt="The map with a heart marker labelled Where we met, and a text box reading Grasmere 2026 with its grip and resize handle" loading="lazy">
+      <figcaption>A special place (the heart) and a text box on the map. The orange grip moves the text; the dark corner handle resizes it.</figcaption>
+    </figure>
+
+    <h2 id="step6">7. Add a hiking route <small>(optional)</small></h2>
+    <div class="pair">
+      <figure><img src="images/guide/step6.jpg" width="400" height="430" alt="Step 6: route options after drawing a 3.6 km route" loading="lazy"></figure>
+      <div>
+        <dl>
+          <dt>Draw on map</dt>
+          <dd>Click or tap along your walk, then <b>Finish route</b>. <b>Undo point</b> takes back a click.</dd>
+          <dt>Upload a file</dt>
+          <dd>A GPX, KML or GeoJSON file from your GPS or walking app (OS Maps, Strava, Komoot, AllTrails…).</dd>
+          <dt>Line and thickness</dt>
+          <dd>Solid or dashed; fine, medium or bold.</dd>
+          <dt>Fit frame to route</dt>
+          <dd>Moves and zooms the map so the whole route sits in the frame.</dd>
+        </dl>
+        <p>The route is engraved as a line that follows the hills across the layers, and stops short of names.</p>
+      </div>
+    </div>
+    <figure>
+      <img src="images/guide/map-route.jpg" width="900" height="722" alt="A drawn route shown as an orange line across the map" loading="lazy">
+      <figcaption>A drawn route, shown in orange on the map.</figcaption>
+    </figure>
+
+    <h2 id="step7">8. Preview and send</h2>
+    <p>Press <b>Create my layout</b>. After a few seconds (longer for big, detailed maps) your layout opens.</p>
+    <figure>
+      <img src="images/guide/result.jpg" width="1100" height="868" alt="The layout window: a 3D model on the left, details below it, and the order form and price on the right" loading="lazy">
+      <figcaption>The layout window: preview and details on the left, your order on the right.</figcaption>
+    </figure>
+    <dl>
+      <dt>3D view</dt>
+      <dd>Your piece as it will look: drag to turn it, scroll or pinch to zoom. The ruler is in centimetres.</dd>
+      <dt>See the back</dt>
+      <dd>Turns the piece over. Every piece has our logo, the map credits, the map's centre and contour
+      spacing, and your reference engraved on the back.</dd>
+      <dt>Flat plan</dt>
+      <dd>The design seen from above, exactly as it will be cut and engraved.</dd>
+      <dt>Details</dt>
+      <dd>Size, number of layers and stack height, heights covered, and how many names fitted. <b>Names left
+      off</b> tells you if anything didn't fit (see <a href="#pitfalls">pitfalls</a>).</dd>
+      <dt>Copy share link</dt>
+      <dd>A link that reopens this exact design, to save it for later or show someone.</dd>
+      <dt>Material and layer thickness</dt>
+      <dd>Choose the wood. The price updates as you change it.</dd>
+      <dt>Send request</dt>
+      <dd>Sends your design to us with your name, email and any notes. We reply to confirm the details
+      and price before anything is made.</dd>
+    </dl>
+    <div class="pair">
+      <figure><img src="images/guide/result-plan.jpg" width="620" height="569" alt="The flat plan of the Grasmere layout" loading="lazy"><figcaption>Flat plan.</figcaption></figure>
+      <figure><img src="images/guide/result-back.jpg" width="620" height="541" alt="The back of the piece with the TurnerMadeUK logo and credits" loading="lazy"><figcaption>See the back: logo, credits and reference.</figcaption></figure>
+    </div>
+    <p class="tip">Came from our Etsy shop? You'll see <b>Save my design</b> instead of Send request. It
+    gives you a short code to paste into the personalisation box when you buy on Etsy.</p>
+
+    <h2 id="phone">9. On a phone</h2>
+    <div class="pair">
+      <figure class="phone"><img src="images/guide/phone.jpg" width="585" height="996" alt="The designer on a phone: map at the top, step tabs and cards below" loading="lazy"></figure>
+      <div>
+        <p>The map stays at the top of the screen the whole time, so you can see what each option does.</p>
+        <ul>
+          <li><b>Swipe the panel</b> under the map left or right to move between steps, or tap a step's tab.</li>
+          <li>Each step scrolls up and down on its own.</li>
+          <li>Use the <b>padlock</b> to stop the map moving while you drag markers or text with your finger.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 id="pitfalls">10. Common pitfalls</h2>
+
+    <div class="pitfall">
+      <h3>Too many (or too few) layers</h3>
+      <p>The number of layers is the height range in the frame divided by the contour spacing. A big
+      mountain area at 10 m spacing can mean a hundred layers: a tall, heavy, expensive piece full of thin,
+      fragile bits. A gentle area at 100 m spacing might be two layers and look flat.</p>
+      <p class="fix">Aim for roughly 10–25 layers. Check "Layers" in the layout details, and change
+      "Contour every" until it's in that range. The note under the 3D view also tells you how much steeper
+      than real life the hills will look.</p>
+    </div>
+
+    <div class="pitfall">
+      <h3>Names left off</h3>
+      <p>Names never overlap each other: if one has no room, it's left off and counted under <b>Names left
+      off</b>. Large text, place names down to villages, and a big area all crowd the board.</p>
+      <figure><img src="images/guide/pitfall-crowded.jpg" width="620" height="569" alt="A crowded flat plan of the whole Lake District with large lettering" loading="lazy"></figure>
+      <figure><img src="images/guide/pitfall-crowded-stats.jpg" width="620" height="98" alt="Layout details showing 103 names left off" loading="lazy"><figcaption>The whole Lake District on A4 with large text: 103 names didn't fit.</figcaption></figure>
+      <p class="fix">Use smaller text, show names without heights, show fewer place names, or zoom in
+      on a smaller area.</p>
+    </div>
+
+    <div class="pitfall">
+      <h3>A peak you wanted isn't named</h3>
+      <p>Higher summits get first choice of space, so a lower top next to a big one can lose out. Its
+      triangle is left off too, so there are no unnamed markers.</p>
+      <p class="fix">Add it as a special place with its name as the label, as special places are placed
+      before peaks. Or use smaller text.</p>
+    </div>
+
+    <div class="pitfall">
+      <h3>The map moved after you set it up</h3>
+      <p>It's easy to nudge the map while dragging a marker or scrolling the page, especially on a phone.</p>
+      <p class="fix">Get the frame right first, then tap the padlock.</p>
+    </div>
+
+    <div class="pitfall">
+      <h3>Your route or marker isn't on the layout</h3>
+      <p>Anything outside the frame (or under the frame's rim, or off a shaped board's map area) is left off.
+      The layout window tells you if your route was left off.</p>
+      <p class="fix">Use <b>Fit frame to route</b>, and drag markers and text well inside the frame.</p>
+    </div>
+
+    <div class="pitfall">
+      <h3>Fragile slivers and tiny islands</h3>
+      <p>Very close contour spacing with no smoothing can leave pieces only a few millimetres across. Very
+      small bits are removed automatically, but thin necks can still be delicate.</p>
+      <p class="fix">Use Light or Medium smoothing, and a slightly wider contour spacing.</p>
+    </div>
+
+    <div class="pitfall">
+      <h3>A huge area loses its rivers and roads</h3>
+      <p>Over about 200 km across (most of a country), rivers, lakes and roads are left off because they'd
+      be far too fine to see, and the coastline is simplified. The layout tells you when this happens.</p>
+      <p class="fix">Zoom in if you want water and roads on the board.</p>
+    </div>
+
+    <div class="pitfall">
+      <h3>Changing the size after placing things</h3>
+      <p>Switching board size changes the frame's shape, so markers and text near the edge can end up outside it.</p>
+      <p class="fix">Pick the board size before adding special places, text and routes, or check them again after.</p>
+    </div>
+
+    <h2 id="limits">11. What the designer can't do</h2>
+    <ul>
+      <li><b>Where:</b> hill names, water, roads, places and postcodes cover Great Britain and Ireland only.
+      Irish Eircodes can't be searched yet; search a town or hill instead.</li>
+      <li><b>Height detail:</b> the height data is accurate to tens of metres across, not to every crag.
+      Small features are smoothed out, and heights can differ by a few metres from OS maps. Very
+      occasionally the data has small glitches; we check every design before cutting.</li>
+      <li><b>Map data:</b> rivers, roads, paths and many hill names come from OpenStreetMap, which volunteers
+      keep up to date. A path or lane may be missing or out of date there, so it won't appear here either.</li>
+      <li><b>Small water:</b> ponds smaller than about 1,500 m² are left off; they'd only be a dot.</li>
+      <li><b>Layers:</b> at most 150 layers (the designer asks you to widen the spacing beyond that), and
+      the smallest pieces (about 2 × 2 mm) are dropped because they can't be cut safely.</li>
+      <li><b>Text:</b> up to three text boxes, four lines and 120 characters each, in one typeface.
+      Up to three special places.</li>
+      <li><b>Products:</b> clocks, coasters and bookmarks are single engraved boards only, not layered.
+      Coasters come singly or in sets of up to four, all the same design.</li>
+      <li><b>Look:</b> the preview shows the design, not the exact wood. Grain, colour and how dark the laser
+      burns vary from sheet to sheet.</li>
+      <li><b>Price:</b> the price shown is an estimate. We confirm the final price when we reply.</li>
+    </ul>
+
+    <p><a class="cta" href="./">Start designing</a></p>
+    <p class="back-top"><a href="#">Back to top</a> · <a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a> · <a href="licences.html">Data licences</a></p>
+  </main>
+</body>
+</html>
