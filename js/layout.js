@@ -94,12 +94,36 @@ export async function fetchElevationGrid(bounds, onProgress = () => {}, dem = EA
     for (let tx = tx0; tx <= tx1; tx++) jobs.push({ tx, ty });
   }
   let done = 0;
+  const tileUrl = (zz, x, y) => dem.url.replace("{z}", zz).replace("{x}", x).replace("{y}", y);
+  ctx.imageSmoothingEnabled = false; // heights are encoded in the colours: never blend them
   await Promise.all(
     jobs.map(async ({ tx, ty }) => {
-      const url = dem.url.replace("{z}", z).replace("{x}", tx).replace("{y}", ty);
-      const img = await loadImage(url);
+      // A tile that fails to load (a dropped connection) is tried again,
+      // then filled from a less detailed tile of the same area, so a lost
+      // tile never becomes a square pit at sea level.
+      // A half-downloaded tile still "loads", with the missing part blank:
+      // a tile counts only if every pixel is there.
+      const whole = (im) => {
+        if (!im || !dem.sea) return im;
+        const c = document.createElement("canvas");
+        c.width = c.height = TILE;
+        const g = c.getContext("2d", { willReadFrequently: true });
+        g.drawImage(im, 0, 0);
+        const a = g.getImageData(0, 0, TILE, TILE).data;
+        for (let i = 3; i < a.length; i += 4) if (a[i] < 255) return null;
+        return im;
+      };
+      const img = whole(await loadImage(tileUrl(z, tx, ty))) || whole(await loadImage(tileUrl(z, tx, ty) + (dem.url.includes("?") ? "&" : "?") + "retry=1"));
+      let parent = null, k = 0;
+      if (!img && dem.sea) {
+        for (k = 1; k <= 3 && z - k >= 0 && !parent; k++) parent = whole(await loadImage(tileUrl(z - k, tx >> k, ty >> k)));
+        k--;
+      }
       if (img) ctx.drawImage(img, (tx - tx0) * TILE, (ty - ty0) * TILE);
-      else if (dem.sea) {
+      else if (parent) {
+        const n = 2 ** k, part = TILE / n;
+        ctx.drawImage(parent, (tx % n) * part, (ty % n) * part, part, part, (tx - tx0) * TILE, (ty - ty0) * TILE, TILE, TILE);
+      } else if (dem.sea) {
         // Terrarium value for 0 m: R=128, G=0, B=0
         ctx.fillStyle = "rgb(128,0,0)";
         ctx.fillRect((tx - tx0) * TILE, (ty - ty0) * TILE, TILE, TILE);
