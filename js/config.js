@@ -168,6 +168,10 @@ export const CONFIG = {
     },
     etsyNote: "An estimate of the Etsy price. Choose the options below when you buy on Etsy.",
     showInEtsyMode: true, // show the estimate in Etsy mode too (with etsyMarkup)
+    // false hides the price from customers in the layout window (the shop
+    // still gets the wood order and price to charge in the request email,
+    // and owner mode still shows it). Set true to show it again.
+    showToCustomers: false,
   },
 
   // Engraved on the back of the base board (turn it over left to right after
