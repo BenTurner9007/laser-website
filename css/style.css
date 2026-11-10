@@ -547,6 +547,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .text-size-row { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; font-size: .88rem; }
 .text-size-row input { flex: 1; accent-color: var(--accent); }
 .text-size-row output { min-width: 4.2em; text-align: right; color: var(--muted); }
+.rotate-row { margin: 0 0 10px; }
+.rotate-row .text-size-row { margin-top: 0; }
+.rotate-row input[type="range"] { padding: 0; border: none; background: none; }
+.rotate-row output { min-width: 5.4em; }
+.rotate-row .link-btn { color: var(--accent); font-size: .85rem; }
 .text-row .check { margin: 4px 0 0; font-size: .88rem; }
 .text-clear-note { margin: 2px 0 0; }
 .text-input { width: 100%; min-height: 3.2em; resize: vertical; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
