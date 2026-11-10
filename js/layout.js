@@ -619,6 +619,48 @@ function trimLines(lines, W, H, margin) {
   return out;
 }
 
+/** The parts of lines (mm) inside polys (even-odd), cut exactly where they cross an edge. */
+function clipLinesToPolys(lines, polys) {
+  const edges = [];
+  for (const poly of polys) for (const ring of poly) for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) edges.push([ring[j], ring[i]]);
+  const out = [];
+  for (const line of lines) {
+    let run = [];
+    const flush = () => {
+      if (run.length > 1) out.push(run);
+      run = [];
+    };
+    for (let i = 1; i < line.length; i++) {
+      const a = line[i - 1], b = line[i];
+      const dx = b[0] - a[0], dy = b[1] - a[1];
+      const at = (t) => [a[0] + dx * t, a[1] + dy * t];
+      const ts = [0, 1];
+      for (const [p, q] of edges) {
+        const ex = q[0] - p[0], ey = q[1] - p[1];
+        const den = dx * ey - dy * ex;
+        if (!den) continue;
+        const t = ((p[0] - a[0]) * ey - (p[1] - a[1]) * ex) / den;
+        const u = ((p[0] - a[0]) * dy - (p[1] - a[1]) * dx) / den;
+        if (t > 0 && t < 1 && u >= 0 && u <= 1) ts.push(t);
+      }
+      ts.sort((x, y) => x - y);
+      for (let k = 1; k < ts.length; k++) {
+        if (ts[k] - ts[k - 1] < 1e-9) continue;
+        if (!inPolys(polys, at((ts[k - 1] + ts[k]) / 2))) {
+          flush();
+          continue;
+        }
+        const p0 = at(ts[k - 1]), last = run[run.length - 1];
+        if (last && Math.hypot(last[0] - p0[0], last[1] - p0[1]) > 1e-6) flush();
+        if (!run.length) run.push(p0);
+        run.push(at(ts[k]));
+      }
+    }
+    flush();
+  }
+  return out;
+}
+
 // One filled path per shape: shapes that overlap (a route crossing a label)
 // then both engrave, instead of cancelling out under the even-odd rule.
 const fillEach = (polys, colour) => polys.map((p) => `<path d="${polygonsToPath([p])}" fill="${colour}" fill-rule="evenodd"/>\n`).join("");
@@ -804,11 +846,17 @@ export async function buildLayout(o, onProgress) {
   // laser. Wide rivers and canals have an area too (riverfill), filled the
   // same way. Names may sit over them: the fill is cut away behind names.
   let lakeShapes = [];
-  const areaRings = [...(o.water?.lakes ? o.water.lakefill || [] : []), ...(o.water?.rivers ? o.water.riverfill || [] : [])];
-  if (areaRings.length) {
+  {
     const frameBox = { x0: 0, y0: 0, x1: W, y1: H };
-    const rings = areaRings.map((r) => clipRingToBox(r.map(toMm), frameBox)).filter((r) => r.length >= 3);
-    lakeShapes = rings.length ? tidy(polygonClipping.xor(...rings.map((r) => [[r]])), 0.5) : [];
+    // Each set's rings are filled even-odd (islands are holes), then lakes and
+    // river areas are merged: where they overlap, XOR-ing them all together
+    // would punch a hole and leave extra outlines in the laser file.
+    const areaOf = (rawRings) => {
+      const rings = (rawRings || []).map((r) => clipRingToBox(r.map(toMm), frameBox)).filter((r) => r.length >= 3);
+      return rings.length ? tidy(polygonClipping.xor(...rings.map((r) => [[r]])), 0.5) : [];
+    };
+    const sets = [o.water?.lakes ? areaOf(o.water.lakefill) : [], o.water?.rivers ? areaOf(o.water.riverfill) : []].filter((s) => s.length);
+    lakeShapes = sets.length > 1 ? tidy(polygonClipping.union(...sets), 0.5) : sets[0] || [];
     if (tpl && lakeShapes.length) lakeShapes = clip("intersection", lakeShapes, tpl.mapRegion, 0.5);
   }
 
@@ -1153,7 +1201,7 @@ export async function buildLayout(o, onProgress) {
   }
   const engravePath = (i) =>
     engrave.filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.engrave)).join("") +
-    [...lakeEngrave, ...riverEngrave].filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.fill)).join("");
+    waterFill.filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.fill)).join("");
 
   // Water: lake shores, rivers, streams and coastline as score lines, each
   // stretch on whichever layer is on top there (looked up in a layer mask,
@@ -1268,6 +1316,17 @@ export async function buildLayout(o, onProgress) {
         });
       }
     }
+    // The layer lookup above finds the edge of the map area only to within a
+    // fraction of a millimetre: cut score lines exactly at it, and drop any
+    // dot that would poke past it (a coaster's border stays clean).
+    for (const w of water) {
+      w.lines = w.dotted
+        ? w.lines.filter(([[ax, ay], [bx, by]]) => {
+            const r = Math.hypot(bx - ax, by - ay) / 2, cx = (ax + bx) / 2, cy = (ay + by) / 2;
+            return AROUND.every(([ux, uy]) => inPolys(markRegion, [cx + ux * r, cy + uy * r]));
+          })
+        : clipLinesToPolys(w.lines, markRegion);
+    }
   }
   // Engraved boards: contour lines as open lines, with the label boxes left clear.
   const contourLines = layers.slice(1).flatMap((l) => l.polys.flat().map((r) => [...r, r[0]]));
@@ -1293,7 +1352,43 @@ export async function buildLayout(o, onProgress) {
   // Layered: each layer is a group of its separate pieces, so they can be
   // nested on sheets; each piece carries its glue guides, engraving and numbers.
   let piecesCache = null;
-  const waterFill = [...lakeEngrave, ...riverEngrave].map((e) => ({ ...e, fill: true })); // filled in solid
+  // Lake areas and river bands on each layer, merged into one shape: a river's
+  // band laid over its own water area (or two bands crossing) would otherwise
+  // keep every outline as stray lines inside the fill. Trimmed to the map area
+  // (never past a coaster's border or under a frame) and, on layered boards,
+  // to where that layer is on top.
+  const mergeWaterFill = () => {
+    const byLayer = new Map();
+    for (const e of [...lakeEngrave, ...riverEngrave]) {
+      if (!byLayer.has(e.layer)) byLayer.set(e.layer, []);
+      byLayer.get(e.layer).push(...e.polys);
+    }
+    const out = [];
+    for (const [layer, parts] of [...byLayer].sort((a, c) => a[0] - c[0])) {
+      try {
+        let polys = tidy(polygonClipping.union(...parts.map((p) => [p])), ENGRAVE_MIN_MM2);
+        polys = clip("intersection", polys, markRegion, ENGRAVE_MIN_MM2);
+        if (o.style !== "engraved") {
+          if (layer > 0) polys = clip("intersection", polys, layers[layer].polys, ENGRAVE_MIN_MM2);
+          if (layers[layer + 1] && polys.length) polys = clip("difference", polys, layers[layer + 1].polys, ENGRAVE_MIN_MM2);
+        }
+        polys = cutLabelGaps(polys);
+        if (polys.length) out.push({ layer, polys, fill: true });
+      } catch {
+        // Geometry library hiccup: keep each shape, still trimmed to the map area.
+        const polys = parts.flatMap((p) => {
+          try {
+            return clip("intersection", [p], markRegion, ENGRAVE_MIN_MM2);
+          } catch {
+            return [];
+          }
+        });
+        if (polys.length) out.push({ layer, polys, fill: true });
+      }
+    }
+    return out;
+  };
+  const waterFill = mergeWaterFill(); // filled in solid
   const getPieces = () => (piecesCache ??= numberPieces(splitIntoPieces(layers, [...engrave, ...waterFill], water), NUMBER_MM));
   const pieceContent = (p) =>
     line(polygonsToPath([p.poly]), COLOURS.cut) + "\n" +
