@@ -1219,6 +1219,7 @@ $("#qty").addEventListener("change", (e) => {
 });
 
 function showResult() {
+  applyFixedWood();
   $("#preview").innerHTML = lastResult.preview;
   $("#send-request").disabled = false;
   $("#send-request").textContent = ETSY ? "Save my design" : "Send request";
@@ -1248,6 +1249,28 @@ function fillThicknesses() {
 }
 fillThicknesses();
 $("#material").addEventListener("change", fillThicknesses);
+
+// Sizes always made in one wood (coasters, bookmarks: size.material and
+// size.thicknessMm) set it and hide the choice; the customer's own choice is
+// put back for other sizes. The selects stay enabled so the order form still
+// sends the wood.
+let ownWood = null;
+function applyFixedWood() {
+  const size = CONFIG.sizes.find((s) => s.id === lastResult?.sizeId);
+  const fixed = size?.material && MATERIALS.materials.find((m) => m.name === size.material);
+  if (fixed) {
+    ownWood ??= { material: $("#material").value, thickness: $("#thickness").value };
+    $("#material").value = fixed.name;
+    fillThicknesses();
+    if (size.thicknessMm && fixed.thicknesses.some((t) => t.mm === size.thicknessMm)) $("#thickness").value = String(size.thicknessMm);
+  } else if (ownWood) {
+    $("#material").value = ownWood.material;
+    fillThicknesses();
+    $("#thickness").value = ownWood.thickness;
+    ownWood = null;
+  }
+  $("#material").closest(".row").hidden = !!fixed;
+}
 for (const id of ["#thickness", "#material"]) {
   $(id).addEventListener("change", () => {
     $("#cost-table").innerHTML = "";

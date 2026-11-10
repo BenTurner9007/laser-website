@@ -76,6 +76,8 @@ export const CONFIG = {
     { id: "a3l", label: "A3 landscape", w: 420, h: 297, frame: true },
     // engravedOnly: single engraved boards only (no layered option), e.g.
   // coasters and bookmarks, which must be flat. product: fixed price (pricing.fixed).
+  // material / thicknessMm: always made in this wood (a name from
+  // data/materials.json); the order form hides the wood and thickness choice.
   // Board templates: shape, holes, map area and engraving come from the
     // JSON file (built from a DXF by scripts/build-templates.py); w and h
     // must match the template.
@@ -86,10 +88,10 @@ export const CONFIG = {
     // Clocks are single engraved boards for now; remove engravedOnly to offer
     // layered clocks again (3D numbers and the movement pocket are built in).
     { id: "clock305", label: "Clock 305 mm", w: 305, h: 305, template: "data/templates/clock-305.json", frame: true, recess: true, engravedOnly: true },
-    { id: "bookmark", label: "Bookmark", w: 50.3, h: 168.91, template: "data/templates/bookmark.json", engravedOnly: true, product: "bookmark" },
-    { id: "coaster-round", label: "Round coaster", w: 100, h: 100, template: "data/templates/coaster-round.json", engravedOnly: true, product: "coaster" },
-    { id: "coaster-square", label: "Square coaster", w: 98.65, h: 98.65, template: "data/templates/coaster-square.json", engravedOnly: true, product: "coaster" },
-    { id: "coaster-rounded", label: "Rounded square coaster", w: 100, h: 100, template: "data/templates/coaster-rounded-square.json", engravedOnly: true, product: "coaster" },
+    { id: "bookmark", label: "Bookmark", w: 50.3, h: 168.91, template: "data/templates/bookmark.json", engravedOnly: true, product: "bookmark", material: "Ceiba plywood", thicknessMm: 2 },
+    { id: "coaster-round", label: "Round coaster", w: 100, h: 100, template: "data/templates/coaster-round.json", engravedOnly: true, product: "coaster", material: "Ceiba plywood", thicknessMm: 2 },
+    { id: "coaster-square", label: "Square coaster", w: 98.65, h: 98.65, template: "data/templates/coaster-square.json", engravedOnly: true, product: "coaster", material: "Ceiba plywood", thicknessMm: 2 },
+    { id: "coaster-rounded", label: "Rounded square coaster", w: 100, h: 100, template: "data/templates/coaster-rounded-square.json", engravedOnly: true, product: "coaster", material: "Ceiba plywood", thicknessMm: 2 },
   ],
 
   // Width of the optional frame glued on top round the edge of single
