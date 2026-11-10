@@ -46,6 +46,7 @@ const MAX_GRID_PX = 1400; // longest side of the elevation grid
 const MAX_TILES = 120;
 const MIN_FEATURE_MM2 = 4; // drop islands/holes smaller than ~2 x 2 mm, too fragile to cut
 const ENGRAVE_MIN_MM2 = 0.01; // engraving can be fine (the dot on an "i")
+const PATH_BUFFER_MM = 0.1; // footpaths are engraved this far either side of the line
 const SIMPLIFY_MM = 0.05;
 
 // --- Web Mercator helpers (world pixel coordinates at zoom z) ---
@@ -615,6 +616,83 @@ function trimLines(lines, W, H, margin) {
       }
     }
     if (run.length > 1) out.push(run);
+  }
+  return out;
+}
+
+/**
+ * A filled band widthMm wide along lines (mm), as merged polygons with no
+ * overlaps. Drawn onto a fine canvas with round ends and joins, then traced
+ * back (d3-contour): joining thousands of small pieces with polygon-clipping
+ * took many seconds on busy path networks and often failed.
+ */
+function rasterBand(lines, widthMm) {
+  // Lines whose bands could touch are drawn together; each group on a canvas
+  // just its own size (one canvas the size of the board, for every layer,
+  // was slow on big boards).
+  const pad = widthMm;
+  const boxes = lines.map((l, i) => {
+    const b = boxOf(l);
+    return { i, x0: b.x0 - pad, y0: b.y0 - pad, x1: b.x1 + pad, y1: b.y1 + pad };
+  });
+  const parent = lines.map((_, i) => i);
+  const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  boxes.sort((a, b) => a.x0 - b.x0);
+  let active = [];
+  for (const b of boxes) {
+    active = active.filter((a) => a.x1 >= b.x0);
+    for (const a of active) if (a.y0 <= b.y1 && b.y0 <= a.y1) parent[find(a.i)] = find(b.i);
+    active.push(b);
+  }
+  const groups = new Map();
+  lines.forEach((l, i) => {
+    const r = find(i);
+    if (!groups.has(r)) groups.set(r, []);
+    groups.get(r).push(l);
+  });
+  return [...groups.values()].flatMap((g) => rasterGroup(g, widthMm));
+}
+
+function rasterGroup(lines, widthMm) {
+  if (!lines.length) return [];
+  const pad = widthMm + 0.5;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const l of lines) for (const [x, y] of l) {
+    if (x < x0) x0 = x;
+    if (y < y0) y0 = y;
+    if (x > x1) x1 = x;
+    if (y > y1) y1 = y;
+  }
+  x0 -= pad, y0 -= pad, x1 += pad, y1 += pad;
+  const k = Math.min(12, 5000 / Math.max(x1 - x0, y1 - y0)); // px per mm
+  const cw = Math.ceil((x1 - x0) * k), ch = Math.ceil((y1 - y0) * k);
+  const c = document.createElement("canvas");
+  c.width = cw;
+  c.height = ch;
+  const g = c.getContext("2d", { willReadFrequently: true });
+  g.scale(k, k);
+  g.translate(-x0, -y0);
+  g.lineWidth = widthMm;
+  g.lineCap = g.lineJoin = "round";
+  g.beginPath();
+  for (const l of lines) l.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+  g.stroke();
+  const px = g.getImageData(0, 0, cw, ch).data;
+  const values = new Float32Array(cw * ch);
+  for (let i = 0; i < values.length; i++) values[i] = px[i * 4 + 3] / 255; // coverage
+  const [band] = d3.contours().size([cw, ch]).smooth(true).thresholds([0.5])(values);
+  const out = [];
+  for (const polygon of band.coordinates) {
+    const rings = [];
+    for (let i = 0; i < polygon.length; i++) {
+      const ring = simplify(polygon[i].slice(0, -1).map(([x, y]) => [x0 + x / k, y0 + y / k]), 0.02);
+      if (ring.length < 3 || ringArea(ring) < ENGRAVE_MIN_MM2) {
+        if (i === 0) break;
+        continue;
+      }
+      rings.push(ring);
+    }
+    if (rings.length) out.push(rings);
   }
   return out;
 }
@@ -1201,6 +1279,7 @@ export async function buildLayout(o, onProgress) {
   }
   const engravePath = (i) =>
     engrave.filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.engrave)).join("") +
+    getPathEngrave().filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.engrave)).join("") +
     waterFill.filter((e) => e.layer === i).map((e) => fillEach(e.polys, COLOURS.fill)).join("");
 
   // Water: lake shores, rivers, streams and coastline as score lines, each
@@ -1313,6 +1392,7 @@ export async function buildLayout(o, onProgress) {
           lines: kind.dotMm ? dotted(runs, kind.dotMm, kind.dotSizeMm) : runs,
           ...(kind.dotMm ? { dotted: true } : {}),
           ...(kind.previewColour ? { previewColour: kind.previewColour } : {}),
+          ...(kind.id === "paths" && !kind.dotMm ? { banded: true } : {}),
         });
       }
     }
@@ -1337,7 +1417,7 @@ export async function buildLayout(o, onProgress) {
     : group === "dots" ? `<path d="${dotCircles(lines)}" fill="${COLOURS.dots}"/>\n` // filled dots (tracks, paths)
     : `<path d="${linesToPath(lines)}" fill="none" stroke="${COLOURS[group]}" stroke-width="0.1"/>\n`;
   const waterPath = (i) =>
-    ["water", "roads", "dots"].map((g) => scorePath(water.filter((w) => w.layer === i && w.group === g).flatMap((w) => w.lines), g)).join("");
+    ["water", "roads", "dots"].map((g) => scorePath(scoreLines.filter((w) => w.layer === i && w.group === g).flatMap((w) => w.lines), g)).join("");
 
   const meta = {
     bounds: o.bounds, widthMm: W, heightMm: H, interval: o.interval, smoothing: o.smoothing,
@@ -1357,23 +1437,23 @@ export async function buildLayout(o, onProgress) {
   // keep every outline as stray lines inside the fill. Trimmed to the map area
   // (never past a coaster's border or under a frame) and, on layered boards,
   // to where that layer is on top.
-  const mergeWaterFill = () => {
+  const mergeFill = (entries, isFill = true, merged = false) => {
     const byLayer = new Map();
-    for (const e of [...lakeEngrave, ...riverEngrave]) {
+    for (const e of entries) {
       if (!byLayer.has(e.layer)) byLayer.set(e.layer, []);
       byLayer.get(e.layer).push(...e.polys);
     }
     const out = [];
     for (const [layer, parts] of [...byLayer].sort((a, c) => a[0] - c[0])) {
       try {
-        let polys = tidy(polygonClipping.union(...parts.map((p) => [p])), ENGRAVE_MIN_MM2);
+        let polys = merged ? parts : tidy(polygonClipping.union(...parts.map((p) => [p])), ENGRAVE_MIN_MM2);
         polys = clip("intersection", polys, markRegion, ENGRAVE_MIN_MM2);
         if (o.style !== "engraved") {
           if (layer > 0) polys = clip("intersection", polys, layers[layer].polys, ENGRAVE_MIN_MM2);
           if (layers[layer + 1] && polys.length) polys = clip("difference", polys, layers[layer + 1].polys, ENGRAVE_MIN_MM2);
         }
         polys = cutLabelGaps(polys);
-        if (polys.length) out.push({ layer, polys, fill: true });
+        if (polys.length) out.push({ layer, polys, fill: isFill });
       } catch {
         // Geometry library hiccup: keep each shape, still trimmed to the map area.
         const polys = parts.flatMap((p) => {
@@ -1383,13 +1463,25 @@ export async function buildLayout(o, onProgress) {
             return [];
           }
         });
-        if (polys.length) out.push({ layer, polys, fill: true });
+        if (polys.length) out.push({ layer, polys, fill: isFill });
       }
     }
     return out;
   };
-  const waterFill = mergeWaterFill(); // filled in solid
-  const getPieces = () => (piecesCache ??= numberPieces(splitIntoPieces(layers, [...engrave, ...waterFill], water), NUMBER_MM));
+  const waterFill = mergeFill([...lakeEngrave, ...riverEngrave]); // filled in solid
+  // Footpaths and bridleways: in the cut file, a filled band PATH_BUFFER_MM
+  // either side of the line (engraved black) instead of a hairline score.
+  // The previews still draw them as lines (they stay in `water`), so the
+  // bands are only made when the SVG is.
+  let pathCache = null;
+  const getPathEngrave = () => {
+    if (pathCache) return pathCache;
+    const byLayer = new Map();
+    for (const w of water.filter((w) => w.banded)) byLayer.set(w.layer, [...(byLayer.get(w.layer) || []), ...w.lines]);
+    return (pathCache = mergeFill([...byLayer].map(([layer, lines]) => ({ layer, polys: rasterBand(lines, PATH_BUFFER_MM * 2) })), false, true));
+  };
+  const scoreLines = water.filter((w) => !w.banded);
+  const getPieces = () => (piecesCache ??= numberPieces(splitIntoPieces(layers, [...engrave, ...getPathEngrave(), ...waterFill], scoreLines), NUMBER_MM));
   const pieceContent = (p) =>
     line(polygonsToPath([p.poly]), COLOURS.cut) + "\n" +
     (o.guides && p.children.length ? line(polygonsToPath(p.children.map((c) => c.poly)), COLOURS.guide) + "\n" : "") +
