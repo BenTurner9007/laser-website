@@ -1,6 +1,6 @@
 /* global maplibregl, mlcontour */
 import { CONFIG, REGIONS, HILL_LISTS } from "./config.js";
-import { buildLayout, DEM_URL, EARTH_DEM } from "./layout.js";
+import { buildLayout, coverBounds, DEM_URL, EARTH_DEM } from "./layout.js";
 import { createViewer } from "./viewer3d.js";
 import { SHAPES, DEFAULT_SHAPE, PLACE_SIZES, shapeIcon } from "./shapes.js";
 import { parseRouteFile, encodeRoute, decodeRoute, routeLengthKm } from "./route.js";
@@ -75,6 +75,9 @@ const state = {
   // Every bundled hill list is named (and Moon/Mars features); no per-list choice.
   lists: new Set([...HILL_LISTS.map((l) => l.id), "features"]),
   sharedBounds: parseBounds(params.get("b")),
+  // Board rotation: the compass direction at the top of the board (the map's
+  // bearing), -180..180 degrees; 0 is north up.
+  bearing: (((Math.round(+params.get("rot") || 0) % 360) + 540) % 360) - 180,
   thickness: num("t", 0.5, 20, CONFIG.defaultThickness || 3), // snapped to what the material offers
   material: (params.get("mat") || "").slice(0, 60),
   // Customers' special places: { lng, lat, shape, label }.
@@ -541,10 +544,12 @@ function setMapLocked(on, bounds = null) {
     else if (lockedBounds) {
       const b = lockedBounds;
       lockedBounds = null;
-      fitFrameTo([b.west, b.south, b.east, b.north]);
+      fitFrameTo([b.west, b.south, b.east, b.north], 0, b.bearing || 0);
     }
     layoutFrame();
   }
+  $("#rotate").disabled = on; // a locked layout keeps its turn
+  $("#rotate-reset").disabled = on;
   const btn = $("#map-lock");
   btn.innerHTML = on ? LOCK_ICON.shut : LOCK_ICON.open;
   btn.setAttribute("aria-pressed", on);
@@ -595,9 +600,12 @@ const frameEl = $("#frame");
 function frameRect() {
   const box = $(".map-wrap").getBoundingClientRect();
   if (lockedBounds) {
-    // Locked: the frame sits on the locked area, wherever the map is looking.
-    const nw = map.project([lockedBounds.west, lockedBounds.north]), se = map.project([lockedBounds.east, lockedBounds.south]);
-    return { x: nw.x, y: nw.y, w: se.x - nw.x, h: se.y - nw.y, cw: box.width, ch: box.height };
+    // Locked: the frame sits on the locked area, wherever the map is looking
+    // (the map keeps the locked area's rotation, so the frame stays square on).
+    const m = mercBox(lockedBounds), k = worldPx();
+    const c = map.project(new maplibregl.MercatorCoordinate(m.cx, m.cy).toLngLat());
+    const w = m.w * k, h = m.h * k;
+    return { x: c.x - w / 2, y: c.y - h / 2, w, h, cw: box.width, ch: box.height };
   }
   const margin = box.width < 600 ? 28 : 56;
   const scale = Math.min((box.width - margin * 2) / state.w, (box.height - margin * 2 - 30) / state.h);
@@ -610,6 +618,8 @@ function layoutFrame() {
   Object.assign(frameEl.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
   if (textMarkers) sizeTextMarkers();
   renderFrameOption();
+  // Drawn shapes follow the map as drawn, north up.
+  $("#rotate-row").hidden = state.template === "custom";
   $("#frame-size").textContent =
     state.template === "custom" ? `Custom shape ${Math.round(state.w)} × ${Math.round(state.h)} mm` : state.template ? sizeOf(state.template).label : `${state.w} × ${state.h} mm`;
   updateScale();
@@ -636,12 +646,34 @@ async function renderFrameTemplate() {
     `</svg>`;
 }
 
+// Rotated boards: a box's centre and size in Mercator units (0..1 across the
+// world), and screen pixels per Mercator unit at the current zoom.
+function mercBox(b) {
+  const nw = maplibregl.MercatorCoordinate.fromLngLat([b.west, b.north]);
+  const se = maplibregl.MercatorCoordinate.fromLngLat([b.east, b.south]);
+  return { cx: (nw.x + se.x) / 2, cy: (nw.y + se.y) / 2, w: se.x - nw.x, h: se.y - nw.y };
+}
+const worldPx = () => 512 * 2 ** map.getZoom();
+const fromMerc = (cx, cy, w, h) => {
+  const nw = new maplibregl.MercatorCoordinate(cx - w / 2, cy - h / 2).toLngLat();
+  const se = new maplibregl.MercatorCoordinate(cx + w / 2, cy + h / 2).toLngLat();
+  return { west: nw.lng, north: nw.lat, east: se.lng, south: se.lat };
+};
+
+// The board's area: its box as it would sit north up (same centre and size),
+// plus bearing when the map (and so the board) is turned.
 function frameBounds() {
   if (lockedBounds) return { ...lockedBounds };
   const r = frameRect();
-  const nw = map.unproject([r.x, r.y]);
-  const se = map.unproject([r.x + r.w, r.y + r.h]);
-  return { west: nw.lng, north: nw.lat, east: se.lng, south: se.lat };
+  const bearing = Math.round(map.getBearing());
+  if (!bearing) {
+    const nw = map.unproject([r.x, r.y]);
+    const se = map.unproject([r.x + r.w, r.y + r.h]);
+    return { west: nw.lng, north: nw.lat, east: se.lng, south: se.lat };
+  }
+  const c = maplibregl.MercatorCoordinate.fromLngLat(map.unproject([r.x + r.w / 2, r.y + r.h / 2]));
+  const k = worldPx();
+  return { ...fromMerc(c.x, c.y, r.w / k, r.h / k), bearing };
 }
 
 function groundWidthMetres(b) {
@@ -658,9 +690,21 @@ function updateScale() {
 }
 
 // Move the map so [west, south, east, north] fills the frame.
-function fitFrameTo([w, s, e, n], duration = 0) {
+// With a bearing (the map turned), the box is the board's north-up box: the
+// map turns to that bearing and the box's centre and size fill the frame.
+function fitFrameTo([w, s, e, n], duration = 0, bearing = Math.round(map.getBearing())) {
   if (lockedBounds) setMapLocked(false); // moving the layout on purpose unlocks it
   const r = frameRect();
+  if (bearing) {
+    const m = mercBox({ west: w, south: s, east: e, north: n });
+    const zoom = Math.log2(Math.min(r.w / m.w, r.h / m.h) / 512);
+    map.easeTo({
+      center: new maplibregl.MercatorCoordinate(m.cx, m.cy).toLngLat(), zoom, bearing, duration,
+      offset: [r.x + r.w / 2 - r.cw / 2, r.y + r.h / 2 - r.ch / 2],
+    });
+    return;
+  }
+  if (map.getBearing()) map.setBearing(0);
   map.fitBounds(
     [[w, s], [e, n]],
     { padding: { top: r.y, left: r.x, bottom: r.ch - r.y - r.h, right: r.cw - r.x - r.w }, duration }
@@ -679,12 +723,37 @@ const onStyleReady = (fn) => (styleReady ? fn() : map.once("style.load", fn));
 onStyleReady(() => {
   layoutFrame();
   if (state.sharedBounds?.length === 4 && state.sharedBounds.every(Number.isFinite)) {
-    fitFrameTo(state.sharedBounds);
+    fitFrameTo(state.sharedBounds, 0, state.bearing);
     const [west, south, east, north] = state.sharedBounds;
-    pinnedBounds = { west, south, east, north };
+    pinnedBounds = { west, south, east, north, ...(state.bearing ? { bearing: state.bearing } : {}) };
   } else if (SITES.length) {
     fitFrameTo(SITES[0].box); // Moon / Mars: start on the first famous place
   }
+});
+
+// ---------- Turning the board ----------
+// The board stays square on the screen and the map turns under it (the map's
+// bearing), so any direction can be at the top of the design.
+const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+function showBearing() {
+  const d = Math.round(map.getBearing());
+  state.bearing = d;
+  $("#rotate").value = String(d);
+  $("#rotate-value").textContent = d ? `${COMPASS[Math.round(((d + 360) % 360) / 22.5) % 16]} up · ${Math.abs(d)}°` : "North up";
+  $("#rotate-reset").hidden = !d;
+}
+function turnMap(d) {
+  if (mapLocked) return;
+  pinnedBounds = null; // a shared link's area no longer matches
+  const r = frameRect();
+  map.rotateTo(d, { duration: 0, around: map.unproject([r.x + r.w / 2, r.y + r.h / 2]) });
+}
+$("#rotate").addEventListener("input", (e) => turnMap(+e.target.value));
+$("#rotate-reset").addEventListener("click", () => turnMap(0));
+map.on("rotate", showBearing);
+onStyleReady(() => {
+  if (state.bearing && !state.sharedBounds) map.setBearing(state.bearing);
+  showBearing();
 });
 
 // ---------- Step 1: search and regions ----------
@@ -970,6 +1039,7 @@ function shareLink(b, ref) {
     ref,
     ...(BODY !== "earth" ? { body: BODY } : {}),
     b: [b.west, b.south, b.east, b.north].map((v) => v.toFixed(5)).join(","),
+    ...(b.bearing ? { rot: Math.round(b.bearing) } : {}),
     ...(state.template ? { tpl: state.template } : {}),
     w: state.w,
     h: state.h,
@@ -1007,16 +1077,18 @@ $("#generate").addEventListener("click", async () => {
   await Promise.all([hillsReady, townsReady]);
   const fromLink = pinnedMatchesFrame();
   const b = fromLink ? pinnedBounds : frameBounds();
+  // A turned board: the data comes from the north-up area round it.
+  const area = coverBounds(b);
   try {
     setStatus("Fetching elevation data…");
     // Water tiles ship with the site; if one fails to load, carry on without water.
     // Very large maps (most of a country) leave them out: thousands of tiles to
     // fetch, and far too fine to show at that scale.
-    const tooBig = detailTiles(b) > DETAIL_MAX_TILES;
+    const tooBig = detailTiles(area) > DETAIL_MAX_TILES;
     let water = null, roads = null, waterFailed = false;
     if (!tooBig) {
       try {
-        [water, roads] = await Promise.all([waterFor(b), roadsFor(b)]);
+        [water, roads] = await Promise.all([waterFor(area), roadsFor(area)]);
       } catch {
         waterFailed = true;
       }
@@ -1024,8 +1096,8 @@ $("#generate").addEventListener("click", async () => {
     // The sea, so the land stops at the true coastline (Earth only). Large
     // maps use the simplified coastline, and still show it if it is chosen.
     let sea = null;
-    if (siteDem(b).sea && !tooBig) sea = await fetchSea(b).catch(() => null);
-    else if (siteDem(b).sea) {
+    if (siteDem(area).sea && !tooBig) sea = await fetchSea(area).catch(() => null);
+    else if (siteDem(area).sea) {
       const overview = await fetchCoastOverview().catch(() => null);
       sea = overview && { box: overview.box, land: overview.land };
       if (overview && state.water.has("coast")) water = { coast: overview.coast };
@@ -1041,10 +1113,10 @@ $("#generate").addEventListener("click", async () => {
         interval: state.interval,
         smoothing: state.smoothing,
         style: state.style,
-        peaks: peaksInFrame(b),
+        peaks: peaksInFrame(area),
         labelMode: state.labelMode,
         fontMm: state.fontMm,
-        towns: state.placeNames === "none" ? [] : placesInFrame(b),
+        towns: state.placeNames === "none" ? [] : placesInFrame(area),
         townFontMm: state.placeFontMm,
         labelBoxes: state.labelBoxes,
         labels3d: state.labels3d,
@@ -1052,7 +1124,7 @@ $("#generate").addEventListener("click", async () => {
         recess: currentSize()?.recess ? CONFIG.clockRecess : null,
         thicknessMm: +$("#thickness").value || state.thickness,
         contours: state.contours,
-        dem: siteDem(b),
+        dem: siteDem(area),
         template: state.template ? await loadTemplate(state.template) : null,
         places: state.places,
         texts: state.texts.filter((t) => t.text.trim()).map((t) => ({ ...t, sizeMm: t.size })),
@@ -1953,6 +2025,8 @@ function setShapeStatus(msg, kind = "") {
 }
 function startShapeDrawing() {
   if (drawing) stopDrawing(false);
+  if (mapLocked) setMapLocked(false);
+  if (map.getBearing()) map.setBearing(0); // shapes are drawn north up
   shapeDrawing = true;
   shapeDraft = [];
   updateShapeDraft();
@@ -2105,9 +2179,8 @@ async function showWater() {
     return;
   }
   // Fetch the visible map, not just the frame, so panning a little needs no refetch.
-  const c = map.getContainer();
-  const nw = map.unproject([0, 0]), se = map.unproject([c.clientWidth, c.clientHeight]);
-  const view = { west: nw.lng, north: nw.lat, east: se.lng, south: se.lat };
+  const vb = map.getBounds(); // the whole view, even with the map turned
+  const view = { west: vb.getWest(), north: vb.getNorth(), east: vb.getEast(), south: vb.getSouth() };
   const call = ++waterCall; // a later call (the map moved again) wins
   if (groundWidthMetres(view) > WATER_MAX_METRES) {
     // Zoomed out: the simplified coastline only (rivers would be a tangle).
@@ -2174,9 +2247,8 @@ async function showRoads() {
     note.textContent = "";
     return;
   }
-  const c = map.getContainer();
-  const nw = map.unproject([0, 0]), se = map.unproject([c.clientWidth, c.clientHeight]);
-  const view = { west: nw.lng, north: nw.lat, east: se.lng, south: se.lat };
+  const vb = map.getBounds(); // the whole view, even with the map turned
+  const view = { west: vb.getWest(), north: vb.getNorth(), east: vb.getEast(), south: vb.getSouth() };
   if (groundWidthMetres(view) > ROAD_MAX_METRES) {
     map.getSource("roads").setData(empty);
     note.textContent = "Zoom in to see roads on the map.";
