@@ -334,8 +334,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 }
 .site-footer p { margin: 0; }
 
-/* Step tabs and credits in the last card: phones only (below). */
-.step-tabs, .phone-credits { display: none; }
+/* Step tabs, Back / Next buttons and credits in the last card: phones only (below). */
+.step-tabs, .step-nav, .phone-credits { display: none; }
 
 /* Phones: the map fills the top of the screen and never scrolls away; the
    steps are cards in a strip below it, swiped sideways (or picked from the
@@ -387,10 +387,19 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
     overflow-x: auto;
     overflow-y: hidden;
     scroll-snap-type: x mandatory;
-    overscroll-behavior-x: contain;
+    overscroll-behavior-x: none;
     scrollbar-width: none;
   }
   .steps::-webkit-scrollbar { display: none; }
+  /* Back / Next under the cards: move between steps without swiping. */
+  .step-nav { display: flex; gap: 8px; flex: none; }
+  .step-nav .btn { min-height: 42px; padding: 8px 12px; font-size: .9rem; }
+  .step-nav .step-prev { flex: none; }
+  .step-nav .step-prev:disabled { opacity: .4; cursor: default; }
+  .step-nav .step-next { flex: 1; min-width: 0; background: var(--ink); border-color: var(--ink); color: var(--panel); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* A swipe at the first or last card doesn't carry on into the browser's
+     back / forward gesture (where the browser allows it to be stopped). */
+  html:has(body[data-page]), body[data-page] { overscroll-behavior-x: none; }
   .step {
     flex: 0 0 100%;
     scroll-snap-align: start;

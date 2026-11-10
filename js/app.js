@@ -2408,18 +2408,33 @@ if (params.has("ref") && state.sharedBounds) {
   const strip = $(".steps");
   const tabs = $("#step-tabs");
   const shown = () => [...strip.children].filter((li) => !li.hidden);
-  const name = (li) => li.querySelector("h2").cloneNode(true);
+  const name = (li) => {
+    const h = li.querySelector("h2").cloneNode(true);
+    h.querySelector(".optional")?.remove();
+    return h.textContent.replace(/^\s*\d+\s*/, "").trim();
+  };
+  const goTo = (li) => li && strip.scrollTo({ left: li.offsetLeft, behavior: "smooth" });
+  // Back / Next buttons under the cards, for moving between steps without
+  // swiping (a swipe can carry on into the browser's own "go back" gesture).
+  const nav = document.createElement("div");
+  nav.className = "step-nav";
+  nav.innerHTML =
+    '<button type="button" class="btn step-prev" aria-label="Previous step">‹ Back</button>' +
+    '<button type="button" class="btn step-next"></button>';
+  strip.after(nav);
+  const prevBtn = nav.querySelector(".step-prev"), nextBtn = nav.querySelector(".step-next");
+  let current = 0;
+  prevBtn.addEventListener("click", () => goTo(shown()[current - 1]));
+  nextBtn.addEventListener("click", () => goTo(shown()[current + 1]));
   const renderTabs = () => {
     const steps = shown();
     tabs.innerHTML = "";
     steps.forEach((li, i) => {
-      const h = name(li);
-      h.querySelector(".optional")?.remove();
       const b = document.createElement("button");
       b.type = "button";
       b.className = "step-tab";
-      b.innerHTML = `<span class="num">${i + 1}</span> ${escapeHtml(h.textContent.replace(/^\s*\d+\s*/, "").trim())}`;
-      b.addEventListener("click", () => strip.scrollTo({ left: li.offsetLeft, behavior: "smooth" }));
+      b.innerHTML = `<span class="num">${i + 1}</span> ${escapeHtml(name(li))}`;
+      b.addEventListener("click", () => goTo(li));
       tabs.append(b);
     });
     markTab();
@@ -2427,6 +2442,11 @@ if (params.has("ref") && state.sharedBounds) {
   const markTab = () => {
     const steps = shown();
     const i = Math.min(steps.length - 1, Math.max(0, Math.round(strip.scrollLeft / (strip.clientWidth || 1))));
+    current = i;
+    prevBtn.disabled = i === 0;
+    const next = steps[i + 1];
+    nextBtn.hidden = !next;
+    if (next) nextBtn.innerHTML = `Next: ${escapeHtml(name(next))} ›`;
     [...tabs.children].forEach((b, j) => {
       const on = j === i;
       if (on && !b.hasAttribute("aria-current")) tabs.scrollTo({ left: b.offsetLeft - (tabs.clientWidth - b.offsetWidth) / 2, behavior: "smooth" });
@@ -2441,7 +2461,10 @@ if (params.has("ref") && state.sharedBounds) {
   }, { passive: true });
   renderTabs();
   // Steps can be hidden or shown later (e.g. on other worlds): keep the tabs in step.
-  new MutationObserver(renderTabs).observe(strip, { subtree: false, childList: true, attributes: true, attributeFilter: ["hidden"] });
+  const steps0 = [...strip.children];
+  const mo = new MutationObserver(renderTabs);
+  mo.observe(strip, { childList: true });
+  for (const li of steps0) mo.observe(li, { attributes: true, attributeFilter: ["hidden"] });
   // The credits sit at the foot of the last card on phones (the page doesn't scroll there).
   const credits = document.createElement("div");
   credits.className = "phone-credits";
