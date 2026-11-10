@@ -57,6 +57,46 @@ const latToY = (lat, z) => {
   return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * worldSize(z);
 };
 
+const xToLng = (x, z) => (x / worldSize(z)) * 360 - 180;
+const yToLat = (y, z) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / worldSize(z))))) * (180 / Math.PI);
+
+// Rotated boards: bounds carry `bearing` (degrees, the compass direction at
+// the top of the board, as the map's bearing). west/south/east/north are then
+// the board's box as it would sit with north up: same centre, same size.
+/** The north-up box covering a (possibly rotated) board, for fetching data. */
+export function coverBounds(b) {
+  const t = ((+b.bearing || 0) * Math.PI) / 180;
+  if (!t) return { west: b.west, south: b.south, east: b.east, north: b.north };
+  const z = 0;
+  const x0 = lngToX(b.west, z), x1 = lngToX(b.east, z), y0 = latToY(b.north, z), y1 = latToY(b.south, z);
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, hw = (x1 - x0) / 2, hh = (y1 - y0) / 2;
+  const c = Math.abs(Math.cos(t)), s = Math.abs(Math.sin(t));
+  const ex = hw * c + hh * s, ey = hw * s + hh * c; // half extents of the turned box
+  return { west: xToLng(cx - ex, z), east: xToLng(cx + ex, z), north: yToLat(cy - ey, z), south: yToLat(cy + ey, z) };
+}
+
+/**
+ * Board geometry in world pixels at zoom z: centre, size and the turn, with
+ * toLocal([x, y]) giving a world pixel's position across and down the board
+ * (0..bw, 0..bh) and toWorld the reverse.
+ */
+function boardFrame(b, z) {
+  const x0 = lngToX(b.west, z), x1 = lngToX(b.east, z), y0 = latToY(b.north, z), y1 = latToY(b.south, z);
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, bw = x1 - x0, bh = y1 - y0;
+  const t = ((+b.bearing || 0) * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t);
+  return {
+    bw, bh,
+    toLocal: ([x, y]) => {
+      const dx = x - cx, dy = y - cy;
+      return [c * dx + s * dy + bw / 2, -s * dx + c * dy + bh / 2];
+    },
+    toWorld: ([u, v]) => {
+      const lx = u - bw / 2, ly = v - bh / 2;
+      return [cx + c * lx - s * ly, cy + s * lx + c * ly];
+    },
+  };
+}
+
 function pickZoom(b, maxzoom) {
   for (let z = maxzoom; z >= 3; z--) {
     const w = lngToX(b.east, z) - lngToX(b.west, z);
@@ -832,15 +872,43 @@ const esc = (s) =>
  */
 export async function buildLayout(o, onProgress) {
   const dem = o.dem || EARTH_DEM;
-  const [grid] = await Promise.all([fetchElevationGrid(o.bounds, onProgress, dem), loadFonts()]);
-  const { width: gw, height: gh, zoom } = grid;
-  const radius = Math.round(o.smoothing * Math.max(1, gw / 350));
+  // A rotated board fetches the north-up box round it, and the heights (and
+  // sea) are then resampled onto a grid lined up with the board.
+  const rotated = !!(+o.bounds.bearing % 360);
+  const cover = coverBounds(o.bounds);
+  const [grid] = await Promise.all([fetchElevationGrid(cover, onProgress, dem), loadFonts()]);
+  const zoom = grid.zoom;
   // Earth data first has seams removed (thin false ridges or trenches).
-  const raw = dem.sea ? removeSeams(grid.values, gw, gh).values : grid.values;
+  let raw = dem.sea ? removeSeams(grid.values, grid.width, grid.height).values : grid.values;
   // The true coastline (OpenStreetMap): the elevation data's 0 m line wanders
   // out to sea, so the sea is set to 0 m and the land kept above it.
-  const sea = o.sea ? seaMask(o.sea, o.bounds, zoom, gw, gh) : null;
+  let sea = o.sea ? seaMask(o.sea, cover, zoom, grid.width, grid.height) : null;
   if (sea) for (let i = 0; i < raw.length; i++) if (sea.mask[i] === 1) raw[i] = 0;
+  let gw = grid.width, gh = grid.height;
+  if (rotated) {
+    const frame = boardFrame(o.bounds, zoom);
+    const ox = lngToX(cover.west, zoom), oy = latToY(cover.north, zoom);
+    const cw = grid.width, ch = grid.height;
+    gw = Math.max(2, Math.round(frame.bw));
+    gh = Math.max(2, Math.round(frame.bh));
+    const out = new Float64Array(gw * gh);
+    const mask = sea ? new Uint8Array(gw * gh) : null;
+    for (let j = 0; j < gh; j++) {
+      for (let i = 0; i < gw; i++) {
+        const [wx, wy] = frame.toWorld([((i + 0.5) / gw) * frame.bw, ((j + 0.5) / gh) * frame.bh]);
+        // Bilinear between the four nearest cells (cell centres sit at +0.5).
+        const fx = Math.min(cw - 1, Math.max(0, wx - ox - 0.5)), fy = Math.min(ch - 1, Math.max(0, wy - oy - 0.5));
+        const x0 = Math.floor(fx), y0 = Math.floor(fy), x1 = Math.min(cw - 1, x0 + 1), y1 = Math.min(ch - 1, y0 + 1);
+        const ax = fx - x0, ay = fy - y0;
+        const v = (x, y) => raw[y * cw + x];
+        out[j * gw + i] = (v(x0, y0) * (1 - ax) + v(x1, y0) * ax) * (1 - ay) + (v(x0, y1) * (1 - ax) + v(x1, y1) * ax) * ay;
+        if (mask) mask[j * gw + i] = sea.mask[Math.round(fy) * cw + Math.round(fx)];
+      }
+    }
+    raw = out;
+    if (sea) sea = { ...sea, mask };
+  }
+  const radius = Math.round(o.smoothing * Math.max(1, gw / 350));
   const values = smooth(raw, gw, gh, radius);
   // The blur's running sums leave rounding noise (±1e-13) on flat sea; snap it
   // back to 0 so no contour is traced through the noise.
@@ -882,9 +950,11 @@ export async function buildLayout(o, onProgress) {
 
   // Millimetre position of a lng/lat, and whether it is on the board.
   const z = zoom;
-  const fx0 = lngToX(o.bounds.west, z), fy0 = latToY(o.bounds.north, z);
-  const fx1 = lngToX(o.bounds.east, z), fy1 = latToY(o.bounds.south, z);
-  const toMm = ([lng, lat]) => [((lngToX(lng, z) - fx0) / (fx1 - fx0)) * W, ((latToY(lat, z) - fy0) / (fy1 - fy0)) * H];
+  const board = boardFrame(o.bounds, z);
+  const toMm = ([lng, lat]) => {
+    const [u, v] = board.toLocal([lngToX(lng, z), latToY(lat, z)]);
+    return [(u / board.bw) * W, (v / board.bh) * H];
+  };
   // On the map: inside the frame, or the template's map region with a margin.
   const AROUND = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]];
   // Optional frame: a ring frameMm wide round the edge. Single engraved
