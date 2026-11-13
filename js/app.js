@@ -303,8 +303,8 @@ if (BODY !== "earth") {
 const ETSY = !!CONFIG.etsy?.enabled || params.get("etsy") === "1";
 
 // ---------- Branding ----------
-document.title = `${CONFIG.businessName} – ${PAGE_INFO.title}`;
-$("#brand-name").textContent = `${CONFIG.businessName} – ${PAGE_INFO.title}`;
+// The page title and main heading are written in the HTML (for search engines
+// and AI assistants; see scripts/build-pages.py), so they are left alone here.
 document.querySelector(".brand-title").textContent = PAGE_INFO.title;
 $("#brand-tagline").textContent = PAGE_INFO.tagline || CONFIG.tagline;
 // Links between the product pages (kept in Etsy mode).
