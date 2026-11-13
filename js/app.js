@@ -914,6 +914,10 @@ function currentSize() {
 function frameOffered() {
   return !!currentSize()?.frame;
 }
+// No scale bar on clocks (the face is busy enough with its numbers).
+function scaleBarOffered() {
+  return BODY === "earth" && !currentSize()?.recess;
+}
 function frameActive() {
   return state.frame && frameOffered();
 }
@@ -922,6 +926,7 @@ function renderFrameOption() {
   renderFrameText();
   $("#labels-3d-row").hidden = state.style === "engraved"; // only layered boards have layers to raise
   $("#frame-row").hidden = !frameOffered();
+  $("#scale-bar-row").hidden = !scaleBarOffered();
   $("#frame-on").checked = state.frame;
   const el = $("#frame-border");
   el.hidden = !frameActive();
@@ -1063,7 +1068,7 @@ function shareLink(b, ref) {
     font: state.fontMm,
     ...(state.placeNames !== "none" ? { pn: state.placeNames, pfont: state.placeFontMm } : {}),
     ...(state.labelBoxes ? { lbox: "1" } : {}),
-    ...(state.scaleBar ? { sb: "1" } : {}),
+    ...(state.scaleBar && scaleBarOffered() ? { sb: "1" } : {}),
     ...(state.labels3d ? { l3d: "1" } : {}),
     ...(state.contours ? {} : { cl: "0" }),
     ...(frameActive() ? { fr: "1" } : {}),
@@ -1124,7 +1129,7 @@ $("#generate").addEventListener("click", async () => {
         towns: state.placeNames === "none" ? [] : placesInFrame(area),
         townFontMm: state.placeFontMm,
         labelBoxes: state.labelBoxes,
-        scaleBar: state.scaleBar,
+        scaleBar: scaleBarOffered() && state.scaleBar,
         labels3d: state.labels3d,
         frameMm: frameActive() ? CONFIG.frameMm || 5 : 0,
         recess: currentSize()?.recess ? CONFIG.clockRecess : null,
@@ -1187,7 +1192,7 @@ function renderStats() {
     ["Heights", `${m.minElevation}–${m.maxElevation} m`],
     [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.contours ? m.layers - 1 : "off"],
     ["Named peaks", lastResult.peaksPlaced],
-    ...(state.scaleBar && BODY === "earth" ? [["Scale bar", lastResult.scaleBar ? `0 to ${lastResult.scaleBar.label} (${lastResult.scaleBar.lengthMm} mm long)` : "left off (no free space for it)"]] : []),
+    ...(state.scaleBar && scaleBarOffered() ? [["Scale bar", lastResult.scaleBar ? `0 to ${lastResult.scaleBar.label} (${lastResult.scaleBar.lengthMm} mm long)` : "left off (no free space for it)"]] : []),
     ...(state.placeNames !== "none" && BODY === "earth" ? [["Place names", lastResult.townsPlaced]] : []),
     ...(lastResult.labelsLeftOff
       ? [["Names left off", `${lastResult.labelsLeftOff} (no room without overlapping – try smaller text or zoom in)`]]
