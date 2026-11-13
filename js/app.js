@@ -68,6 +68,7 @@ const state = {
   placeNames: ["c", "ct", "ctv"].includes(params.get("pn")) ? params.get("pn") : "none",
   placeFontMm: +oneOf("pfont", optionValues("place-font-mm"), "3.5"),
   labelBoxes: params.get("lbox") === "1",
+  scaleBar: params.get("sb") === "1", // engrave a scale bar in a free corner
   labels3d: params.get("l3d") === "1", // layered: labels on raised flat patches
   contours: params.get("cl") !== "0",
   frame: params.get("fr") === "1",
@@ -859,6 +860,7 @@ if (BODY !== "earth") {
   $("#water-kinds").closest("fieldset").hidden = true;
   $("#road-kinds").closest("fieldset").hidden = true;
   $("#place-label-row").hidden = true;
+  $("#scale-bar-row").hidden = true;
   $(".site-footer p").innerHTML =
     `${WORLD.credit}. Heights are measured from ${WORLD.the}'s reference sphere, so many are negative. ` +
     `Data courtesy of NASA, JAXA and the USGS Astrogeology Science Center. <a href="licences.html">Data licences</a> · <a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a>`;
@@ -912,6 +914,10 @@ function currentSize() {
 function frameOffered() {
   return !!currentSize()?.frame;
 }
+// No scale bar on clocks (the face is busy enough with its numbers).
+function scaleBarOffered() {
+  return BODY === "earth" && !currentSize()?.recess;
+}
 function frameActive() {
   return state.frame && frameOffered();
 }
@@ -920,6 +926,7 @@ function renderFrameOption() {
   renderFrameText();
   $("#labels-3d-row").hidden = state.style === "engraved"; // only layered boards have layers to raise
   $("#frame-row").hidden = !frameOffered();
+  $("#scale-bar-row").hidden = !scaleBarOffered();
   $("#frame-on").checked = state.frame;
   const el = $("#frame-border");
   el.hidden = !frameActive();
@@ -1016,6 +1023,8 @@ $("#place-font-mm").value = String(state.placeFontMm);
 $("#place-font-mm").addEventListener("change", (e) => (state.placeFontMm = +e.target.value));
 $("#labels-3d").checked = state.labels3d;
 $("#labels-3d").addEventListener("change", (e) => (state.labels3d = e.target.checked));
+$("#scale-bar").checked = state.scaleBar;
+$("#scale-bar").addEventListener("change", (e) => (state.scaleBar = e.target.checked));
 $("#label-boxes").checked = state.labelBoxes;
 $("#label-boxes").addEventListener("change", (e) => (state.labelBoxes = e.target.checked));
 
@@ -1059,6 +1068,7 @@ function shareLink(b, ref) {
     font: state.fontMm,
     ...(state.placeNames !== "none" ? { pn: state.placeNames, pfont: state.placeFontMm } : {}),
     ...(state.labelBoxes ? { lbox: "1" } : {}),
+    ...(state.scaleBar && scaleBarOffered() ? { sb: "1" } : {}),
     ...(state.labels3d ? { l3d: "1" } : {}),
     ...(state.contours ? {} : { cl: "0" }),
     ...(frameActive() ? { fr: "1" } : {}),
@@ -1119,6 +1129,7 @@ $("#generate").addEventListener("click", async () => {
         towns: state.placeNames === "none" ? [] : placesInFrame(area),
         townFontMm: state.placeFontMm,
         labelBoxes: state.labelBoxes,
+        scaleBar: scaleBarOffered() && state.scaleBar,
         labels3d: state.labels3d,
         frameMm: frameActive() ? CONFIG.frameMm || 5 : 0,
         recess: currentSize()?.recess ? CONFIG.clockRecess : null,
@@ -1181,6 +1192,7 @@ function renderStats() {
     ["Heights", `${m.minElevation}–${m.maxElevation} m`],
     [m.style === "layered" ? "Layers" : "Contour lines", m.style === "layered" ? m.layers : m.contours ? m.layers - 1 : "off"],
     ["Named peaks", lastResult.peaksPlaced],
+    ...(state.scaleBar && scaleBarOffered() ? [["Scale bar", lastResult.scaleBar ? `0 to ${lastResult.scaleBar.label} (${lastResult.scaleBar.lengthMm} mm long)` : "left off (no free space for it)"]] : []),
     ...(state.placeNames !== "none" && BODY === "earth" ? [["Place names", lastResult.townsPlaced]] : []),
     ...(lastResult.labelsLeftOff
       ? [["Names left off", `${lastResult.labelsLeftOff} (no room without overlapping – try smaller text or zoom in)`]]
