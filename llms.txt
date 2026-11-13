@@ -1,0 +1,31 @@
+# TurnerMadeUK
+
+> TurnerMadeUK makes laser-cut and laser-engraved wooden maps of any hills, coast or town in Great Britain and Ireland. Customers design their own piece online, see it in 3D, and it is made to order in the UK.
+
+## Products
+
+- [Contour maps](https://turnermadeuk.co.uk/): layered 3D maps (stacked wooden layers, one per contour) or single engraved boards, in A4, A3, A4 round (210 mm) or a custom shape drawn round any area.
+- [Wall clocks](https://turnermadeuk.co.uk/clocks/): 305 mm engraved clocks showing the contours of any hills.
+- [Coasters](https://turnermadeuk.co.uk/coasters/): about 100 mm, round, square or rounded square, singly or in sets of up to four, in 2 mm ceiba plywood.
+- [Bookmarks](https://turnermadeuk.co.uk/bookmarks/): about 50 x 169 mm, in 2 mm ceiba plywood.
+
+## What customers can add
+
+- Hill names and heights: Wainwrights, Munros, Welsh 3000s, Ethels, Dales 30, Yorkshire Three Peaks and more than 15,000 other named hills.
+- Rivers, lakes, coastline, roads, tracks, footpaths, and town and village names.
+- Up to three special places (heart, star, pin and other markers) with their own words.
+- Up to three blocks of their own text, such as names and a date.
+- A hiking route, drawn on the map or uploaded as GPX, KML or GeoJSON (from Strava, Komoot, OS Maps, AllTrails or a GPS).
+
+## Facts
+
+- Coverage: Great Britain and Ireland only.
+- Materials: plywood (poplar, birch-faced poplar, maple-faced poplar, birch, ceiba).
+- The maps are decorative, not for navigation, and are not Ordnance Survey maps. They use open data: OpenStreetMap, the Database of British and Irish Hills, and open terrain data.
+- Ordering: design on the website and send a request; the price is confirmed by email before anything is made. Orders can also be placed through Etsy using a design code from the website.
+
+## More
+
+- [Questions and answers](https://turnermadeuk.co.uk/faq)
+- [How to design your map](https://turnermadeuk.co.uk/guide)
+- [Data licences](https://turnermadeuk.co.uk/licences)
