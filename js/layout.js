@@ -861,6 +861,7 @@ const esc = (s) =>
  * @param {boolean} [o.contours]  false for a flat board with no contour lines
  * @param {boolean} [o.labelBoxes]  keep a box behind each label clear: of contour lines (engraved boards) and roads/water
  * @param {{url:string, maxzoom:number, sea:boolean}} [o.dem]  elevation tiles (Earth by default)
+ * @param {boolean} [o.scaleBar]  engrave a scale bar in a free corner (Earth only)
  * @param {boolean} [o.labels3d]  layered: raise each label on a flat patch supported by the layers below
  * @param {{widthMm:number, heightMm:number, depthMm:number, wallMm?:number}} [o.recess]  layered clocks: pocket at the back for the movement
  * @param {number} [o.thicknessMm]  layer thickness, to turn the pocket depth into layers
@@ -1110,6 +1111,45 @@ export async function buildLayout(o, onProgress) {
       clearBehind(r.box);
     }
     else labelsLeftOff++;
+  }
+
+  // Scale bar (o.scaleBar): a bar a round distance long (1, 2 or 5 × 10ⁿ,
+  // about a quarter of the board wide) in alternating blocks, with "0" and
+  // the distance above its ends. It goes in the first free corner (bottom
+  // left first), or along the bottom or top on shaped boards; names, contour
+  // lines, water and roads keep clear of it. The scale is measured at the
+  // middle of the board (it varies a little across very large maps).
+  let scaleBar = null;
+  if (o.scaleBar && dem.sea) {
+    const mid = [(o.bounds.west + o.bounds.east) / 2, (o.bounds.south + o.bounds.north) / 2];
+    const [ax, ay] = toMm(mid), [bx, by] = toMm([mid[0] + 0.01, mid[1]]);
+    const metresPerMm = (0.01 * 111320 * Math.cos((mid[1] * Math.PI) / 180)) / Math.hypot(bx - ax, by - ay);
+    const want = W * 0.25 * metresPerMm;
+    const pow = 10 ** Math.floor(Math.log10(want)), lead = [5, 2, 1].find((n) => n * pow <= want);
+    const dist = lead * pow, len = dist / metresPerMm;
+    const label = dist >= 1000 ? `${dist / 1000} km` : `${dist} m`;
+    const size = W < 120 ? 2 : 2.5, barH = size * 0.45, gap = size * 0.3, asc = size * 0.78;
+    const endW = textRings(label, 0, 0, size).width, h = asc + gap + barH;
+    const edge = 4 + (frameMm ? frameMm + FRAME_GAP : 0);
+    const spots = [[edge, H - edge - h], [W - edge - len, H - edge - h], [edge, edge], [W - edge - len, edge]];
+    for (const fy of [0.86, 0.1, 0.74, 0.22]) spots.push([(W - len) / 2, H * fy - h / 2]); // shaped boards
+    for (const [x0, y0] of spots) {
+      const box = { x0, y0, x1: x0 + Math.max(len, endW), y1: y0 + h };
+      if (!onMap(box) || hits(box)) continue;
+      const yb = y0 + asc + gap, line = 0.25, n = { 1: 2, 2: 4, 5: 5 }[lead], seg = len / n;
+      const rect = (ax0, ay0, ax1, ay1) => [[[ax0, ay0], [ax1, ay0], [ax1, ay1], [ax0, ay1], [ax0, ay0]]];
+      // Outline, with every other block left open.
+      const open = [];
+      for (let k = 1; k < n; k += 2) open.push(rect(x0 + k * seg + (k ? 0 : line), yb + line, x0 + (k + 1) * seg - (k === n - 1 ? line : 0), yb + barH - line));
+      marks.push(polygonClipping.difference(rect(x0, yb, x0 + len, yb + barH), ...open));
+      marks.push(solid(textRings("0", x0, y0 + asc, size).rings));
+      marks.push(solid(textRings(label, x0 + len - endW, y0 + asc, size).rings));
+      taken.push(box);
+      clearBehind(box);
+      if (!o.labelBoxes) labelBoxes.push({ x0: box.x0 - 0.5, y0: box.y0 - 0.5, x1: box.x1 + 0.5, y1: box.y1 + 0.5 }); // no contour lines through it
+      scaleBar = { label, lengthMm: Math.round(len * 10) / 10 };
+      break;
+    }
   }
 
   // Place names (no marker): centred on the place if there is room, else
@@ -1888,5 +1928,5 @@ export async function buildLayout(o, onProgress) {
   }
   preview += "</svg>";
 
-  return { back: backEngraving ? backEngraving.front : null, frame: framePoly && !layeredFrame ? [framePoly] : null, lakes: waterFill, texts, townsPlaced, buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
+  return { scaleBar, back: backEngraving ? backEngraving.front : null, frame: framePoly && !layeredFrame ? [framePoly] : null, lakes: waterFill, texts, townsPlaced, buildSvg, buildCost, contourPath, labelsLeftOff, preview, meta, layers, engrave, water, places, routeOnBoard, peaksPlaced };
 }
