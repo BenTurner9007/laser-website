@@ -610,7 +610,7 @@ function frameRect() {
   }
   const margin = box.width < 600 ? 28 : 56;
   // Room at the foot of the map for the hint and the Create button.
-  const foot = box.width < 600 ? 24 : 40;
+  const foot = box.width < 600 ? 44 : 64;
   const scale = Math.min((box.width - margin * 2) / state.w, (box.height - margin * 2 - 30 - foot) / state.h);
   const fw = state.w * scale, fh = state.h * scale;
   return { x: (box.width - fw) / 2, y: (box.height - foot - fh) / 2, w: fw, h: fh, cw: box.width, ch: box.height };
@@ -1041,6 +1041,17 @@ function setStatus(msg, kind = "") {
   onMap.textContent = msg;
   onMap.className = `map-status ${kind}`;
   onMap.hidden = !msg;
+}
+// How tall the map credits are (they can wrap on narrow screens), so the
+// Create button can sit just above them on phones and never cover them.
+{
+  const wrap = $(".map-wrap"), credits = wrap.querySelector(".maplibregl-ctrl-attrib");
+  const measure = () => wrap.style.setProperty("--credits-h", `${Math.ceil(wrap.getBoundingClientRect().bottom - credits.getBoundingClientRect().top)}px`);
+  if (credits) {
+    new ResizeObserver(measure).observe(credits);
+    new ResizeObserver(measure).observe(wrap);
+    measure();
+  }
 }
 // The Create button on the map does the same as the one in the last step.
 $("#map-generate").addEventListener("click", () => $("#generate").click());
