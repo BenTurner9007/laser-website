@@ -103,22 +103,32 @@ a:hover { color: var(--ink); }
 .frame-size { top: -32px; left: -2px; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .frame-scale { top: -32px; right: -2px; background: var(--panel); color: var(--ink); }
 
-.map-hint {
+/* Foot of the map: the hint, progress messages and the Create button. */
+.map-foot {
   position: absolute;
   left: 50%;
-  bottom: 16px;
+  bottom: 14px;
   transform: translateX(-50%);
-  margin: 0;
   z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  pointer-events: none;
+}
+.map-hint, .map-status {
+  margin: 0;
   padding: 8px 16px;
   border-radius: 999px;
   background: rgba(251, 247, 240, .94);
   color: #4f4436;
   font-size: 13px;
-  pointer-events: none;
   text-align: center;
-  max-width: calc(100% - 32px);
 }
+.map-status.error { background: #fbe9e4; color: #a1301f; border-radius: 14px; }
+.map-generate { width: auto; min-width: 220px; padding: 10px 28px; pointer-events: auto; box-shadow: 0 4px 14px rgba(46, 39, 35, .35); }
 
 /* MapLibre controls, restyled to match */
 .maplibregl-ctrl-group { border-radius: 12px !important; box-shadow: 0 2px 8px rgba(46, 39, 35, .15) !important; background: var(--panel) !important; }
@@ -366,6 +376,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   .frame-size { top: 8px; left: 8px; }
   .frame-scale { top: auto; bottom: 8px; right: 8px; }
   .not-phone { display: none; }
+  .map-foot { bottom: 8px; gap: 6px; }
+  .map-generate { min-height: 42px; min-width: 190px; padding: 8px 22px; }
 
   .panel { flex: 0 0 auto; height: 46%; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
   .step-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: none; padding: 1px; }
