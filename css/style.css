@@ -133,6 +133,10 @@ a:hover { color: var(--ink); }
 .btn.primary.map-generate { width: auto; min-height: 36px; padding: 6px 14px; font-size: .88rem; pointer-events: auto; box-shadow: 0 3px 10px rgba(46, 39, 35, .35); }
 .map-create .map-status { padding: 6px 12px; text-align: left; }
 .map-wrap .maplibregl-ctrl-bottom-left { bottom: 46px; }
+/* The map credits (bottom right) are never covered: they stop short of the
+   Create button and wrap onto more lines instead, and the hint sits above them. */
+.map-wrap .maplibregl-ctrl-bottom-right { max-width: calc(100% - 175px); }
+.map-foot { bottom: 46px; }
 
 /* MapLibre controls, restyled to match */
 .maplibregl-ctrl-group { border-radius: 12px !important; box-shadow: 0 2px 8px rgba(46, 39, 35, .15) !important; background: var(--panel) !important; }
@@ -380,8 +384,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   .frame-size { top: 8px; left: 8px; }
   .frame-scale { top: auto; bottom: 8px; right: 8px; }
   .not-phone { display: none; }
-  .map-create { left: 8px; bottom: 8px; }
-  .map-wrap .maplibregl-ctrl-bottom-left { bottom: 42px; }
+  /* Phones: the map credits keep the whole bottom row, and the Create button
+     sits just above them (--credits-h is measured in app.js). The map's own
+     scale is hidden: the frame's label already gives the distance. */
+  .map-create { left: 8px; bottom: calc(var(--credits-h, 34px) + 6px); }
+  .map-wrap .maplibregl-ctrl-bottom-right { max-width: calc(100% - 8px); }
+  .map-wrap .maplibregl-ctrl-scale { display: none; }
 
   .panel { flex: 0 0 auto; height: 46%; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
   .step-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: none; padding: 1px; }
