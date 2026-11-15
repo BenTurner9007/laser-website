@@ -359,8 +359,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .about p { margin: 0 0 6px; max-width: 900px; }
 .phone-credits .about summary, .phone-credits .about { color: #e8d9bf; }
 
-/* Step tabs, Back / Next buttons and credits in the last card: phones only (below). */
-.step-tabs, .step-nav, .phone-credits { display: none; }
+/* Step list, Back / Next buttons, credits in the last card and the menu button: phones only (below). */
+.step-tabs, .step-nav, .phone-credits, .nav-toggle { display: none; }
 
 /* Phones: the map fills the top of the screen and never scrolls away; the
    steps are cards in a strip below it, swiped sideways (or picked from the
@@ -372,12 +372,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   body[data-page] { height: 100vh; height: 100dvh; overflow: hidden; overscroll-behavior: none; }
   .site-header { flex-wrap: nowrap; gap: 10px; padding: 8px 12px; }
   .brand { gap: 8px; min-width: 0; flex: none; }
-  .brand-logo { height: 34px; border-radius: 8px; }
+  .brand-logo { border-radius: 8px; }
   .brand-title, .tagline { display: none; } /* the logo says who we are; room for the product links */
-  .site-nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; min-width: 0; }
-  .site-nav::-webkit-scrollbar { display: none; }
-  .site-nav a { padding: 5px 9px; font-size: .78rem; white-space: nowrap; }
-  .site-nav { gap: 4px; }
+  /* One menu button for the product pages; the links drop down from it. */
+  .site-header { position: relative; padding: 6px 12px; }
+  .brand-logo { height: 30px; }
+  .nav-toggle { display: block; font: inherit; font-size: .85rem; font-weight: 600; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; }
+  .site-nav { display: none; position: absolute; top: calc(100% - 2px); right: 12px; z-index: 20; flex-direction: column; gap: 4px; padding: 8px; border-radius: 14px; background: var(--panel); box-shadow: 0 8px 24px rgba(46, 39, 35, .3); }
+  .site-header.nav-open .site-nav { display: flex; }
+  .site-nav a { padding: 9px 16px; font-size: .92rem; white-space: nowrap; }
+  /* Pinch to zoom on touch screens: no + and - buttons (the padlock stays). */
+  .map-wrap .maplibregl-ctrl-group:has(.maplibregl-ctrl-zoom-in) { display: none; }
+  .frame-size, .frame-scale { font-size: 11px; padding: 2px 7px; }
   .owner-badge { display: none; }
   .layout { display: flex; flex-direction: column; gap: 8px; padding: 0 10px 8px; }
   .map-wrap { flex: 1 1 auto; min-height: 180px; border-radius: 14px; }
@@ -391,23 +397,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   .map-wrap .maplibregl-ctrl-bottom-right { max-width: calc(100% - 8px); }
   .map-wrap .maplibregl-ctrl-scale { display: none; }
 
-  .panel { flex: 0 0 auto; height: 46%; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
-  .step-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: none; padding: 1px; }
-  .step-tabs::-webkit-scrollbar { display: none; }
-  .step-tab {
-    flex: none;
-    font: inherit;
-    font-size: .82rem;
-    padding: 6px 12px;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    background: var(--panel);
-    color: var(--ink);
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  .step-tab .num { font-size: .78rem; }
-  .step-tab[aria-current] { background: var(--ink); border-color: var(--ink); color: var(--panel); }
+  .panel { flex: 0 0 auto; height: 46%; display: flex; flex-direction: column; gap: 6px; }
+  /* The list of all steps: opens over the card from the middle button of the row below. */
+  .panel { position: relative; }
+  .step-tabs.open { display: flex; flex-direction: column; gap: 4px; position: absolute; left: 0; right: 0; bottom: 50px; z-index: 10; max-height: calc(100% - 56px); overflow-y: auto; padding: 8px; border-radius: 14px; background: var(--panel); box-shadow: 0 -6px 24px rgba(46, 39, 35, .3); }
+  .step-tab { font: inherit; font-size: .92rem; text-align: left; padding: 9px 12px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--ink); cursor: pointer; }
+  .step-tab .num { margin-right: 6px; }
+  .step-tab[aria-current] { background: var(--ink); color: var(--panel); }
   .step-tab[aria-current] .num { color: #e08a55; }
   .steps {
     position: relative;
@@ -425,9 +421,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   /* Back / Next under the cards: move between steps without swiping. */
   .step-nav { display: flex; gap: 8px; flex: none; }
   .step-nav .btn { min-height: 42px; padding: 8px 12px; font-size: .9rem; }
-  .step-nav .step-prev { flex: none; }
-  .step-nav .step-prev:disabled { opacity: .4; cursor: default; }
-  .step-nav .step-next { flex: 1; min-width: 0; background: var(--ink); border-color: var(--ink); color: var(--panel); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .step-nav .step-prev, .step-nav .step-next { flex: none; }
+  .step-nav .btn:disabled { opacity: .4; cursor: default; }
+  .step-nav .step-next { background: var(--ink); border-color: var(--ink); color: var(--panel); font-weight: 600; }
+  .step-nav .step-here { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+  .step-nav .step-count { color: var(--accent); font-weight: 500; margin-right: 4px; }
   /* A swipe at the first or last card doesn't carry on into the browser's
      back / forward gesture (where the browser allows it to be stopped). */
   html:has(body[data-page]), body[data-page] { overscroll-behavior-x: none; }

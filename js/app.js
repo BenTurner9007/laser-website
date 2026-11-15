@@ -8,6 +8,7 @@ import { WATER_KINDS, ROAD_KINDS, fetchWater, fetchSea, fetchRoads, fetchCoastOv
 
 // Which product page this is (body data-page): it only offers its own sizes.
 const PAGE = CONFIG.pages?.[document.body.dataset.page] ? document.body.dataset.page : "maps";
+const PHONE = matchMedia("(max-width: 820px)").matches; // the phone layout (see style.css)
 const PAGE_INFO = CONFIG.pages?.[PAGE] || { title: "Contour Map Designer", sizes: CONFIG.sizes.map((s) => s.id) };
 // A link for a board made on another page (e.g. an older link to a clock on
 // the maps page) goes to that page, with the same design.
@@ -312,6 +313,20 @@ $("#brand-tagline").textContent = PAGE_INFO.tagline || CONFIG.tagline;
 $("#site-nav").innerHTML = Object.entries(CONFIG.pages || {})
   .map(([id, p]) => `<a href="${p.path}${ETSY ? "?etsy=1" : ""}"${id === PAGE ? ' aria-current="page"' : ""}>${p.nav}</a>`)
   .join("") + `<a href="guide.html" class="nav-guide">How to</a>`;
+// Phones: the product links fold into one menu button naming this page.
+{
+  const toggle = $("#nav-toggle"), head = $(".site-header");
+  toggle.innerHTML = `${escapeHtml(PAGE_INFO.nav || "Menu")} <span aria-hidden="true">▾</span>`;
+  const setOpen = (on) => {
+    head.classList.toggle("nav-open", on);
+    toggle.setAttribute("aria-expanded", on);
+  };
+  toggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setOpen(!head.classList.contains("nav-open"));
+  });
+  document.addEventListener("click", (e) => !e.target.closest("#site-nav") && setOpen(false));
+}
 
 // ---------- Map ----------
 const demSource = new mlcontour.DemSource({ url: DEM.url, encoding: "terrarium", maxzoom: MAP_DEM_MAXZOOM, worker: true });
@@ -484,7 +499,9 @@ const map = new maplibregl.Map({
         layout: {
           "text-field": ["format", ["get", "name"], { "font-scale": 1 }, "\n", {}, ["concat", ["to-string", ["get", "h"]], " m"], { "font-scale": 0.8 }],
           "text-font": FONT_BOLD,
-          "text-size": 12,
+          // Phones: smaller names with more space round each, so fewer crowd the frame.
+          "text-size": PHONE ? 10.5 : 12,
+          "text-padding": PHONE ? 10 : 2,
           "text-offset": [0, 0.8],
           "text-anchor": "top",
           "symbol-sort-key": ["-", ["get", "h"]],
@@ -2548,10 +2565,22 @@ if (params.has("ref") && state.sharedBounds) {
   nav.className = "step-nav";
   nav.innerHTML =
     '<button type="button" class="btn step-prev" aria-label="Previous step">‹ Back</button>' +
-    '<button type="button" class="btn step-next"></button>';
+    '<button type="button" class="btn step-here" aria-expanded="false" aria-controls="step-tabs" title="All steps"></button>' +
+    '<button type="button" class="btn step-next" aria-label="Next step">Next ›</button>';
   strip.after(nav);
   const prevBtn = nav.querySelector(".step-prev"), nextBtn = nav.querySelector(".step-next");
   let current = 0;
+  // The middle button names this step and opens the list of all steps (the tabs).
+  const hereBtn = nav.querySelector(".step-here");
+  const openList = (on) => {
+    tabs.classList.toggle("open", on);
+    hereBtn.setAttribute("aria-expanded", on);
+  };
+  hereBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openList(!tabs.classList.contains("open"));
+  });
+  document.addEventListener("click", () => openList(false));
   prevBtn.addEventListener("click", () => goTo(shown()[current - 1]));
   nextBtn.addEventListener("click", () => goTo(shown()[current + 1]));
   const renderTabs = () => {
@@ -2573,11 +2602,10 @@ if (params.has("ref") && state.sharedBounds) {
     current = i;
     prevBtn.disabled = i === 0;
     const next = steps[i + 1];
-    nextBtn.hidden = !next;
-    if (next) nextBtn.innerHTML = `Next: ${escapeHtml(name(next))} ›`;
+    nextBtn.disabled = !next;
+    hereBtn.innerHTML = `<span class="step-count">${i + 1} of ${steps.length}</span> ${escapeHtml(name(steps[i]))} <span aria-hidden="true">▾</span>`;
     [...tabs.children].forEach((b, j) => {
       const on = j === i;
-      if (on && !b.hasAttribute("aria-current")) tabs.scrollTo({ left: b.offsetLeft - (tabs.clientWidth - b.offsetWidth) / 2, behavior: "smooth" });
       if (on) b.setAttribute("aria-current", "step");
       else b.removeAttribute("aria-current");
     });
