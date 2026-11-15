@@ -610,7 +610,7 @@ function frameRect() {
   }
   const margin = box.width < 600 ? 28 : 56;
   // Room at the foot of the map for the hint and the Create button.
-  const foot = box.width < 600 ? 34 : 56;
+  const foot = box.width < 600 ? 24 : 40;
   const scale = Math.min((box.width - margin * 2) / state.w, (box.height - margin * 2 - 30 - foot) / state.h);
   const fw = state.w * scale, fh = state.h * scale;
   return { x: (box.width - fw) / 2, y: (box.height - foot - fh) / 2, w: fw, h: fh, cw: box.width, ch: box.height };
