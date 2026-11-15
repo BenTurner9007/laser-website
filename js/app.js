@@ -609,9 +609,11 @@ function frameRect() {
     return { x: c.x - w / 2, y: c.y - h / 2, w, h, cw: box.width, ch: box.height };
   }
   const margin = box.width < 600 ? 28 : 56;
-  const scale = Math.min((box.width - margin * 2) / state.w, (box.height - margin * 2 - 30) / state.h);
+  // Room at the foot of the map for the hint and the Create button.
+  const foot = box.width < 600 ? 44 : 64;
+  const scale = Math.min((box.width - margin * 2) / state.w, (box.height - margin * 2 - 30 - foot) / state.h);
   const fw = state.w * scale, fh = state.h * scale;
-  return { x: (box.width - fw) / 2, y: (box.height - fh) / 2, w: fw, h: fh, cw: box.width, ch: box.height };
+  return { x: (box.width - fw) / 2, y: (box.height - foot - fh) / 2, w: fw, h: fh, cw: box.width, ch: box.height };
 }
 
 function layoutFrame() {
@@ -1034,7 +1036,26 @@ function setStatus(msg, kind = "") {
   const el = $("#status");
   el.textContent = msg;
   el.className = `status ${kind}`;
+  // The same message on the map, by the Create button there.
+  const onMap = $("#map-status");
+  onMap.textContent = msg;
+  onMap.className = `map-status ${kind}`;
+  onMap.hidden = !msg;
 }
+// How tall the map credits are (they can wrap on narrow screens), so the
+// Create button can sit just above them on phones and never cover them.
+{
+  const wrap = $(".map-wrap"), credits = wrap.querySelector(".maplibregl-ctrl-attrib");
+  const measure = () => wrap.style.setProperty("--credits-h", `${Math.ceil(wrap.getBoundingClientRect().bottom - credits.getBoundingClientRect().top)}px`);
+  if (credits) {
+    new ResizeObserver(measure).observe(credits);
+    new ResizeObserver(measure).observe(wrap);
+    measure();
+  }
+}
+// The Create button on the map does the same as the one in the last step.
+$("#map-generate").addEventListener("click", () => $("#generate").click());
+new MutationObserver(() => ($("#map-generate").disabled = $("#generate").disabled)).observe($("#generate"), { attributes: true, attributeFilter: ["disabled"] });
 
 function peaksInFrame(b) {
   const inside = ([lng, lat]) => lng >= b.west && lng <= b.east && lat >= b.south && lat <= b.north;

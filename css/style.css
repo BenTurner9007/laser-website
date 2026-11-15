@@ -103,22 +103,40 @@ a:hover { color: var(--ink); }
 .frame-size { top: -32px; left: -2px; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .frame-scale { top: -32px; right: -2px; background: var(--panel); color: var(--ink); }
 
-.map-hint {
+/* Foot of the map: the hint, progress messages and the Create button. */
+.map-foot {
   position: absolute;
   left: 50%;
-  bottom: 16px;
+  bottom: 14px;
   transform: translateX(-50%);
-  margin: 0;
   z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  pointer-events: none;
+}
+.map-hint, .map-status {
+  margin: 0;
   padding: 8px 16px;
   border-radius: 999px;
   background: rgba(251, 247, 240, .94);
   color: #4f4436;
   font-size: 13px;
-  pointer-events: none;
   text-align: center;
-  max-width: calc(100% - 32px);
 }
+.map-status.error { background: #fbe9e4; color: #a1301f; border-radius: 14px; }
+/* The Create button: bottom left of the map (the map's scale sits above it). */
+.map-create { position: absolute; left: 10px; bottom: 10px; z-index: 3; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 20px); pointer-events: none; }
+.btn.primary.map-generate { width: auto; min-height: 36px; padding: 6px 14px; font-size: .88rem; pointer-events: auto; box-shadow: 0 3px 10px rgba(46, 39, 35, .35); }
+.map-create .map-status { padding: 6px 12px; text-align: left; }
+.map-wrap .maplibregl-ctrl-bottom-left { bottom: 46px; }
+/* The map credits (bottom right) are never covered: they stop short of the
+   Create button and wrap onto more lines instead, and the hint sits above them. */
+.map-wrap .maplibregl-ctrl-bottom-right { max-width: calc(100% - 175px); }
+.map-foot { bottom: 46px; }
 
 /* MapLibre controls, restyled to match */
 .maplibregl-ctrl-group { border-radius: 12px !important; box-shadow: 0 2px 8px rgba(46, 39, 35, .15) !important; background: var(--panel) !important; }
@@ -366,6 +384,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   .frame-size { top: 8px; left: 8px; }
   .frame-scale { top: auto; bottom: 8px; right: 8px; }
   .not-phone { display: none; }
+  /* Phones: the map credits keep the whole bottom row, and the Create button
+     sits just above them (--credits-h is measured in app.js). The map's own
+     scale is hidden: the frame's label already gives the distance. */
+  .map-create { left: 8px; bottom: calc(var(--credits-h, 34px) + 6px); }
+  .map-wrap .maplibregl-ctrl-bottom-right { max-width: calc(100% - 8px); }
+  .map-wrap .maplibregl-ctrl-scale { display: none; }
 
   .panel { flex: 0 0 auto; height: 46%; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
   .step-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: none; padding: 1px; }
