@@ -627,10 +627,13 @@ function frameRect() {
   }
   const margin = box.width < 600 ? 28 : 56;
   // Room at the foot of the map for the hint and the Create button.
-  const foot = box.width < 600 ? 44 : 64;
-  const scale = Math.min((box.width - margin * 2) / state.w, (box.height - margin * 2 - 30 - foot) / state.h);
+  const foot = box.width < 600 ? 16 : 64;
+  // Phones: the map credits are along the top; the frame starts below them.
+  const credits = PHONE ? document.querySelector(".map-wrap .maplibregl-ctrl-attrib") : null;
+  const head = credits ? Math.max(0, credits.getBoundingClientRect().bottom - box.top - margin + 6) : 0;
+  const scale = Math.min((box.width - margin * 2) / state.w, (box.height - margin * 2 - 30 - foot - head) / state.h);
   const fw = state.w * scale, fh = state.h * scale;
-  return { x: (box.width - fw) / 2, y: (box.height - foot - fh) / 2, w: fw, h: fh, cw: box.width, ch: box.height };
+  return { x: (box.width - fw) / 2, y: head + (box.height - head - foot - fh) / 2, w: fw, h: fh, cw: box.width, ch: box.height };
 }
 
 function layoutFrame() {
@@ -1059,16 +1062,11 @@ function setStatus(msg, kind = "") {
   onMap.className = `map-status ${kind}`;
   onMap.hidden = !msg;
 }
-// How tall the map credits are (they can wrap on narrow screens), so the
-// Create button can sit just above them on phones and never cover them.
+// Phones: the map credits sit at the top left (see style.css) and can wrap
+// on narrow screens, so the frame is laid out again when their size changes.
 {
-  const wrap = $(".map-wrap"), credits = wrap.querySelector(".maplibregl-ctrl-attrib");
-  const measure = () => wrap.style.setProperty("--credits-h", `${Math.ceil(wrap.getBoundingClientRect().bottom - credits.getBoundingClientRect().top)}px`);
-  if (credits) {
-    new ResizeObserver(measure).observe(credits);
-    new ResizeObserver(measure).observe(wrap);
-    measure();
-  }
+  const credits = $(".map-wrap .maplibregl-ctrl-attrib");
+  if (credits) new ResizeObserver(() => !lockedBounds && layoutFrame()).observe(credits);
 }
 // The Create button on the map does the same as the one in the last step.
 $("#map-generate").addEventListener("click", () => $("#generate").click());

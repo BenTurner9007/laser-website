@@ -390,11 +390,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   .frame-size { top: 8px; left: 8px; }
   .frame-scale { top: auto; bottom: 8px; right: 8px; }
   .not-phone { display: none; }
-  /* Phones: the map credits keep the whole bottom row, and the Create button
-     sits just above them (--credits-h is measured in app.js). The map's own
-     scale is hidden: the frame's label already gives the distance. */
-  .map-create { left: 8px; bottom: calc(var(--credits-h, 34px) + 6px); }
-  .map-wrap .maplibregl-ctrl-bottom-right { max-width: calc(100% - 8px); }
+  /* Phones: the Create button is in the bottom left corner and the map
+     credits are at the top left, beside the padlock, so neither covers the
+     other. The map's own scale is hidden: the frame's label gives the distance. */
+  .map-create { left: 8px; bottom: 8px; }
+  .map-wrap .maplibregl-ctrl-bottom-right { top: 0; bottom: auto; left: 0; right: auto; max-width: calc(100% - 58px); }
+  .map-wrap .maplibregl-ctrl-bottom-right .maplibregl-ctrl { margin: 8px 0 0 8px; float: left; }
   .map-wrap .maplibregl-ctrl-scale { display: none; }
 
   .panel { flex: 0 0 auto; height: 46%; display: flex; flex-direction: column; gap: 6px; }
