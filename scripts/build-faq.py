@@ -35,8 +35,9 @@ QA = [
      "Maps come in A4 (210 × 297 mm) and A3 (297 × 420 mm), portrait or landscape, as an A4 round (210 mm across), or in a shape you draw yourself round the area you want. "
      "Clocks are 305 mm across, coasters about 100 mm and bookmarks about 50 × 169 mm."),
     ("About the maps", "What wood are the maps made from?",
-     "The maps are laser-cut from plywood. You can choose from poplar, birch-faced poplar, maple-faced poplar, birch and ceiba plywood, in several thicknesses. "
-     "Coasters and bookmarks are made in 2 mm ceiba plywood. Wood is a natural material, so grain and colour vary from piece to piece."),
+     "Layered contour maps are laser-cut from 2 mm ceiba plywood, so each layer is 2 mm thick. "
+     "Single engraved boards can be made in poplar, birch-faced poplar, maple-faced poplar, birch or ceiba plywood, and coasters and bookmarks are made in 2 mm ceiba plywood. "
+     "Wood is a natural material, so grain and colour vary from piece to piece."),
     ("About the maps", "Are the maps Ordnance Survey maps?",
      "No, the maps are not Ordnance Survey maps. They are made from open data: heights from open terrain data, hill names from the Database of British and Irish Hills, "
      "and rivers, lakes, roads, paths and place names from OpenStreetMap. The full credits are on our <a href=\"licences.html\">data licences</a> page. "
@@ -76,7 +77,7 @@ QA = [
      "Yes, you can order through our Etsy shop. Design your piece on our website and press Save my design to get a short design code, "
      "then paste the code into the personalisation box when you buy the matching listing on Etsy."),
     ("Ordering", "How much does a map cost?",
-     "The price depends on the size, the number of layers and the wood you choose. "
+     "The price depends on the size, the number of layers and, for engraved boards, the wood you choose. "
      "We confirm the price by email when we reply to your design request, before anything is made."),
     ("Ordering", "Does the designer work on a phone?",
      "Yes, the designer works on phones, tablets and computers. On a phone the map stays at the top of the screen while you move through the steps below it."),

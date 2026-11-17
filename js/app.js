@@ -1370,19 +1370,21 @@ function fillThicknesses() {
 fillThicknesses();
 $("#material").addEventListener("change", fillThicknesses);
 
-// Sizes always made in one wood (coasters, bookmarks: size.material and
-// size.thicknessMm) set it and hide the choice; the customer's own choice is
-// put back for other sizes. The selects stay enabled so the order form still
-// sends the wood.
+// Designs always made in one wood set it and hide the choice: layered maps
+// (CONFIG.layeredWood) and sizes with their own wood (coasters, bookmarks:
+// size.material and size.thicknessMm). The customer's own choice is put back
+// for other designs. The selects stay enabled so the order form still sends
+// the wood.
 let ownWood = null;
 function applyFixedWood() {
   const size = CONFIG.sizes.find((s) => s.id === lastResult?.sizeId);
-  const fixed = size?.material && MATERIALS.materials.find((m) => m.name === size.material);
+  const wood = size?.material ? { material: size.material, thicknessMm: size.thicknessMm } : lastResult?.meta.style === "layered" ? CONFIG.layeredWood : null;
+  const fixed = wood?.material && MATERIALS.materials.find((m) => m.name === wood.material);
   if (fixed) {
     ownWood ??= { material: $("#material").value, thickness: $("#thickness").value };
     $("#material").value = fixed.name;
     fillThicknesses();
-    if (size.thicknessMm && fixed.thicknesses.some((t) => t.mm === size.thicknessMm)) $("#thickness").value = String(size.thicknessMm);
+    if (wood.thicknessMm && fixed.thicknesses.some((t) => t.mm === wood.thicknessMm)) $("#thickness").value = String(wood.thicknessMm);
   } else if (ownWood) {
     $("#material").value = ownWood.material;
     fillThicknesses();
