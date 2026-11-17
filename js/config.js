@@ -85,7 +85,7 @@ export const CONFIG = {
     // from the shape; its longest side is chosen from 20–50 cm).
     { id: "custom", label: "Draw your own shape", w: 300, h: 300, template: "custom", custom: true },
     { id: "circle-a4", label: "A4 round (Ø210 mm)", w: 210, h: 210, template: "data/templates/circle-a4.json", frame: true },
-    // Hexagon: on layered maps the map sits on a flat base board 15 mm wider
+    // Hexagon: on layered maps the map sits on a flat base board 25 mm wider
     // all round (the template's plinth; see scripts/build-templates.py).
     { id: "hexagon", label: "Hexagon (300 mm)", w: 300, h: 259.81, template: "data/templates/hexagon.json" },
     // Clocks are single engraved boards for now; remove engravedOnly to offer
