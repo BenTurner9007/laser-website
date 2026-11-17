@@ -14,8 +14,13 @@ inner shapes are for:
   engrave     layers whose shapes are engraved (e.g. clock numbers); a small
               circle at the board's centre on these layers is a hole instead
 
+Shapes that need no DXF are drawn here instead (SHAPES below): the
+hexagon is a regular hexagon with flat top and bottom.
+
 Output (mm, origin at the outline's top-left corner, y down):
-  { name, w, h, outline: ring, holes: [ring], mapArea: ring | null, engrave: [ring] }
+  { name, w, h, outline: ring, holes: [ring], mapArea: ring | null, engrave: [ring], plinth?: true }
+plinth: on layered maps the map area is a raised flat slab of its own on a
+wider base board (so the plain border round it is a step lower).
 """
 
 import json
@@ -35,6 +40,12 @@ TEMPLATES = [
     {"id": "coaster-round", "dxf": "coaster-round.dxf", "name": "Round coaster", "inner": "holes"},
     {"id": "coaster-square", "dxf": "coaster-square.dxf", "name": "Square coaster", "inner": "map-area", "border_mm": 2},
     {"id": "coaster-rounded-square", "dxf": "coaster-rounded-square.dxf", "name": "Rounded square coaster", "inner": "map-area", "border_mm": 2},
+]
+
+# Drawn shapes: a regular hexagon `across` mm corner to corner, the map area
+# a smaller hexagon `border_mm` in from each edge.
+SHAPES = [
+    {"id": "hexagon", "name": "Hexagon", "across": 300, "border_mm": 25, "plinth": True},
 ]
 
 FLATTEN_MM = 0.03
@@ -120,6 +131,21 @@ def build(spec):
     print(f"{spec['id']}: {data['w']} x {data['h']} mm, {len(holes)} holes, map area: {'yes' if map_area else 'no'}, {len(engrave)} engraved rings")
 
 
+def hexagon(spec):
+    r = spec["across"] / 2  # corner radius
+    w, h = 2 * r, math.sqrt(3) * r
+    ring = lambda rr: [[round(w / 2 + rr * math.cos(math.radians(a)), 3), round(h / 2 + rr * math.sin(math.radians(a)), 3)] for a in range(0, 360, 60)]
+    inner = r - spec["border_mm"] / math.cos(math.radians(30))  # same border on every edge
+    data = {"name": spec["name"], "w": round(w, 2), "h": round(h, 2), "outline": ring(r), "holes": [], "mapArea": ring(inner), "engrave": [], "plinth": spec.get("plinth", False)}
+    (OUT / f"{spec['id']}.json").write_text(json.dumps(data, separators=(",", ":")))
+    print(f"{spec['id']}: {data['w']} x {data['h']} mm, border {spec['border_mm']} mm")
+
+
 if __name__ == "__main__":
-    for spec in TEMPLATES:
-        build(spec)
+    import sys
+
+    for spec in SHAPES:
+        hexagon(spec)
+    if "--shapes" not in sys.argv:  # --shapes: just the drawn shapes (no ezdxf needed)
+        for spec in TEMPLATES:
+            build(spec)
