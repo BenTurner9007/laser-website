@@ -45,7 +45,7 @@ TEMPLATES = [
 # Drawn shapes: a regular hexagon `across` mm corner to corner, the map area
 # a smaller hexagon `border_mm` in from each edge.
 SHAPES = [
-    {"id": "hexagon", "name": "Hexagon", "across": 300, "border_mm": 15, "plinth": True},
+    {"id": "hexagon", "name": "Hexagon", "across": 300, "border_mm": 25, "plinth": True},
 ]
 
 FLATTEN_MM = 0.03
