@@ -68,6 +68,11 @@ export const CONFIG = {
   },
 
   // Board sizes offered to customers, in millimetres.
+  // Layered (stacked) maps are always made in this wood and thickness (a
+  // name from data/materials.json); the order form hides the wood choice.
+  // Remove it to let customers choose again.
+  layeredWood: { material: "Ceiba plywood", thicknessMm: 2 },
+
   sizes: [
     // frame: true offers the optional frame on single engraved boards (frameMm below).
     { id: "a4p", label: "A4 portrait", w: 210, h: 297, frame: true },
