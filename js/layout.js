@@ -926,6 +926,11 @@ export async function buildLayout(o, onProgress) {
   // along the coastline, so the sea is the bare base board.
   const coastLayer = sea?.sea && sea.land && o.contours !== false && o.style !== "engraved" && !(levels[0] <= COAST_LEVEL_M);
   if (coastLayer) levels.unshift(COAST_LEVEL_M);
+  // Boards with a plinth (the hexagon): on layered maps the whole map area is
+  // a flat slab of its own, one layer up from a wider base board, so the
+  // plain border round the map is a step lower than the lowest ground.
+  const plinthLevel = o.template?.plinth && o.template.mapArea && o.contours !== false && o.style !== "engraved" ? minE - 1 : null;
+  if (plinthLevel != null) levels.unshift(plinthLevel);
   // Hundreds of layers would freeze the page (and can't sensibly be made).
   if (levels.length > MAX_LEVELS) {
     const need = (maxE - minE) / MAX_LEVELS;
@@ -942,6 +947,7 @@ export async function buildLayout(o, onProgress) {
   // Layer 0 is the base board; layer i>0 is the area at or above levels[i-1].
   const layers = [{ elevation: Math.round(minE), d: outline, polys: boardPolys }].concat(
     contours.map((c) => {
+      if (c.value === plinthLevel) return { elevation: Math.round(minE), d: polygonsToPath(tpl.mapRegion), polys: tpl.mapRegion, plinth: true };
       let polys = cleanPolygons(c, sx, sy);
       if (tpl) polys = clip("intersection", polys, tpl.mapRegion);
       return { elevation: c.value, d: polygonsToPath(polys), polys, ...(coastLayer && c.value === COAST_LEVEL_M ? { coast: true } : {}) };
@@ -1814,7 +1820,7 @@ export async function buildLayout(o, onProgress) {
         assembled += `<g inkscape:groupmode="layer" inkscape:label="Board${extra ? ` ${k + 1} of ${extra + 1}` : ""}"${k ? ` transform="translate(${k * (W + 10)} 0)"` : ""}>\n${board}</g>\n`;
     } else {
       layers.forEach((l, i) => {
-        const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.coast ? "coastline" : `${l.elevation} m`})`;
+        const name = i === 0 ? `Layer 00 base (${l.elevation} m)` : `Layer ${String(i).padStart(2, "0")} (${l.plinth ? "map slab" : l.coast ? "coastline" : `${l.elevation} m`})`;
         assembled += `<g inkscape:groupmode="layer" inkscape:label="${name}" id="layer-${i}">\n`;
         for (const p of pieces[i]) assembled += `<g id="piece-${p.id}" inkscape:label="Piece ${p.id}">\n${pieceContent(p)}</g>\n`;
         assembled += "</g>\n";
