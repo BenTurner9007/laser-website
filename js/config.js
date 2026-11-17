@@ -36,7 +36,7 @@ export const CONFIG = {
     guide: {
       // Which listing each board size belongs to, by style.
       products: [
-        { sizes: ["a4p", "a4l", "a3p", "a3l", "circle-a4", "custom"], layered: "Layered contour map", engraved: "Engraved contour map" },
+        { sizes: ["a4p", "a4l", "a3p", "a3l", "circle-a4", "hexagon", "custom"], layered: "Layered contour map", engraved: "Engraved contour map" },
         { sizes: ["clock305"], layered: "Layered contour clock", engraved: "Engraved contour clock" },
         { sizes: ["coaster-round", "coaster-square", "coaster-rounded"], engraved: "Contour coaster" }, // options: Size, Quantity
         { sizes: ["bookmark"], engraved: "Contour bookmark" },
@@ -58,7 +58,7 @@ export const CONFIG = {
   // scripts/build-pages.py into their own folders (clocks/, coasters/, bookmarks/).
   pages: {
     maps: { nav: "Maps", path: "./", title: "Contour Map Designer", tagline: "Laser-cut contour maps of the hills you love",
-      sizes: ["a4p", "a4l", "a3p", "a3l", "circle-a4", "custom"] },
+      sizes: ["a4p", "a4l", "a3p", "a3l", "circle-a4", "hexagon", "custom"] },
     clocks: { nav: "Clocks", path: "clocks/", title: "Contour Clock Designer", tagline: "A wall clock engraved with the hills you love",
       sizes: ["clock305"] },
     coasters: { nav: "Coasters", path: "coasters/", title: "Contour Coaster Designer", tagline: "Engraved coasters of your favourite hills, singly or in sets",
@@ -85,6 +85,9 @@ export const CONFIG = {
     // from the shape; its longest side is chosen from 20–50 cm).
     { id: "custom", label: "Draw your own shape", w: 300, h: 300, template: "custom", custom: true },
     { id: "circle-a4", label: "A4 round (Ø210 mm)", w: 210, h: 210, template: "data/templates/circle-a4.json", frame: true },
+    // Hexagon: on layered maps the map sits on a flat base board 15 mm wider
+    // all round (the template's plinth; see scripts/build-templates.py).
+    { id: "hexagon", label: "Hexagon (300 mm)", w: 300, h: 259.81, template: "data/templates/hexagon.json" },
     // Clocks are single engraved boards for now; remove engravedOnly to offer
     // layered clocks again (3D numbers and the movement pocket are built in).
     { id: "clock305", label: "Clock 305 mm", w: 305, h: 305, template: "data/templates/clock-305.json", frame: true, recess: true, engravedOnly: true },
