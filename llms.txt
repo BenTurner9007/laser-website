@@ -20,7 +20,7 @@
 ## Facts
 
 - Coverage: Great Britain and Ireland only.
-- Materials: plywood (poplar, birch-faced poplar, maple-faced poplar, birch, ceiba).
+- Materials: layered maps are 2 mm ceiba plywood (each layer 2 mm); engraved boards in poplar, birch-faced poplar, maple-faced poplar, birch or ceiba plywood; coasters and bookmarks in 2 mm ceiba plywood.
 - The maps are decorative, not for navigation, and are not Ordnance Survey maps. They use open data: OpenStreetMap, the Database of British and Irish Hills, and open terrain data.
 - Ordering: design on the website and send a request; the price is confirmed by email before anything is made. Orders can also be placed through Etsy using a design code from the website.
 
