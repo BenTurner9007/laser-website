@@ -86,6 +86,9 @@ const state = {
   places: parsePlaces(params.get("poi")),
   // Customer's own text blocks: { lng, lat, text } (centre of the text).
   texts: parseTexts(params.get("txt")),
+  // Peaks the customer has switched off, by position ("lng,lat" to 5 decimals,
+  // as in data/hills.geojson): no marker or name for them on the layout.
+  hiddenPeaks: new Set((params.get("hp") || "").split(";").filter((k) => /^-?\d{1,3}\.\d{1,5},-?\d{1,2}\.\d{1,5}$/.test(k)).slice(0, 500)),
   placeMm: PLACE_SIZES.some((s) => s.mm === +params.get("psz")) ? +params.get("psz") : PLACE_SIZES[1].mm,
   // Water features to engrave (ids from WATER_KINDS).
   water: params.has("wtr")
@@ -372,10 +375,11 @@ const map = new maplibregl.Map({
       hills: {
         type: "geojson",
         data: WORLD.features,
+        generateId: true, // ids = position in the file, for showing switched-off peaks
         ...(BODY === "earth" ? { attribution: '<a href="https://www.hill-bagging.co.uk/dobih">DoBIH v18.6</a> CC BY 4.0' } : {}),
       },
       // Same data again without labels, so the dots still draw if label fonts fail to load.
-      "hills-pts": { type: "geojson", data: WORLD.features },
+      "hills-pts": { type: "geojson", data: WORLD.features, generateId: true },
       route: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       water: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
       roads: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
@@ -489,7 +493,13 @@ const map = new maplibregl.Map({
         type: "circle",
         source: "hills-pts",
         filter: listFilter(),
-        paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 7, 2.5, 12, 5], "circle-color": "#b9581f", "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 },
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 7, 2.5, 12, 5],
+          // Switched-off peaks: a hollow grey dot.
+          "circle-color": ["case", ["boolean", ["feature-state", "off"], false], "rgba(255,255,255,.6)", "#b9581f"],
+          "circle-stroke-color": ["case", ["boolean", ["feature-state", "off"], false], "#7d7365", "#fff"],
+          "circle-stroke-width": 1.5,
+        },
       },
       {
         id: "hills-labels",
@@ -506,7 +516,12 @@ const map = new maplibregl.Map({
           "text-anchor": "top",
           "symbol-sort-key": ["-", ["get", "h"]],
         },
-        paint: { "text-color": "#2e2723", "text-halo-color": "#fbf7f0", "text-halo-width": 1.5 },
+        paint: {
+          "text-color": ["case", ["boolean", ["feature-state", "off"], false], "#7d7365", "#2e2723"],
+          "text-opacity": ["case", ["boolean", ["feature-state", "off"], false], 0.55, 1],
+          "text-halo-color": "#fbf7f0",
+          "text-halo-width": 1.5,
+        },
       },
       {
         id: "town-dots",
@@ -597,17 +612,54 @@ map.addControl({
 setMapLocked(false);
 
 // Hill popups
-map.on("click", "hills-dots", (e) => {
-  if (drawing) return;
-  const p = e.features[0].properties;
-  const lists = p.lists.split(",").filter(Boolean).map((id) => HILL_LISTS.find((l) => l.id === id)?.label || id).join(", ");
-  new maplibregl.Popup({ offset: 8 })
-    .setLngLat(e.features[0].geometry.coordinates)
-    .setHTML(`<strong>${escapeHtml(p.name)}</strong><br>${p.h} m · ${escapeHtml(p.gr)}<br><small>${escapeHtml(lists)}</small>`)
-    .addTo(map);
+// ---------- Switching single peaks on and off ----------
+// A peak is known by its position, as written in data/hills.geojson.
+const peakKey = ([lng, lat]) => `${(+lng).toFixed(5)},${(+lat).toFixed(5)}`;
+let peakIds = new Map(); // key -> feature index (the map's generated id)
+function paintPeak(key) {
+  const id = peakIds.get(key);
+  if (id == null || !map.getSource("hills")) return;
+  for (const source of ["hills", "hills-pts"]) map.setFeatureState({ source, id }, { off: state.hiddenPeaks.has(key) });
+}
+function setPeakHidden(key, hidden) {
+  if (hidden) state.hiddenPeaks.add(key);
+  else state.hiddenPeaks.delete(key);
+  paintPeak(key);
+  renderPeakList();
+}
+// The map loads the hills itself, so paint switched-off ones once it has them.
+map.on("sourcedata", (e) => {
+  if (e.sourceId === "hills-pts" && e.isSourceLoaded && peakIds.size) for (const key of state.hiddenPeaks) paintPeak(key);
 });
-map.on("mouseenter", "hills-dots", () => (map.getCanvas().style.cursor = "pointer"));
-map.on("mouseleave", "hills-dots", () => (map.getCanvas().style.cursor = ""));
+
+for (const layer of ["hills-dots", "hills-labels"]) {
+  map.on("click", layer, (e) => {
+    if (drawing || shapeDrawing) return;
+    const f = e.features[0], p = f.properties;
+    // The map's copy of a position is rounded a little: take the exact one
+    // from the hill list (the feature's id is its place in the list).
+    const key = peakKey((hillIndex[f.id] || f).geometry.coordinates);
+    const lists = p.lists.split(",").filter(Boolean).map((id) => HILL_LISTS.find((l) => l.id === id)?.label || id).join(", ");
+    const box = document.createElement("div");
+    box.className = "peak-pop";
+    box.innerHTML = `<strong>${escapeHtml(p.name)}</strong><br>${p.h} m${p.gr ? ` · ${escapeHtml(p.gr)}` : ""}<br><small>${escapeHtml(lists)}</small>`;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn peak-toggle";
+    const label = () => (btn.textContent = state.hiddenPeaks.has(key) ? "Show on my layout" : "Leave off my layout");
+    label();
+    btn.addEventListener("click", () => {
+      setPeakHidden(key, !state.hiddenPeaks.has(key));
+      label();
+    });
+    box.append(btn);
+    new maplibregl.Popup({ offset: 8 }).setLngLat(f.geometry.coordinates).setDOMContent(box).addTo(map);
+  });
+}
+for (const layer of ["hills-dots", "hills-labels"]) {
+  map.on("mouseenter", layer, () => (map.getCanvas().style.cursor = "pointer"));
+  map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
+}
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -785,6 +837,8 @@ const hillsReady = fetch(WORLD.features)
   .then((r) => r.json())
   .then((gj) => {
     hillIndex = gj.features;
+    peakIds = new Map(hillIndex.map((f, i) => [peakKey(f.geometry.coordinates), i]));
+    onStyleReady(() => state.hiddenPeaks.forEach(paintPeak));
     const opts = hillIndex
       .slice()
       .sort((a, b) => a.properties.name.localeCompare(b.properties.name))
@@ -1075,7 +1129,7 @@ new MutationObserver(() => ($("#map-generate").disabled = $("#generate").disable
 function peaksInFrame(b) {
   const inside = ([lng, lat]) => lng >= b.west && lng <= b.east && lat >= b.south && lat <= b.north;
   return hillIndex
-    .filter((f) => inside(f.geometry.coordinates) && [...state.lists].some((id) => f.properties.lists.includes(`,${id},`)))
+    .filter((f) => inside(f.geometry.coordinates) && [...state.lists].some((id) => f.properties.lists.includes(`,${id},`)) && !state.hiddenPeaks.has(peakKey(f.geometry.coordinates)))
     .map((f) => ({ name: f.properties.name, h: f.properties.h, lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], osm: f.properties.lists === ",osm," }));
 }
 
@@ -1104,6 +1158,7 @@ function shareLink(b, ref) {
     font: state.fontMm,
     ...(state.placeNames !== "none" ? { pn: state.placeNames, pfont: state.placeFontMm } : {}),
     ...(state.labelBoxes ? { lbox: "1" } : {}),
+    ...(state.hiddenPeaks.size ? { hp: [...state.hiddenPeaks].join(";") } : {}),
     ...(state.scaleBar && scaleBarOffered() ? { sb: "1" } : {}),
     ...(state.labels3d ? { l3d: "1" } : {}),
     ...(state.contours ? {} : { cl: "0" }),
@@ -2544,6 +2599,49 @@ showPlaceNames();
 if (params.has("ref") && state.sharedBounds) {
   onStyleReady(() => setTimeout(() => $("#generate").click(), 400));
 }
+
+// ---------- Peak list: tick the peaks to name, in the Labels section ----------
+// The peaks in the frame (on the chosen hill lists), highest first, each with
+// a tick box. Unticking one leaves its marker and name off the layout.
+const PEAK_LIST_MAX = 150;
+function renderPeakList() {
+  const box = $("#peak-list");
+  if (!box) return;
+  const off = state.hiddenPeaks.size;
+  $("#peak-list-count").textContent = off ? ` (${off} left off)` : "";
+  $("#peak-show-all").hidden = !off;
+  if (!$("#peak-pick").open) return;
+  const b = frameBounds();
+  const inside = ([lng, lat]) => lng >= b.west && lng <= b.east && lat >= b.south && lat <= b.north;
+  const peaks = hillIndex
+    .filter((f) => inside(f.geometry.coordinates) && [...state.lists].some((id) => f.properties.lists.includes(`,${id},`)))
+    .sort((a, c) => (c.properties.h ?? 0) - (a.properties.h ?? 0));
+  if (!peaks.length) {
+    box.innerHTML = `<p class="field-note">No peaks in the frame on the hill lists you've chosen.</p>`;
+    return;
+  }
+  box.innerHTML =
+    peaks
+      .slice(0, PEAK_LIST_MAX)
+      .map((f) => {
+        const key = peakKey(f.geometry.coordinates);
+        return `<label class="check"><input type="checkbox" data-key="${key}"${state.hiddenPeaks.has(key) ? "" : " checked"}> ${escapeHtml(f.properties.name)} <span class="field-note-inline">${f.properties.h} m</span></label>`;
+      })
+      .join("") + (peaks.length > PEAK_LIST_MAX ? `<p class="field-note">Showing the ${PEAK_LIST_MAX} highest of ${peaks.length}. Zoom in, or click a peak on the map, for the others.</p>` : "");
+}
+$("#peak-list")?.addEventListener("change", (e) => {
+  const key = e.target.dataset.key;
+  if (key) setPeakHidden(key, !e.target.checked);
+});
+$("#peak-pick")?.addEventListener("toggle", renderPeakList);
+$("#peak-show-all")?.addEventListener("click", () => {
+  const keys = [...state.hiddenPeaks];
+  state.hiddenPeaks.clear();
+  keys.forEach(paintPeak);
+  renderPeakList();
+});
+map.on("moveend", () => $("#peak-pick")?.open && renderPeakList());
+hillsReady.then(renderPeakList);
 
 // ---------- Phones: the steps as swipeable cards under the map ----------
 // On narrow screens (see style.css) the steps sit side by side in a strip you
