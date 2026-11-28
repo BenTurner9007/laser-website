@@ -264,7 +264,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 }
 .result::backdrop { background: rgba(46, 39, 35, .55); }
 .result h2 { margin: 0 0 14px; font-family: var(--display); font-weight: 600; font-size: 1.6rem; }
-.result-close { position: absolute; top: 10px; right: 10px; }
+.result-close { position: absolute; top: 10px; right: 10px; z-index: 5; }
+.result-back-text { display: none; }
 .result-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; }
 [hidden] { display: none !important; }
 
@@ -447,6 +448,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   .result-grid { grid-template-columns: 1fr; }
   .viewer { height: 52vh; }
   .result { padding: 16px; }
+  /* Phones: a "Back to map" bar pinned to the top while the layout scrolls. */
+  .result-close { position: sticky; top: -16px; right: auto; margin: -16px -16px 8px; padding: 8px 10px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .result-close .btn.ghost { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 10px; font-size: 1rem; font-weight: 600; color: var(--ink); }
+  .result-back-text { display: inline; }
+  .result-x { display: none; }
 }
 /* Short screens (phones held sideways): a little less panel. */
 @media (max-width: 820px) and (max-height: 560px) {
